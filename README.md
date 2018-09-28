@@ -67,7 +67,7 @@ To report a bug or make a request for new features, use the [Issues Page](https:
 We welcome any contributions. Please see the [Developer Guidelines](/CONTRIBUTING.md) for instructions on how to submit changes.
 
 ## Credit & License
-ari-proxy is maintained by the folks at [sipgate](https://www.sipgate.de) and licensed under the terms of the AGPL license.
+ari-proxy is maintained by the folks at [sipgate](https://www.sipgate.de) and licensed under the terms of the [AGPL license](/LICENSE.txt).
 
 Maintainers of this repository:
 

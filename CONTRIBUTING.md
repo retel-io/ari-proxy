@@ -4,7 +4,7 @@ These guidelines are meant to be a living document that should be changed and ad
 ## Steps for Contributing
 This is the process for committing code to the ari-proxy project. There are of course exceptions to these rules, for example minor changes to comments and documentation, fixing a broken build etc.
 
-1. Make sure you have signed the [sipgate CLA](http://www.sipgate.de/contribute/cla).
+1. Make sure you have signed the [retel.io CLA](https://github.com/retel-io/cla).
 2. Before starting to work on a feature or a fix, it's good practice to ensure that:
     1. There is a ticket for your work in the project's [issue tracker](https://github.com/retel-io/ari-proxy/issues);
     2. The ticket has been discussed and prioritized by the team.

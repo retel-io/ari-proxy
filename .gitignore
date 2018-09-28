@@ -1,0 +1,10 @@
+*.iml
+.idea/
+target/
+build/
+.m2/
+debian/ari-proxy*
+debian/debhelper-build-stamp
+debian/files
+!debian/ari-proxy.service
+service.conf

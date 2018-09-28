@@ -1,0 +1,16 @@
+include "application" // note: include default settings
+
+service {
+  name = "ari-proxy-for-some-stasis-app" // optional, default: ari-proxy
+  application = "application-name"
+  asterisk-uri = "localhost:8088"
+  user = "asterisk"
+  password = "asterisk"
+
+  kafka {
+    bootstrap-servers = "localhost:9092"
+    consumer-group = "ari-proxy"
+    commands-topic = "ari-commands-topic"
+    events-and-responses-topic = "ari-eventsandresponses-topic"
+  }
+}

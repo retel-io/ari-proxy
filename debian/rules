@@ -1,0 +1,40 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE=1
+
+USR_INSTALL=root
+GRP_INSTALL=root
+PACKAGE=$(shell dh_listpackages)
+DEB_PREFIX=debian/$(PACKAGE)
+SERVICE_NAME=ari-proxy
+SERVICE_VERSION=0.9.0
+SERVICE_USER=$(SERVICE_NAME)
+SERVICE_GROUP=$(SERVICE_NAME)
+SERVICE_LIB_DIR=$(DEB_PREFIX)/usr/lib/$(SERVICE_NAME)
+
+override_dh_auto_clean:
+override_dh_auto_build:
+override_dh_fixperms:
+override_dh_usrlocal:
+override_dh_strip_nondeterminism:
+
+override_dh_install: copy_package copy_jolokia_agent
+
+%:
+	dh $@ --with-systemd
+
+##########
+# Helper #
+##########
+
+build_package:
+	mvn -B -Dmaven.repo.local=$(PWD)/.m2 clean verify
+
+setup_service_lib_dir:
+	mkdir -p $(SERVICE_LIB_DIR)
+
+copy_package: build_package setup_service_lib_dir
+	cp target/$(SERVICE_NAME)-$(SERVICE_VERSION)-fat.jar $(SERVICE_LIB_DIR)/$(SERVICE_NAME).jar
+
+copy_jolokia_agent: setup_service_lib_dir
+	curl http://search.maven.org/remotecontent?filepath=org/jolokia/jolokia-jvm/1.6.0/jolokia-jvm-1.6.0-agent.jar --output $(SERVICE_LIB_DIR)/jolokia-jvm-1.6.0-agent.jar

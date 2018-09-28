@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="warn">
+    <Appenders>
+        <Console name="STDOUT" target="SYSTEM_OUT">
+            <PatternLayout>
+                <Pattern>%highlight{%d{yyyy-MM-dd/HH:mm:ss,SSS/zzz}{CET} [%p] [%t] %c{1} - %msg%n%throwable}</Pattern>
+            </PatternLayout>
+        </Console>
+        <Async name="Async">
+            <AppenderRef ref="STDOUT"/>
+        </Async>
+    </Appenders>
+    <Loggers>
+        <Logger name="org.apache.kafka" level="INFO" additivity="false">
+            <AppenderRef ref="Async"/>
+        </Logger>
+        <Logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="ERROR" additivity="false">
+            <AppenderRef ref="Async"/>
+        </Logger>
+        <Logger name="org.apache.kafka.clients.producer.ProducerConfig" level="ERROR" additivity="false">
+            <AppenderRef ref="Async"/>
+        </Logger>
+        <Root level="DEBUG">
+            <AppenderRef ref="Async"/>
+        </Root>
+    </Loggers>
+</Configuration>

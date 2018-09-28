@@ -1,0 +1,22 @@
+#!/bin/bash
+
+case "$1" in
+	configure)
+		adduser \
+			--system \
+			--group \
+			--no-create-home \
+			--disabled-password \
+			--disabled-login \
+			--home /usr/lib/ari-proxy \
+			--quiet \
+			ari-proxy
+	;;
+esac
+
+chown root:root /usr/lib/ari-proxy/ari-proxy.jar
+chmod 0644 /usr/lib/ari-proxy/ari-proxy.jar
+chmod 0644 /usr/lib/ari-proxy/jolokia-jvm-1.6.0-agent.jar
+
+chown -R ari-proxy:ari-proxy /var/log/ari-proxy
+chmod 0755 /var/log/ari-proxy

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+case "$1" in
+	remove)
+		deluser ari-proxy
+	;;
+	purge)
+		test -d /etc/ari-proxy && rm -rfv /etc/ari-proxy
+		test -d /var/log/ari-proxy && rm -rfv /var/log/ari-proxy
+	;;
+esac
+
+exit 0;

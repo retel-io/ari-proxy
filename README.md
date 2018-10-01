@@ -3,13 +3,12 @@ Ari-proxy connects [Asterisk](https://www.asterisk.org/), an open source communi
 
 ## Table of contents
 1. [Abstract](#abstract)
-2. [Overview](#overview)
-3. [Getting started](#getting-started)
-4. [Metrics](#metrics)
-5. [Compatibility](#compatibility)
-6. [Contributing & feedback](#contributing-&-feedback)
-7. [Credit & License](#credit-&-license)
-8. [Acknowledgements](#acknowledgements)
+2. [Getting started](#getting-started)
+3. [Metrics](#metrics)
+4. [Compatibility](#compatibility)
+5. [Contributing & feedback](#contributing--feedback)
+6. [Credit & License](#credit--license)
+7. [Acknowledgements](#acknowledgements)
 
 ## Abstract
 The motivation to create ari-proxy arose from the need to build distributed and resilient telephony services scaling up to millions of active users. Ari-proxy makes use of Kafka’s built-in routing concepts to ensure consistency of message streams and proper dispatching to the *call-controller*, the application implementing the service logic.

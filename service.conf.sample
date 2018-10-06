@@ -6,7 +6,7 @@ service {
   asterisk-uri = "localhost:8088"
   user = "asterisk"
   password = "asterisk"
-  httpport = 8085
+  httpport = 8080
 
   kafka {
     bootstrap-servers = "localhost:9092"

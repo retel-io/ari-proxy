@@ -20,8 +20,10 @@ inject_maven_settings:
 
 clean:
 	@echo '[INFO] Cleaning up dpkg build...'
-	rm -rf $(PWD)/debian/ari-proxy*
+	rm -rf $(PWD)/debian/ari-proxy/
+	rm -f $(PWD)/debian/ari-proxy.substvars
 	rm -f $(PWD)/debian/debhelper-build-stamp
+	rm -f $(PWD)/debian/files
 	rm -rf $(PWD)/.m2
 	rm -rf $(PWD)/build
 	@echo '[INFO] Done.'

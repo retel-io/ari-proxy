@@ -6,5 +6,5 @@ build/
 debian/ari-proxy*
 debian/debhelper-build-stamp
 debian/files
-!debian/ari-proxy.service
+!debian/ari-proxy@.service
 service.conf

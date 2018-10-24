@@ -1,5 +1,5 @@
 [Unit]
-Description=ari-proxy
+Description=ari-proxy-%I
 After=network.target
 StartLimitIntervalSec=60
 StartLimitBurst=5
@@ -15,8 +15,8 @@ ExecStart=/usr/bin/java \
 	-Xmx1024m \
 	-Duser.timezone=UTC \
 	-Dfile.encoding=UTF-8 \
-	-Dconfig.file=/etc/ari-proxy/service.conf \
-	-Dlog4j.configurationFile=/etc/ari-proxy/log4j2.xml \
+	-Dconfig.file=/etc/ari-proxy/%i/service.conf \
+	-Dlog4j.configurationFile=/etc/ari-proxy/%i/log4j2.xml \
 	-javaagent:/usr/share/java/ari-proxy/jolokia-jvm-1.6.0-agent.jar \
 	-jar /usr/share/java/ari-proxy/ari-proxy.jar
 

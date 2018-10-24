@@ -53,7 +53,7 @@ Ari-proxy provides service specific metrics using the [micrometer framework](htt
 | metrics:name=CallsStarted       | Counter | Increases for every `StasisStart` event                                                      |
 | metrics:name=CallsEnded         | Counter | Increases for every `StasisEnd` event                                                        |
 
-Note: JMX data may be exposed via HTTP using the [jolokia jvm agent](http://jolokia.org) (see: [debian/ari-proxy.service](/debian/ari-proxy.service)).
+Note: JMX data may be exposed via HTTP using the [jolokia jvm agent](http://jolokia.org) (see: [debian/ari-proxy@.service](/debian/ari-proxy.service)).
 
 ## Compatibility
 We aim for compatibility with the latest stable release of

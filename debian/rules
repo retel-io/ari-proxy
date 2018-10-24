@@ -10,7 +10,7 @@ SERVICE_NAME=ari-proxy
 SERVICE_VERSION=0.9.0
 SERVICE_USER=$(SERVICE_NAME)
 SERVICE_GROUP=$(SERVICE_NAME)
-SERVICE_LIB_DIR=$(DEB_PREFIX)/usr/lib/$(SERVICE_NAME)
+SERVICE_LIB_DIR=$(DEB_PREFIX)/usr/share/java/$(SERVICE_NAME)
 
 override_dh_auto_clean:
 override_dh_auto_build:

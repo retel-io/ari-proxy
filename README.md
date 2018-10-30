@@ -33,10 +33,11 @@ mvn package
 #### Configuration
 ari-proxy expects the following configuration files, which should be passed to the jvm when running the fat-jar:
 
-| config       | optional | purpose                                                                                                                      |
-| ------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| service.conf | no       | configure the service, see our template: [service.conf.sample](/src/main/resources/service.conf.sample)                      |
-| log4j2.xml   | yes      | configure logging (if not specified, [a bundled config](/src/main/resources/log4j2.xml) will be used logging to STDOUT only) |
+| config               | optional | purpose                                                                                                                      |
+| -------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| service.conf         | no       | configure the service, see our template: [service.conf.sample](service.conf.sample)                                          |
+| log4j2.xml           | yes      | configure logging (if not specified, [a bundled config](/src/main/resources/log4j2.xml) will be used logging to STDOUT only) |
+| jolokia.properties   | no       | configure jolokia agent properties, see our template: [jolokia.properties.sample](jolokia.properties.sample)                 |
 
 #### Running
 Run the fat jar:

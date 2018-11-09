@@ -29,7 +29,6 @@ import io.retel.ariproxy.health.api.HealthReport;
 import io.retel.ariproxy.health.api.HealthResponse;
 import io.retel.ariproxy.health.api.ProvideHealthReport;
 import io.retel.ariproxy.health.api.ProvideMonitoring;
-import com.typesafe.config.ConfigFactory;
 import io.vavr.Tuple2;
 import io.vavr.collection.HashMap;
 import io.vavr.concurrent.Future;
@@ -41,11 +40,16 @@ public class HealthService extends AbstractLoggingActor {
 	public static final String ACTOR_NAME = "HealthService";
 	private static final long TIMEOUT_MILLIS = 100;
 	private static final String OK_MESSAGE = "feeling good";
+	private final int httpPort;
 	private CompletionStage<ServerBinding> binding;
 	private HashMap<ActorRef, String> subscriptions = HashMap.empty();
 
-	public static Props props() {
-		return Props.create(HealthService.class);
+	public static Props props(final int httpPort) {
+		return Props.create(HealthService.class, httpPort);
+	}
+
+	private HealthService(final int httpPort) {
+		this.httpPort = httpPort;
 	}
 
 	@Override
@@ -85,19 +89,13 @@ public class HealthService extends AbstractLoggingActor {
 		final Flow<HttpRequest, HttpResponse, NotUsed> routeFlow = createRoute().flow(system, materializer);
 
 		final String address = "0.0.0.0";
-		final int port = ConfigFactory.load()
-				.getConfig("akka")
-				.getConfig("http")
-				.getConfig("server")
-				.getInt("default-http-port");
-
 		final CompletionStage<ServerBinding> binding = http.bindAndHandle(
 				routeFlow,
-				ConnectHttp.toHost(address, port),
+				ConnectHttp.toHost(address, httpPort),
 				materializer
 		);
 
-		log().info("HTTP server online at http://{}:{}/...", address, port);
+		log().info("HTTP server online at http://{}:{}/...", address, httpPort);
 
 		return binding;
 	}

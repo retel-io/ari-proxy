@@ -20,6 +20,7 @@ import akka.stream.javadsl.Source;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
+import io.retel.ariproxy.config.ServiceConfig;
 import java.util.function.Supplier;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
@@ -29,11 +30,11 @@ public class WebsocketMessageToProducerRecordTranslator {
 			.createLogLevels(Logging.InfoLevel(), Logging.InfoLevel(), Logging.ErrorLevel());
 
 	public static ProcessingPipeline<Message, Runnable> eventProcessing() {
-		return system -> applicationReplacedHandler -> callContextProvider -> metricsService -> source -> sink -> () -> run(
-				system, callContextProvider, metricsService, source, sink, applicationReplacedHandler);
+		return config -> system -> applicationReplacedHandler -> callContextProvider -> metricsService -> source -> sink -> () -> run(
+				config, system, callContextProvider, metricsService, source, sink, applicationReplacedHandler);
 	}
 
-	private static ActorMaterializer run(ActorSystem system, ActorRef callContextProvider, ActorRef metricsService,
+	private static ActorMaterializer run(ServiceConfig config, ActorSystem system, ActorRef callContextProvider, ActorRef metricsService,
 			Source<Message, NotUsed> source, Sink<ProducerRecord<String, String>, NotUsed> sink,
 			Runnable applicationReplacedHandler) {
 		final Function<Throwable, Supervision.Directive> supervisorStrategy = t -> {
@@ -48,7 +49,7 @@ public class WebsocketMessageToProducerRecordTranslator {
 		source
 				//.throttle(4 * 13, Duration.ofSeconds(1)) // Note: We die right now for calls/s >= 4.8
 				.wireTap(Sink.foreach(msg -> gatherMetrics(msg, metricsService, callContextProvider)))
-				.flatMapConcat((msg) -> generateProducerRecordFromEvent(msg, callContextProvider, system.log(),
+				.flatMapConcat((msg) -> generateProducerRecordFromEvent(config.getKafkaCommandsTopic(), config.getKafkaEventsAndResponsesTopic(), msg, callContextProvider, system.log(),
 						applicationReplacedHandler))
 				.log(">>>   ARI EVENT", record -> record.value()).withAttributes(LOG_LEVELS)
 				.to(sink)

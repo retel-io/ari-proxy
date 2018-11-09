@@ -1,12 +1,5 @@
 package io.retel.ariproxy.boundary.commandsandresponses;
 
-import static io.retel.ariproxy.config.ServiceConfig.APPLICATION;
-import static io.retel.ariproxy.config.ServiceConfig.KAFKA_COMMANDS_TOPIC;
-import static io.retel.ariproxy.config.ServiceConfig.KAFKA_EVENTS_AND_RESPONSES_TOPIC;
-import static io.retel.ariproxy.config.ServiceConfig.REST_PASSWORD;
-import static io.retel.ariproxy.config.ServiceConfig.REST_URI;
-import static io.retel.ariproxy.config.ServiceConfig.REST_USER;
-
 import akka.NotUsed;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
@@ -29,7 +22,6 @@ import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
-import com.typesafe.config.Config;
 import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
 import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
@@ -59,16 +51,9 @@ public class AriCommandResponseKafkaProcessor {
 			Logging.ErrorLevel()
 	);
 
-	private static final Config serviceConfig = ServiceConfig.INSTANCE.get();
-	private static final String APPLICATION_NAME = serviceConfig.getString(APPLICATION);
-	private static final String ARI_RESPONSES_TOPIC = serviceConfig.getString(KAFKA_EVENTS_AND_RESPONSES_TOPIC);
-	private static final String ASTERISK_REST_URI = serviceConfig.getString(REST_URI);
-	private static final String ASTERISK_USER = serviceConfig.getString(REST_USER);
-	private static final String ASTERISK_PASSWORD = serviceConfig.getString(REST_PASSWORD);
-	private static final String ARI_COMMANDS_TOPIC = serviceConfig.getString(KAFKA_COMMANDS_TOPIC);
-
 	public static ProcessingPipeline<ConsumerRecord<String, String>, CommandResponseHandler> commandResponseProcessing() {
-		return system -> commandResponseHandler -> callContextProvider -> metricsService -> source -> sink -> () -> run(
+		return config -> system -> commandResponseHandler -> callContextProvider -> metricsService -> source -> sink -> () -> run(
+				config,
 				system,
 				commandResponseHandler,
 				callContextProvider,
@@ -79,6 +64,7 @@ public class AriCommandResponseKafkaProcessor {
 	}
 
 	private static ActorMaterializer run(
+			ServiceConfig config,
 			ActorSystem system,
 			CommandResponseHandler commandResponseHandler,
 			ActorRef callContextProvider,
@@ -105,16 +91,16 @@ public class AriCommandResponseKafkaProcessor {
 							new CallContextAndResourceId(callContext, msgEnvelope.getResourceId())
 					);
 				})
-				.map(ariCommandAndContext -> ariCommandAndContext.map1(AriCommandResponseKafkaProcessor::toHttpRequest))
+				.map(ariCommandAndContext -> ariCommandAndContext.map1(cmd -> toHttpRequest(cmd, config.getRestUri(), config.getRestUser(), config.getRestPassword())))
 				.mapAsync(1, requestAndContext -> commandResponseHandler.apply(requestAndContext)
 						.thenApply(response -> Tuple.of(response, requestAndContext._2)))
-				.wireTap(Sink.foreach(gatherMetrics(metricsService)))
+				.wireTap(Sink.foreach(gatherMetrics(metricsService, config.getStasisApp())))
 				.mapAsync(1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, materializer))
-				.map(ariResponseAndContext -> envelopeAriResponse(ariResponseAndContext._1, ariResponseAndContext._2))
+				.map(ariResponseAndContext -> envelopeAriResponse(ariResponseAndContext._1, ariResponseAndContext._2, config.getKafkaCommandsTopic()))
 				.map(ariMessageEnvelopeAndContext -> ariMessageEnvelopeAndContext
 						.map1(AriCommandResponseKafkaProcessor::marshallAriMessageEnvelope))
 				.map(ariResponseStringAndContext -> new ProducerRecord<>(
-						ARI_RESPONSES_TOPIC,
+						config.getKafkaEventsAndResponsesTopic(),
 						ariResponseStringAndContext._2.getCallContext(),
 						ariResponseStringAndContext._1)
 				)
@@ -125,12 +111,12 @@ public class AriCommandResponseKafkaProcessor {
 		return materializer;
 	}
 
-	private static Procedure<Tuple2<HttpResponse, CallContextAndResourceId>> gatherMetrics(ActorRef metricsService) {
+	private static Procedure<Tuple2<HttpResponse, CallContextAndResourceId>> gatherMetrics(ActorRef metricsService, String applicationName) {
 		return rawHttpResponseAndContext ->
 				metricsService.tell(
 						new StopCallSetupTimer(
 								rawHttpResponseAndContext._2.getCallContext(),
-								APPLICATION_NAME
+								applicationName
 						),
 						ActorRef.noSender()
 				);
@@ -154,13 +140,13 @@ public class AriCommandResponseKafkaProcessor {
 	}
 
 	private static Tuple2<AriMessageEnvelope, CallContextAndResourceId> envelopeAriResponse(
-			AriResponse ariResponse, CallContextAndResourceId callContextAndResourceId) {
+			AriResponse ariResponse, CallContextAndResourceId callContextAndResourceId, String kafkaCommandsTopic) {
 		String payload = io.vavr.control.Try.of(() -> new ObjectMapper().writeValueAsString(ariResponse))
 				.getOrElseThrow(t -> new RuntimeException("Failed to serialize AriResponse", t));
 
 		final AriMessageEnvelope envelope = new AriMessageEnvelope(
 				AriMessageType.RESPONSE,
-				ARI_COMMANDS_TOPIC,
+				kafkaCommandsTopic,
 				payload,
 				callContextAndResourceId.getResourceId()
 		);
@@ -196,14 +182,14 @@ public class AriCommandResponseKafkaProcessor {
 				});
 	}
 
-	private static HttpRequest toHttpRequest(AriCommand ariCommand) {
+	private static HttpRequest toHttpRequest(AriCommand ariCommand, String uri, String user, String password) {
 		final String method = ariCommand.getMethod();
 		return HttpMethods.lookup(method)
 				.map(validHttpMethod -> HttpRequest
 						.create()
 						.withMethod(validHttpMethod)
-						.addCredentials(HttpCredentials.createBasicHttpCredentials(ASTERISK_USER, ASTERISK_PASSWORD))
-						.withUri(ASTERISK_REST_URI + ariCommand.getUrl())
+						.addCredentials(HttpCredentials.createBasicHttpCredentials(user, password))
+						.withUri(uri + ariCommand.getUrl())
 						.withEntity(ContentTypes.APPLICATION_JSON, ariCommand.getBody().getBytes())
 				)
 				.orElseThrow(() -> new RuntimeException(String.format("Invalid http method: %s", method)));

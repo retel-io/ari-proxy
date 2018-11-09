@@ -1,12 +1,15 @@
 include "application" // note: include default settings
 
 service {
-  name = "ari-proxy-for-some-stasis-app" // optional, default: ari-proxy
-  application = "application-name"
-  asterisk-uri = "localhost:8088"
-  user = "asterisk"
-  password = "asterisk"
-  httpport = 8080
+  stasis-app = "application-name"
+  name = "ari-proxy-for-some-application" // optional, default: ari-proxy
+  httpport = 9000 // optional, default: 8080
+
+  asterisk {
+    user = "asterisk"
+    password = "asterisk"
+    server = "locahost:8088"
+  }
 
   kafka {
     bootstrap-servers = "localhost:9092"

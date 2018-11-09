@@ -64,7 +64,7 @@ public class MetricsService extends AbstractLoggingActor {
 		Option
 				.of(timers.get(stop.getCallcontext()))
 				.peek(sample -> {
-					sample.stop(registry.timer("CallSetupDelay", "application", stop.getApplication()));
+					sample.stop(registry.timer("CallSetupDelay", "stasisApp", stop.getApplication()));
 					timers.remove(stop.getCallcontext());
 				}).toTry().onSuccess((metric) -> sender().tell(MetricRegistered.TIMER_STOPPED, self()));
 	}

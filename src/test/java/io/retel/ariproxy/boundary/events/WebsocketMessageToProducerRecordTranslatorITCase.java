@@ -15,6 +15,7 @@ import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
 import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
+import io.retel.ariproxy.config.ConfigLoader;
 import io.retel.ariproxy.metrics.IncreaseCounter;
 import io.retel.ariproxy.metrics.StartCallSetupTimer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -50,6 +51,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
 		final Sink<ProducerRecord<String, String>, NotUsed> sink = Sink.actorRef(catchAllProbe.getRef(), new ProducerRecord<String, String>("none", "completed"));
 
 		WebsocketMessageToProducerRecordTranslator.eventProcessing()
+				.withConfig(ConfigLoader.load())
 				.on(system)
 				.withHandler(() -> catchAllProbe.getRef().tell("Application replaced", catchAllProbe.getRef()))
 				.withCallContextProvider(catchAllProbe.getRef())
@@ -80,6 +82,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
 		final Sink<ProducerRecord<String, String>, NotUsed> sink = Sink.actorRef(kafkaProducer.getRef(), new ProducerRecord<String, String>("none", "completed"));
 
 		WebsocketMessageToProducerRecordTranslator.eventProcessing()
+				.withConfig(ConfigLoader.load())
 				.on(system)
 				.withHandler(() -> applicationReplacedHandler.getRef().tell("Application replaced", ActorRef.noSender()))
 				.withCallContextProvider(callcontextProvider.getRef())

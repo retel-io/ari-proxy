@@ -43,6 +43,8 @@ class AriEventProcessingTest {
 
 	private final String TEST_SYSTEM = this.getClass().getSimpleName();
 	private ActorSystem system;
+	private static final String fakeCommandsTopic = "commands";
+	private static final String fakeEventsAndResponsesTopic = "events-and-responses";
 	private static final Function<ActorRef, Runnable> genApplicationReplacedHandler =
 			ref -> () -> ref.tell("Shutdown triggered!", ref);
 
@@ -64,7 +66,7 @@ class AriEventProcessingTest {
 		{
 			{
 				assertThrows(RuntimeException.class, () -> AriEventProcessing
-						.generateProducerRecordFromEvent(new Strict(invalidEvent), getRef(), system.log(), genApplicationReplacedHandler.apply(getRef())));
+						.generateProducerRecordFromEvent(fakeCommandsTopic, fakeEventsAndResponsesTopic, new Strict(invalidEvent), getRef(), system.log(), genApplicationReplacedHandler.apply(getRef())));
 			}
 		};
 	}
@@ -75,7 +77,7 @@ class AriEventProcessingTest {
 		{
 			{
 				assertThrows(RuntimeException.class, () -> AriEventProcessing.generateProducerRecordFromEvent(
-						new Strict(unknownEvent), getRef(), system.log(), genApplicationReplacedHandler.apply(getRef()))
+						fakeCommandsTopic, fakeEventsAndResponsesTopic, new Strict(unknownEvent), getRef(), system.log(), genApplicationReplacedHandler.apply(getRef()))
 				);
 			}
 		};
@@ -90,7 +92,7 @@ class AriEventProcessingTest {
 			{
 				final Future<Source<ProducerRecord<String, String>, NotUsed>> wsToKafkaProcessor = Future.of(
 						() -> AriEventProcessing
-								.generateProducerRecordFromEvent(new Strict(ariEvent), getRef(), system.log(), genApplicationReplacedHandler.apply(getRef()))
+								.generateProducerRecordFromEvent(fakeCommandsTopic, fakeEventsAndResponsesTopic, new Strict(ariEvent), getRef(), system.log(), genApplicationReplacedHandler.apply(getRef()))
 				);
 
 				expectMsgClass(ProvideCallContext.class);
@@ -106,7 +108,7 @@ class AriEventProcessingTest {
 						.get();
 
 				assertThat(record.key(), is("CALL_CONTEXT"));
-				assertThat(record.topic(), is("eventsAndResponsesTopic"));
+				assertThat(record.topic(), is(fakeEventsAndResponsesTopic));
 			}
 		};
 	}
@@ -130,7 +132,7 @@ class AriEventProcessingTest {
 			{
 				final Future<Source<ProducerRecord<String, String>, NotUsed>> wsToKafkaProcessor = Future.of(
 						() -> AriEventProcessing
-								.generateProducerRecordFromEvent(new Strict(applicationReplacedEvent), getRef(), system.log(), genApplicationReplacedHandler.apply(getRef()))
+								.generateProducerRecordFromEvent(fakeCommandsTopic, fakeEventsAndResponsesTopic, new Strict(applicationReplacedEvent), getRef(), system.log(), genApplicationReplacedHandler.apply(getRef()))
 				);
 				assertThat(expectMsgClass(String.class), is("Shutdown triggered!"));
 				assertThat(wsToKafkaProcessor.await().get(), is(Source.empty()));

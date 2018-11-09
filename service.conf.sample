@@ -6,14 +6,14 @@ service {
   httpport = 9000 // optional, default: 8080
 
   asterisk {
-    user = "asterisk"
-    password = "asterisk"
+    user = "asterisk" // option, default: asterisk
+    password = "asterisk" // optional, default: asterisk
     server = "locahost:8088"
   }
 
   kafka {
     bootstrap-servers = "localhost:9092"
-    consumer-group = "ari-proxy"
+    consumer-group = "ari-proxy" // optional, default: ari-proxy
     commands-topic = "ari-commands-topic"
     events-and-responses-topic = "ari-eventsandresponses-topic"
   }

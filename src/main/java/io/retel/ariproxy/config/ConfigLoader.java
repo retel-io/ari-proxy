@@ -3,6 +3,7 @@ package io.retel.ariproxy.config;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.config.ServiceConfig.ServiceConfigBuilder;
+import java.util.function.BiFunction;
 
 public final class ConfigLoader {
 	private static final String SERVICE = "service";
@@ -33,18 +34,30 @@ public final class ConfigLoader {
 		ServiceConfigBuilder builder = ServiceConfig.builder()
 				.kafkaBootstrapServers(config.getString(KAFKA_BOOTSTRAP_SERVERS))
 				.kafkaCommandsTopic(config.getString(KAFKA_COMMANDS_TOPIC))
-				.kafkaConsumerGroup(config.getString(KAFKA_CONSUMER_GROUP))
 				.kafkaEventsAndResponsesTopic(config.getString(KAFKA_EVENTS_AND_RESPONSES_TOPIC))
-				.restPassword(config.getString(REST_PASSWORD))
 				.restUri(config.getString(REST_URI))
-				.restUser(config.getString(REST_USER))
-				.restPassword(config.getString(REST_USER))
 				.stasisApp(config.getString(STASIS_APP))
 				.websocketUri(config.getString(WEBSOCKET_URI));
 
-		builder = config.hasPath(NAME) ? builder.name(config.getString(NAME)) : builder;
-		builder = config.hasPath(HTTP_PORT) ? builder.httpPort(config.getInt(HTTP_PORT)) : builder;
+		builder = setOptionalValue(config, builder, ServiceConfigBuilder::httpPort, HTTP_PORT, Config::getInt);
+		builder = setOptionalValue(config, builder, ServiceConfigBuilder::kafkaConsumerGroup, KAFKA_CONSUMER_GROUP);
+		builder = setOptionalValue(config, builder, ServiceConfigBuilder::name, NAME);
+		builder = setOptionalValue(config, builder, ServiceConfigBuilder::restPassword, REST_PASSWORD);
+		builder = setOptionalValue(config, builder, ServiceConfigBuilder::restUser, REST_USER);
 
 		return builder.build();
+	}
+
+	private static ServiceConfigBuilder setOptionalValue(final Config config, final ServiceConfigBuilder builder,
+			final BiFunction<ServiceConfigBuilder, String, ServiceConfigBuilder> setter,
+			final String key) {
+		return setOptionalValue(config, builder, setter, key, Config::getString);
+	}
+
+	private static <T> ServiceConfigBuilder setOptionalValue(final Config config, final ServiceConfigBuilder builder,
+			final BiFunction<ServiceConfigBuilder, T, ServiceConfigBuilder> setter,
+			final String key,
+			final BiFunction<Config, String, T> getVal) {
+		return config.hasPath(key) ? setter.apply(builder, getVal.apply(config, key)) : builder;
 	}
 }

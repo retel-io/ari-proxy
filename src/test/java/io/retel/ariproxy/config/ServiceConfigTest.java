@@ -37,12 +37,12 @@ class ServiceConfigTest {
                 () -> assertEquals(8080, config.getHttpPort()),
                 () -> assertNotNull(config.getKafkaBootstrapServers()),
                 () -> assertNotNull(config.getKafkaCommandsTopic()),
-                () -> assertNotNull(config.getKafkaConsumerGroup()),
+                () -> assertEquals("ari-proxy", config.getKafkaConsumerGroup()),
                 () -> assertNotNull(config.getKafkaEventsAndResponsesTopic()),
                 () -> assertEquals("ari-proxy", config.getName()),
-                () -> assertNotNull(config.getRestPassword()),
+                () -> assertEquals("asterisk", config.getRestPassword()),
                 () -> assertNotNull(config.getRestUri()),
-                () -> assertNotNull(config.getRestUser()),
+                () -> assertEquals("asterisk", config.getRestUser()),
                 () -> assertNotNull(config.getStasisApp()),
                 () -> assertNotNull(config.getWebsocketUri())
         );

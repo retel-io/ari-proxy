@@ -88,12 +88,12 @@ public final class ServiceConfig {
         private int httpPort = 8080;
         private String kafkaBootstrapServers;
         private String kafkaCommandsTopic;
-        private String kafkaConsumerGroup;
+        private String kafkaConsumerGroup = "ari-proxy";
         private String kafkaEventsAndResponsesTopic;
         private String name = "ari-proxy";
-        private String restPassword;
+        private String restPassword = "asterisk";
         private String restUri;
-        private String restUser;
+        private String restUser = "asterisk";
         private String stasisApp;
         private String websocketUri;
 

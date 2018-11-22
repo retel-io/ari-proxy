@@ -18,8 +18,7 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <shaded-classifier-name>fat</shaded-classifier-name>
     <version.maven-shade-plugin>1.5</version.maven-shade-plugin>
-    <version.maven-surefire-plugin>2.21.0</version.maven-surefire-plugin>
-    <version.maven-failsafe-plugin>2.21.0</version.maven-failsafe-plugin>
+    <version.maven-surefire-plugin>3.0.0-M1</version.maven-surefire-plugin>
     <version.scala.compat>2.12</version.scala.compat>
     <version.akka>2.5.16</version.akka>
     <version.akka.http>10.1.5</version.akka.http>
@@ -220,7 +219,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
-        <version>${version.maven-failsafe-plugin}</version>
+        <version>${version.maven-surefire-plugin}</version>
         <dependencies>
           <dependency>
             <groupId>org.junit.platform</groupId>

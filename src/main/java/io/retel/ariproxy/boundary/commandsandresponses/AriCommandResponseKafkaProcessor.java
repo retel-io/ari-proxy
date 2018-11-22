@@ -85,9 +85,10 @@ public class AriCommandResponseKafkaProcessor {
 			ActorRef metricsService,
 			Source<ConsumerRecord<String, String>, NotUsed> source,
 			Sink<ProducerRecord<String, String>, NotUsed> sink) {
+
 		final Function<Throwable, Directive> decider = t -> {
-			system.log().error(t, "Error in some stage...");
-			return Supervision.resume();
+			system.log().error(t, "Error in some stage; restarting stream ...");
+			return Supervision.restart();
 		};
 
 		final ActorMaterializer materializer = ActorMaterializer.create(

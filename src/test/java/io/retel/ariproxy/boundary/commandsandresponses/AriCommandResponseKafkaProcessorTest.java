@@ -18,11 +18,13 @@ import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
 import io.retel.ariproxy.config.ConfigLoader;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import scala.concurrent.duration.Duration;
 
 class AriCommandResponseKafkaProcessorTest {
 
@@ -49,8 +51,8 @@ class AriCommandResponseKafkaProcessorTest {
 		final ConsumerRecord<String, String> consumerRecord = new ConsumerRecord<>("topic", 0, 0,
 				"key", "NOT JSON");
 		final Source<ConsumerRecord<String, String>, NotUsed> source = Source.single(consumerRecord);
-		final Sink<ProducerRecord<String, String>, NotUsed> sink = Sink
-				.actorRef(kafkaProducer.getRef(), new ProducerRecord<String, String>("topic", "endMessage"));
+		final Sink<ProducerRecord<String, String>, NotUsed> sink = Sink.<ProducerRecord<String, String>>ignore()
+				.mapMaterializedValue(q -> NotUsed.getInstance());
 
 		AriCommandResponseKafkaProcessor.commandResponseProcessing()
 				.withConfig(ConfigLoader.load())
@@ -62,9 +64,7 @@ class AriCommandResponseKafkaProcessorTest {
 				.to(sink)
 				.run();
 
-		final ProducerRecord endMsg = kafkaProducer.expectMsgClass(ProducerRecord.class);
-		assertThat(endMsg.topic(), is("topic"));
-		assertThat(endMsg.value(), is("endMessage"));
+		kafkaProducer.expectNoMsg(Duration.apply(250, TimeUnit.MILLISECONDS));
 	}
 
 	@Test()
@@ -83,6 +83,7 @@ class AriCommandResponseKafkaProcessorTest {
 				+ "      \"body\" : \"{\\\"media\\\": \\\"sound:hd/register_success\\\", \\\"lang\\\":\\\"de\\\"}\"\n"
 				+ "   }\n"
 				+ "}");
+
 		final Source<ConsumerRecord<String, String>, NotUsed> source = Source.single(consumerRecord);
 		final Sink<ProducerRecord<String, String>, NotUsed> sink = Sink
 				.actorRef(kafkaProducer.getRef(), new ProducerRecord<String, String>("topic", "endMessage"));
@@ -110,7 +111,6 @@ class AriCommandResponseKafkaProcessorTest {
 		callContextProvider.reply(new CallContextProvided("CALL CONTEXT"));
 
 		final StopCallSetupTimer stopCallSetupTimer = metricsService.expectMsgClass(StopCallSetupTimer.class);
-
 		assertThat(stopCallSetupTimer.getCallcontext(), is("CALL CONTEXT"));
 		assertThat(stopCallSetupTimer.getApplication(), is("test-app"));
 

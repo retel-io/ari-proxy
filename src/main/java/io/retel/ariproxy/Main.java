@@ -24,6 +24,7 @@ import akka.stream.ActorMaterializer;
 import akka.stream.javadsl.Flow;
 import akka.stream.javadsl.Keep;
 import akka.stream.javadsl.RestartFlow;
+import akka.stream.javadsl.RestartSource;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import io.retel.ariproxy.boundary.callcontext.CallContextProvider;
@@ -36,6 +37,7 @@ import io.retel.ariproxy.health.HealthService;
 import io.retel.ariproxy.metrics.MetricsService;
 import io.vavr.control.Try;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CompletionStage;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -83,9 +85,14 @@ public class Main {
 				.create(system, new StringSerializer(), new StringSerializer())
 				.withBootstrapServers(config.getKafkaBootstrapServers());
 
-		final Source<ConsumerRecord<String, String>, NotUsed> source = Consumer
-				.plainSource(consumerSettings, Subscriptions.topics(config.getKafkaCommandsTopic()))
-				.mapMaterializedValue(control -> NotUsed.getInstance());
+		final Source<ConsumerRecord<String, String>, NotUsed> source = RestartSource.withBackoff(
+				Duration.of(5, ChronoUnit.SECONDS),
+				Duration.of(10, ChronoUnit.SECONDS),
+				0.2,
+				() -> Consumer
+						.plainSource(consumerSettings, Subscriptions.topics(config.getKafkaCommandsTopic()))
+						.mapMaterializedValue(control -> NotUsed.getInstance())
+		);
 
 		final Sink<ProducerRecord<String, String>, NotUsed> sink = Producer
 				.plainSink(producerSettings)

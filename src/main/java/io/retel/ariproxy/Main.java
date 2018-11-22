@@ -1,5 +1,13 @@
 package io.retel.ariproxy;
 
+import static io.vavr.API.$;
+import static io.vavr.API.Case;
+import static io.vavr.API.Match;
+import static io.vavr.API.run;
+import static io.vavr.Patterns.$Failure;
+import static io.vavr.Patterns.$Success;
+import static io.vavr.Predicates.instanceOf;
+
 import akka.NotUsed;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
@@ -21,15 +29,18 @@ import akka.stream.javadsl.Source;
 import io.retel.ariproxy.boundary.callcontext.CallContextProvider;
 import io.retel.ariproxy.boundary.commandsandresponses.AriCommandResponseKafkaProcessor;
 import io.retel.ariproxy.boundary.events.WebsocketMessageToProducerRecordTranslator;
+import io.retel.ariproxy.boundary.processingpipeline.Run;
 import io.retel.ariproxy.config.ConfigLoader;
 import io.retel.ariproxy.config.ServiceConfig;
 import io.retel.ariproxy.health.HealthService;
 import io.retel.ariproxy.metrics.MetricsService;
+import io.vavr.control.Try;
 import java.time.Duration;
 import java.util.concurrent.CompletionStage;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 
@@ -91,7 +102,7 @@ public class Main {
 				.run();
 	}
 
-	private static ActorMaterializer runAriEventProcessor(
+	private static void runAriEventProcessor(
 			ServiceConfig config,
 			ActorSystem system,
 			ActorRef callContextProvider,
@@ -115,15 +126,22 @@ public class Main {
 				.plainSink(producerSettings)
 				.mapMaterializedValue(done -> NotUsed.getInstance());
 
-		return WebsocketMessageToProducerRecordTranslator.eventProcessing()
+		final Run processingPipeline = WebsocketMessageToProducerRecordTranslator.eventProcessing()
 				.withConfig(config)
 				.on(system)
 				.withHandler(applicationReplacedHandler)
 				.withCallContextProvider(callContextProvider)
 				.withMetricsService(metricsService)
 				.from(source)
-				.to(sink)
-				.run();
+				.to(sink);
+
+		Match(Try.of(() -> processingPipeline.run())).of(
+				Case($Success($()), mat -> run(() -> system.log().debug("Successfully started ari event processor."))),
+				Case($Failure($(instanceOf(KafkaException.class))), err -> run(() -> {
+					system.log().error(err, "Failed to start ari event processor.");
+					System.exit(-1);
+				}))
+		);
 	}
 
 	// NOTE: We need this method because the resulting flow can only be materialized once;

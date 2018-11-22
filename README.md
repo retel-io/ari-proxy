@@ -42,7 +42,7 @@ ari-proxy expects the following configuration files, which should be passed to t
 #### Running
 Run the fat jar:
 ```bash
-java -Dconfig.file=/path/to/service.conf [-Dlog4j.configurationFile=/path/to/log4j2.xml] -jar target/ari-proxy-0.9.0-fat.jar
+java -Dconfig.file=/path/to/service.conf [-Dlog4j.configurationFile=/path/to/log4j2.xml] -jar target/ari-proxy-1.0.0-fat.jar
 ```
 
 ## Metrics

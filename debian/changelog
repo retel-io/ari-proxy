@@ -1,3 +1,10 @@
+ari-proxy (1.0.0) unstable; urgency=low
+
+  * makes command-response processor more resilient
+  * adjust configuration structure
+
+ -- re-tel <re-tel@sipgate.de>  Thu, 22 Nov 2018 15:19:34 +0100
+
 ari-proxy (0.9.0) unstable; urgency=low
 
   * Initial release.

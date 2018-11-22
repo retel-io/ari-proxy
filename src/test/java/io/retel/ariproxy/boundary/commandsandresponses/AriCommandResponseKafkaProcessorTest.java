@@ -15,6 +15,7 @@ import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
 import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
+import io.retel.ariproxy.config.ConfigLoader;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import java.util.concurrent.CompletableFuture;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -52,6 +53,7 @@ class AriCommandResponseKafkaProcessorTest {
 				.actorRef(kafkaProducer.getRef(), new ProducerRecord<String, String>("topic", "endMessage"));
 
 		AriCommandResponseKafkaProcessor.commandResponseProcessing()
+				.withConfig(ConfigLoader.load())
 				.on(system)
 				.withHandler(requestAndContext -> Http.get(system).singleRequest(requestAndContext._1))
 				.withCallContextProvider(callContextProvider.getRef())
@@ -63,7 +65,6 @@ class AriCommandResponseKafkaProcessorTest {
 		final ProducerRecord endMsg = kafkaProducer.expectMsgClass(ProducerRecord.class);
 		assertThat(endMsg.topic(), is("topic"));
 		assertThat(endMsg.value(), is("endMessage"));
-
 	}
 
 	@Test()
@@ -87,6 +88,7 @@ class AriCommandResponseKafkaProcessorTest {
 				.actorRef(kafkaProducer.getRef(), new ProducerRecord<String, String>("topic", "endMessage"));
 
 		AriCommandResponseKafkaProcessor.commandResponseProcessing()
+				.withConfig(ConfigLoader.load())
 				.on(system)
 				.withHandler(r -> CompletableFuture.supplyAsync(() ->
 						HttpResponse.create().withStatus(StatusCodes.NO_CONTENT))
@@ -141,6 +143,7 @@ class AriCommandResponseKafkaProcessorTest {
 				.actorRef(kafkaProducer.getRef(), new ProducerRecord<String, String>("topic", "endMessage"));
 
 		AriCommandResponseKafkaProcessor.commandResponseProcessing()
+				.withConfig(ConfigLoader.load())
 				.on(system)
 				.withHandler(r -> CompletableFuture.supplyAsync(() ->
 						HttpResponse.create().withStatus(StatusCodes.NO_CONTENT))

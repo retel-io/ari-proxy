@@ -1,5 +1,13 @@
 package io.retel.ariproxy;
 
+import static io.vavr.API.$;
+import static io.vavr.API.Case;
+import static io.vavr.API.Match;
+import static io.vavr.API.run;
+import static io.vavr.Patterns.$Failure;
+import static io.vavr.Patterns.$Success;
+import static io.vavr.Predicates.instanceOf;
+
 import akka.NotUsed;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
@@ -13,16 +21,22 @@ import akka.kafka.Subscriptions;
 import akka.kafka.javadsl.Consumer;
 import akka.kafka.javadsl.Producer;
 import akka.stream.ActorMaterializer;
-import akka.stream.javadsl.*;
-import com.typesafe.config.Config;
+import akka.stream.javadsl.Flow;
+import akka.stream.javadsl.Keep;
+import akka.stream.javadsl.RestartFlow;
+import akka.stream.javadsl.Sink;
+import akka.stream.javadsl.Source;
 import io.retel.ariproxy.boundary.callcontext.CallContextProvider;
 import io.retel.ariproxy.boundary.commandsandresponses.AriCommandResponseKafkaProcessor;
 import io.retel.ariproxy.boundary.events.WebsocketMessageToProducerRecordTranslator;
 import io.retel.ariproxy.boundary.processingpipeline.Run;
+import io.retel.ariproxy.config.ConfigLoader;
 import io.retel.ariproxy.config.ServiceConfig;
 import io.retel.ariproxy.health.HealthService;
 import io.retel.ariproxy.metrics.MetricsService;
 import io.vavr.control.Try;
+import java.time.Duration;
+import java.util.concurrent.CompletionStage;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -30,58 +44,47 @@ import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 
-import java.time.Duration;
-import java.util.concurrent.CompletionStage;
-
-import static io.vavr.API.*;
-import static io.vavr.Patterns.$Failure;
-import static io.vavr.Patterns.$Success;
-import static io.vavr.Predicates.instanceOf;
-
 public class Main {
 
 	static {
 		System.setProperty("log4j.shutdownCallbackRegistry", "com.djdch.log4j.StaticShutdownCallbackRegistry");
 	}
 
-	private static final Config serviceConfig = ServiceConfig.INSTANCE.get();
-	private static final String BOOTSTRAP_SERVERS = serviceConfig.getString(ServiceConfig.KAFKA_BOOTSTRAP_SERVERS);
-	private static final String CONSUMER_GROUP = serviceConfig.getString(ServiceConfig.KAFKA_CONSUMER_GROUP);
-	private static final String COMMANDS_TOPIC = serviceConfig.getString(ServiceConfig.KAFKA_COMMANDS_TOPIC);
-	private static final String WEBSOCKET_URI = serviceConfig.getString(ServiceConfig.WEBSOCKET_URI);
+	private static final ServiceConfig config = ConfigLoader.load();
 
 	public static void main(String[] args) {
-		final ActorSystem system = ActorSystem.create(ServiceConfig.INSTANCE.get().getString(ServiceConfig.SERVICE_NAME));
+		final ActorSystem system = ActorSystem.create(config.getName());
 
 		system.registerOnTermination(() -> System.exit(0));
 
-		system.actorOf(HealthService.props(), HealthService.ACTOR_NAME);
+		system.actorOf(HealthService.props(config.getHttpPort()), HealthService.ACTOR_NAME);
 
 		final ActorRef callContextProvider = system.actorOf(CallContextProvider.props(64_000, 21_600_000));
 		final ActorRef metricsService = system.actorOf(MetricsService.props());
 
-		runAriEventProcessor(system, callContextProvider, metricsService, system::terminate);
+		runAriEventProcessor(config, system, callContextProvider, metricsService, system::terminate);
 
-		runAriCommandResponseProcessor(system, callContextProvider, metricsService);
+		runAriCommandResponseProcessor(config, system, callContextProvider, metricsService);
 	}
 
 	private static ActorMaterializer runAriCommandResponseProcessor(
+			ServiceConfig config,
 			ActorSystem system,
 			ActorRef callContextProvider,
 			ActorRef metricsService) {
 		final ConsumerSettings<String, String> consumerSettings = ConsumerSettings
 				.create(system, new StringDeserializer(), new StringDeserializer())
-				.withBootstrapServers(BOOTSTRAP_SERVERS)
-				.withGroupId(CONSUMER_GROUP)
+				.withBootstrapServers(config.getKafkaBootstrapServers())
+				.withGroupId(config.getKafkaConsumerGroup())
 				.withProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true")
 				.withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
 		final ProducerSettings<String, String> producerSettings = ProducerSettings
 				.create(system, new StringSerializer(), new StringSerializer())
-				.withBootstrapServers(BOOTSTRAP_SERVERS);
+				.withBootstrapServers(config.getKafkaBootstrapServers());
 
 		final Source<ConsumerRecord<String, String>, NotUsed> source = Consumer
-				.plainSource(consumerSettings, Subscriptions.topics(COMMANDS_TOPIC))
+				.plainSource(consumerSettings, Subscriptions.topics(config.getKafkaCommandsTopic()))
 				.mapMaterializedValue(control -> NotUsed.getInstance());
 
 		final Sink<ProducerRecord<String, String>, NotUsed> sink = Producer
@@ -89,6 +92,7 @@ public class Main {
 				.mapMaterializedValue(done -> NotUsed.getInstance());
 
 		return AriCommandResponseKafkaProcessor.commandResponseProcessing()
+				.withConfig(config)
 				.on(system)
 				.withHandler(requestAndContext -> Http.get(system).singleRequest(requestAndContext._1))
 				.withCallContextProvider(callContextProvider)
@@ -98,7 +102,9 @@ public class Main {
 				.run();
 	}
 
-	private static void runAriEventProcessor(ActorSystem system,
+	private static void runAriEventProcessor(
+			ServiceConfig config,
+			ActorSystem system,
 			ActorRef callContextProvider,
 			ActorRef metricsService,
 			Runnable applicationReplacedHandler) {
@@ -107,20 +113,21 @@ public class Main {
 				Duration.ofSeconds(3), // min backoff
 				Duration.ofSeconds(30), // max backoff
 				0.2, // adds 20% "noise" to vary the intervals slightly
-				() -> createWebsocketFlow(system, WEBSOCKET_URI)
+				() -> createWebsocketFlow(system, config.getWebsocketUri())
 		);
 
 		final Source<Message, NotUsed> source = Source.<Message>maybe().viaMat(restartWebsocketFlow, Keep.right());
 
 		final ProducerSettings<String, String> producerSettings = ProducerSettings
 				.create(system, new StringSerializer(), new StringSerializer())
-				.withBootstrapServers(BOOTSTRAP_SERVERS);
+				.withBootstrapServers(config.getKafkaBootstrapServers());
 
 		final Sink<ProducerRecord<String, String>, NotUsed> sink = Producer
 				.plainSink(producerSettings)
 				.mapMaterializedValue(done -> NotUsed.getInstance());
 
 		final Run processingPipeline = WebsocketMessageToProducerRecordTranslator.eventProcessing()
+				.withConfig(config)
 				.on(system)
 				.withHandler(applicationReplacedHandler)
 				.withCallContextProvider(callContextProvider)

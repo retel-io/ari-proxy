@@ -6,7 +6,7 @@ service {
   httpport = 9000 // optional, default: 8080
 
   asterisk {
-    user = "asterisk" // option, default: asterisk
+    user = "asterisk" // optional, default: asterisk
     password = "asterisk" // optional, default: asterisk
     server = "locahost:8088"
   }

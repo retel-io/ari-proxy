@@ -18,7 +18,6 @@ import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.headers.HttpCredentials;
 import akka.japi.function.Function;
 import akka.japi.function.Procedure;
-import akka.kafka.ConsumerFailed;
 import akka.stream.ActorMaterializer;
 import akka.stream.ActorMaterializerSettings;
 import akka.stream.Attributes;
@@ -26,6 +25,7 @@ import akka.stream.Materializer;
 import akka.stream.Supervision;
 import akka.stream.Supervision.Directive;
 import akka.stream.javadsl.Keep;
+import akka.stream.javadsl.RestartSource;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,6 +48,8 @@ import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import java.nio.charset.Charset;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CompletionStage;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -92,11 +94,18 @@ public class AriCommandResponseKafkaProcessor {
 			return Supervision.restart();
 		};
 
+		final Source<ConsumerRecord<String, String>, NotUsed> restartSource = RestartSource.withBackoff(
+				Duration.of(1, ChronoUnit.SECONDS),
+				Duration.of(10, ChronoUnit.SECONDS),
+				0.2,
+				() -> source
+		);
+
 		final ActorMaterializer materializer = ActorMaterializer.create(
 				ActorMaterializerSettings.create(system).withSupervisionStrategy(decider),
 				system);
 
-		source
+		restartSource
 				.log(">>>   ARI COMMAND", ConsumerRecord::value).withAttributes(LOG_LEVELS)
 				.map(AriCommandResponseKafkaProcessor::unmarshallAriCommandEnvelope)
 				.map(msgEnvelope -> {

@@ -18,6 +18,7 @@ import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.headers.HttpCredentials;
 import akka.japi.function.Function;
 import akka.japi.function.Procedure;
+import akka.kafka.ConsumerFailed;
 import akka.stream.ActorMaterializer;
 import akka.stream.ActorMaterializerSettings;
 import akka.stream.Attributes;
@@ -100,7 +101,9 @@ public class AriCommandResponseKafkaProcessor {
 				.map(AriCommandResponseKafkaProcessor::unmarshallAriCommandEnvelope)
 				.map(msgEnvelope -> {
 					final String callContext = lookupCallContext(msgEnvelope.getResourceId(), callContextProvider);
-					AriCommandResponseProcessing.registerCallContext(callContextProvider, callContext, msgEnvelope.getAriCommand()).getOrElseThrow(t -> t).run();
+					AriCommandResponseProcessing
+							.registerCallContext(callContextProvider, callContext, msgEnvelope.getAriCommand())
+							.getOrElseThrow(t -> t).run();
 					return Tuple.of(
 							msgEnvelope.getAriCommand(),
 							new CallContextAndResourceId(callContext, msgEnvelope.getResourceId())

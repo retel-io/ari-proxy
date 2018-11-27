@@ -14,14 +14,14 @@ public class StasisEvents {
 					+ "      \"format\" : \"g722\"\n"
 					+ "   },\n"
 					+ "   \"asterisk_id\" : \"00:00:00:00:00:02\",\n"
-					+ "   \"stasisApp\" : \"test-app\",\n"
+					+ "   \"application\" : \"test-app\",\n"
 					+ "   \"type\" : \"RecordingFinished\"\n"
 					+ "}\n";
 
 	public static final String unknownEvent =
 			"{\n"
 					+ "  \"type\" : \"Unknown\",\n"
-					+ "  \"stasisApp\" : \"test-app\",\n"
+					+ "  \"application\" : \"test-app\",\n"
 					+ "  \"playback\" : {\n"
 					+ "     \"id\" : \"072f6484-f781-405b-8c30-0a9a4496d14d\",\n"
 					+ "     \"state\" : \"done\",\n"
@@ -35,14 +35,14 @@ public class StasisEvents {
 	public static final String applicationReplacedEvent =
 			"{\n"
 					+ "   \"asterisk_id\" : \"00:00:00:00:00:01\",\n"
-					+ "   \"stasisApp\" : \"test-app\",\n"
+					+ "   \"application\" : \"test-app\",\n"
 					+ "   \"type\" : \"ApplicationReplaced\"\n"
 					+ "}\n";
 
 	public static final String playbackFinishedEvent =
 			"{\n"
 					+ "  \"type\" : \"PlaybackFinished\",\n"
-					+ "  \"stasisApp\" : \"test-app\",\n"
+					+ "  \"application\" : \"test-app\",\n"
 					+ "  \"playback\" : {\n"
 					+ "     \"id\" : \"072f6484-f781-405b-8c30-0a9a4496d14d\",\n"
 					+ "     \"state\" : \"done\",\n"
@@ -80,6 +80,6 @@ public class StasisEvents {
 					+ "   \"type\" : \"StasisStart\",\n"
 					+ "   \"timestamp\" : \"2018-07-30T17:38:24.436+0200\",\n"
 					+ "   \"args\" : [],\n"
-					+ "   \"stasisApp\" : \"test-app\"\n"
+					+ "   \"application\" : \"test-app\"\n"
 					+ "}";
 }

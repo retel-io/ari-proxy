@@ -14,7 +14,7 @@ Example of an encapsulated ARI event (see `payload` field) as it is published to
 ```json
 {
    "commandsTopic" : "ari-callcontroller-demo-commands-000000000002",
-   "payload" : stasisApp,
+   "payload" : "{\"type\":\"StasisStart\",\"timestamp\":\"2018-09-27T12:00:28.699+0200\",\"args\":[],\"channel\":{\"id\":\"1538042428.94989\",\"name\":\"PJSIP/proxy-0000ba78\",\"state\":\"Ring\",\"caller\":{\"name\":\"\",\"number\":\"555-12345\"},\"connected\":{\"name\":\"\",\"number\":\"\"},\"accountcode\":\"\",\"dialplan\":{\"context\":\"default\",\"exten\":\"10000\",\"priority\":3},\"creationtime\":\"2018-09-27T12:00:28.698+0200\",\"language\":\"en\",\"channelvars\":{}},\"asterisk_id\":\"00:00:00:00:00:02\",\"application\":\"callcontroller-demo\"}",
    "type" : "STASIS_START",
    "resourceId" : "1538042428.94989"
 }

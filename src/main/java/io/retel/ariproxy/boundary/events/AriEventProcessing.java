@@ -98,8 +98,7 @@ public class AriEventProcessing {
 				type,
 				kafkaCommandsTopic,
 				messageBody,
-				resourceId
-		);
+				resourceId);
 
 		log.debug("[ARI MESSAGE TYPE] {}", envelope.getType());
 		return Source.single(new ProducerRecord<>(

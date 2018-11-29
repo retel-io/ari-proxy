@@ -10,7 +10,8 @@ import akka.http.javadsl.model.ws.Message;
 import akka.stream.javadsl.Source;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.Gson;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
 import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
@@ -25,11 +26,16 @@ import io.vavr.collection.Seq;
 import io.vavr.control.Either;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
 public class AriEventProcessing {
+
+	private static final ObjectMapper mapper = new ObjectMapper();
+	private static final ObjectReader reader = mapper.reader();
+	private static final ObjectWriter writer = mapper.writerFor(AriMessageEnvelope.class);
 
 	public static Seq<MetricsGatherer> determineMetricsGatherer(AriMessageType type) {
 
@@ -79,13 +85,15 @@ public class AriEventProcessing {
 										? ProviderPolicy.CREATE_IF_MISSING
 										: ProviderPolicy.LOOKUP_ONLY
 						).map(cc -> Tuple.of(id, cc)))
-						.map(idAndCc -> createSource(kafkaCommandsTopic, kafkaEventsAndResponsesTopic, ariMessageType, log, idAndCc._1, idAndCc._2, messageBody))
+						.flatMap(idAndCc -> createSource(kafkaCommandsTopic, kafkaEventsAndResponsesTopic, ariMessageType,
+								log, idAndCc._1, idAndCc._2, messageBody))
 				)
-				.getOrElse(Try.success(Source.empty()))
+				.toTry()
+				.flatMap(Function.identity())
 				.getOrElseThrow(t -> new RuntimeException(t));
 	}
 
-	private static Source<ProducerRecord<String, String>, NotUsed> createSource(
+	private static Try<Source<ProducerRecord<String, String>, NotUsed>> createSource(
 			String kafkaCommandsTopic,
 			String kafkaEventsAndResponsesTopic,
 			AriMessageType type,
@@ -101,12 +109,15 @@ public class AriEventProcessing {
 				resourceId
 		);
 
-		log.debug("[ARI MESSAGE TYPE] {}", envelope.getType());
-		return Source.single(new ProducerRecord<>(
-				kafkaEventsAndResponsesTopic,
-				callContext,
-				new Gson().toJson(envelope)
-		));
+		return Try.of(() -> writer.writeValueAsString(envelope))
+				.map(marshalledEnvelope -> {
+					log.debug("[ARI MESSAGE TYPE] {}", envelope.getType());
+					return Source.single(new ProducerRecord<>(
+							kafkaEventsAndResponsesTopic,
+							callContext,
+							marshalledEnvelope
+					));
+				});
 	}
 
 	public static Try<String> getCallContext(String resourceId, ActorRef callContextProvider,
@@ -121,7 +132,7 @@ public class AriEventProcessing {
 	}
 
 	public static Either<RuntimeException, String> getValueFromMessageByPath(Message message, String path) {
-		return Try.of(() -> new ObjectMapper().readTree(message.asTextMessage().getStrictText()))
+		return Try.of(() -> reader.readTree(message.asTextMessage().getStrictText()))
 				.toOption()
 				.flatMap(root -> Option.of(root.at(path)))
 				.map(JsonNode::asText)

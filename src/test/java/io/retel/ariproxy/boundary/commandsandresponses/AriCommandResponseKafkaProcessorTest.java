@@ -77,6 +77,7 @@ class AriCommandResponseKafkaProcessorTest {
 		final ConsumerRecord<String, String> consumerRecord = new ConsumerRecord<>("topic", 0, 0,
 				"none", "{\n"
 				+ "   \"resourceId\" : \"1533286879.42\",\n"
+				+ "   \"commandId\" : \"COMMANDID\",\n"
 				+ "   \"ariCommand\" : {\n"
 				+ "      \"url\" : \"/channels/1533286879.42/play/c4958563-1ba4-4f2f-a60f-626a624bf0e6\",\n"
 				+ "      \"method\" : \"POST\",\n"

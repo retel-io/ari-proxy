@@ -91,7 +91,7 @@ public class AriCommandResponseKafkaProcessor {
 							.getOrElseThrow(t -> t).run();
 					return Tuple.of(
 							msgEnvelope.getAriCommand(),
-							new CallContextAndResourceId(callContext, msgEnvelope.getResourceId())
+							new CallContextAndResourceId(callContext, msgEnvelope.getResourceId(), msgEnvelope.getCommandId())
 					);
 				})
 				.map(ariCommandAndContext -> ariCommandAndContext.map1(cmd -> toHttpRequest(cmd, config.getRestUri(), config.getRestUser(), config.getRestPassword())))
@@ -158,7 +158,8 @@ public class AriCommandResponseKafkaProcessor {
 				AriMessageType.RESPONSE,
 				kafkaCommandsTopic,
 				payload,
-				callContextAndResourceId.getResourceId()
+				callContextAndResourceId.getResourceId(),
+				callContextAndResourceId.getCommandId()
 		);
 
 		return Tuple.of(envelope, callContextAndResourceId);

@@ -7,12 +7,14 @@ public class AriCommandEnvelope {
 
 	private AriCommand ariCommand;
 	private String resourceId;
+	private String commandId;
 
 	private AriCommandEnvelope() {}
 
-	public AriCommandEnvelope(AriCommand ariCommand, String resourceId) {
+	public AriCommandEnvelope(AriCommand ariCommand, String resourceId, String commandId) {
 		this.ariCommand = ariCommand;
 		this.resourceId = resourceId;
+		this.commandId = commandId;
 	}
 
 	public AriCommand getAriCommand() {
@@ -28,6 +30,10 @@ public class AriCommandEnvelope {
 	 */
 	public String getResourceId() {
 		return resourceId;
+	}
+
+	public String getCommandId() {
+		return commandId;
 	}
 
 	@Override

@@ -5,8 +5,6 @@ import static io.vavr.API.Set;
 import static io.vavr.API.Some;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
 import java.util.function.Function;
@@ -45,12 +43,10 @@ public enum AriMessageType {
 	RESPONSE("AriResponse", body -> None()),
 	UNKNOWN("UnknownAriMessage", body -> Some(Try.failure(new RuntimeException(String.format("Failed to extract resourceId from body=%s", body)))));
 
-	private static final ObjectReader reader = new ObjectMapper().reader();
-
 	private final String typeName;
-	private final Function<String, Option<Try<String>>> resourceIdExtractor;
+	private final Function<JsonNode, Option<Try<String>>> resourceIdExtractor;
 
-	AriMessageType(final String typeName, final Function<String, Option<Try<String>>> resourceIdExtractor) {
+	AriMessageType(final String typeName, final Function<JsonNode, Option<Try<String>>> resourceIdExtractor) {
 		this.typeName = typeName;
 		this.resourceIdExtractor = resourceIdExtractor;
 	}
@@ -61,16 +57,16 @@ public enum AriMessageType {
 				.getOrElse(UNKNOWN);
 	}
 
-	public Option<Try<String>> extractResourceIdFromBody(final String body) {
+	public Option<Try<String>> extractResourceIdFromBody(final JsonNode body) {
 		return resourceIdExtractor.apply(body);
 	}
 
-	private static Function<String, Option<Try<String>>> resourceIdFromBody(final String resourceIdXPath) {
-		return body -> Some(Try.of(() -> reader.readTree(body))
-				.toOption()
-				.flatMap(root -> Option.of(root.at(resourceIdXPath)))
-				.map(JsonNode::asText)
-				.flatMap(type -> StringUtils.isBlank(type) ? None() : Some(type))
-				.toTry(() -> new Throwable(String.format("Failed to extract resourceId at path=%s from body=%s", resourceIdXPath, body))));
+	private static Function<JsonNode, Option<Try<String>>> resourceIdFromBody(final String resourceIdXPath) {
+		return body -> Some(
+				Option.of(body.at(resourceIdXPath))
+						.map(JsonNode::asText)
+						.flatMap(type -> StringUtils.isBlank(type) ? None() : Some(type))
+						.toTry(() -> new Throwable(String.format("Failed to extract resourceId at path=%s from body=%s", resourceIdXPath, body)))
+		);
 	}
 }

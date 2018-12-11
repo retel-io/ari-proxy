@@ -58,7 +58,6 @@ public class AriCommandResponseKafkaProcessor {
 	private static final ObjectMapper mapper = new ObjectMapper();
 	private static final ObjectReader reader = mapper.readerFor(AriCommandEnvelope.class);
 	private static final ObjectWriter ariMessageEnvelopeWriter = mapper.writerFor(AriMessageEnvelope.class);
-	private static final ObjectWriter ariResponseWriter = mapper.writerFor(AriResponse.class);
 	private static final ObjectWriter genericWriter = mapper.writer();
 
 	public static ProcessingPipeline<ConsumerRecord<String, String>, CommandResponseHandler> commandResponseProcessing() {
@@ -158,13 +157,10 @@ public class AriCommandResponseKafkaProcessor {
 
 	private static Tuple2<AriMessageEnvelope, CallContextAndResourceId> envelopeAriResponse(
 			AriResponse ariResponse, CallContextAndResourceId callContextAndResourceId, String kafkaCommandsTopic) {
-		final String payload = Try.of(() -> ariResponseWriter.writeValueAsString(ariResponse))
-				.getOrElseThrow(t -> new RuntimeException("Failed to serialize AriResponse", t));
-
 		final AriMessageEnvelope envelope = new AriMessageEnvelope(
 				AriMessageType.RESPONSE,
 				kafkaCommandsTopic,
-				payload,
+				ariResponse,
 				callContextAndResourceId.getResourceId(),
 				callContextAndResourceId.getCommandId()
 		);

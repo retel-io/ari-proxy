@@ -5,9 +5,13 @@ import static io.vavr.API.Some;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.Mockito.mock;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import io.vavr.control.Try;
-import io.vavr.control.Try.Failure;
+import java.io.IOException;
 import java.util.stream.Stream;
 import org.hamcrest.MatcherAssert;
 import org.junit.jupiter.api.Test;
@@ -19,6 +23,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 // see: https://wiki.asterisk.org/wiki/display/AST/Asterisk+15+REST+Data+Models#Asterisk15RESTDataModels-Message
 class AriMessageTypeTest {
+
+	private static final ObjectReader reader = new ObjectMapper().reader();
 
 	private static final String BRIDGE_ID = "BRIDGE_ID";
 	private static final String CHANNEL_ID = "CHANNEL_ID";
@@ -32,29 +38,21 @@ class AriMessageTypeTest {
 	private static final String BODY_WITH_PLAYBACK_ID = String.format("{ \"playback\": { \"id\": \"%s\" } }", PLAYBACK_ID);
 	private static final String BODY_WITH_RECORDING_NAME = String.format("{ \"recording\": { \"name\": \"%s\" } }", RECORDING_NAME);
 
-	private static final String INVALID_MESSAGE_BODY = "INVALID JSON";
-
 	@ParameterizedTest
 	@MethodSource("messageBodyProvider")
-	void ensureExtractResourceIdFromBodyWorksForAnyType(String type, String body, String expectedResourceId) {
-		assertThat(AriMessageType.fromType(type).extractResourceIdFromBody(body), is(Some(Try.success(expectedResourceId))));
-	}
-
-	@ParameterizedTest
-	@EnumSource(value = AriMessageType.class, mode = Mode.EXCLUDE, names = { "APPLICATION_REPLACED", "UNKNOWN", "RESPONSE" })
-	void ensureInvalidBodyResultsInAFailure(AriMessageType type) {
-		assertThat(type.extractResourceIdFromBody(INVALID_MESSAGE_BODY).get(), instanceOf(Failure.class));
+	void ensureExtractResourceIdFromBodyWorksForAnyType(String type, String body, String expectedResourceId) throws IOException {
+		assertThat(AriMessageType.fromType(type).extractResourceIdFromBody(reader.readTree(body)), is(Some(Try.success(expectedResourceId))));
 	}
 
 	@ParameterizedTest
 	@EnumSource(value = AriMessageType.class, mode = Mode.INCLUDE, names = { "APPLICATION_REPLACED" })
 	void ensureMessageTypesWithoutAnExtractorResultInANone(AriMessageType type) {
-		assertThat(type.extractResourceIdFromBody("ANY"), is(None()));
+		assertThat(type.extractResourceIdFromBody(mock(JsonNode.class)), is(None()));
 	}
 
 	@Test
 	void ensureUnknownMessageResultsInRuntimeException() {
-		MatcherAssert.assertThat(AriMessageType.UNKNOWN.extractResourceIdFromBody("ANY").get().getCause(), instanceOf(RuntimeException.class));
+		MatcherAssert.assertThat(AriMessageType.UNKNOWN.extractResourceIdFromBody(mock(JsonNode.class)).get().getCause(), instanceOf(RuntimeException.class));
 	}
 
 	private static Stream<Arguments> messageBodyProvider() {

@@ -7,14 +7,14 @@ public class AriMessageEnvelope {
 
 	private AriMessageType type;
 	private String commandsTopic;
-	private String payload;
+	private Object payload;
 	private String resourceId;
 	private String commandId;
 
 	public AriMessageEnvelope() {
 	}
 
-	public AriMessageEnvelope(AriMessageType type, String commandsTopic, String payload, String resourceId,
+	public AriMessageEnvelope(AriMessageType type, String commandsTopic, Object payload, String resourceId,
 			String commandId) {
 		this.commandsTopic = commandsTopic;
 		this.payload = payload;
@@ -24,7 +24,7 @@ public class AriMessageEnvelope {
 	}
 
 
-	public AriMessageEnvelope(AriMessageType type, String commandsTopic, String payload, String resourceId) {
+	public AriMessageEnvelope(AriMessageType type, String commandsTopic, Object payload, String resourceId) {
 		this(type, commandsTopic, payload, resourceId, null);
 	}
 
@@ -36,7 +36,7 @@ public class AriMessageEnvelope {
 		return commandsTopic;
 	}
 
-	public String getPayload() {
+	public Object getPayload() {
 		return payload;
 	}
 

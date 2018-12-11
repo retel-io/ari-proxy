@@ -23,7 +23,8 @@ import akka.http.javadsl.server.directives.RouteAdapter;
 import akka.japi.pf.ReceiveBuilder;
 import akka.stream.ActorMaterializer;
 import akka.stream.javadsl.Flow;
-import com.google.gson.Gson;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
 import io.retel.ariproxy.health.api.HealthReport;
 import io.retel.ariproxy.health.api.HealthResponse;
@@ -32,14 +33,18 @@ import io.retel.ariproxy.health.api.ProvideMonitoring;
 import io.vavr.Tuple2;
 import io.vavr.collection.HashMap;
 import io.vavr.concurrent.Future;
+import io.vavr.control.Try;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 
 public class HealthService extends AbstractLoggingActor {
 
 	public static final String ACTOR_NAME = "HealthService";
+
+	private static final ObjectWriter writer = new ObjectMapper().writer();
 	private static final long TIMEOUT_MILLIS = 100;
 	private static final String OK_MESSAGE = "feeling good";
+
 	private final int httpPort;
 	private CompletionStage<ServerBinding> binding;
 	private HashMap<ActorRef, String> subscriptions = HashMap.empty();
@@ -119,7 +124,7 @@ public class HealthService extends AbstractLoggingActor {
 
 		return complete(HttpEntities.create(
 				ContentTypes.APPLICATION_JSON,
-				new Gson().toJson(HealthResponse.fromErrors(report.errors().toJavaList()))
+				Try.of(() -> writer.writeValueAsString(HealthResponse.fromErrors(report.errors().toJavaList()))).getOrElseThrow(t -> new RuntimeException(t))
 		));
 	}
 

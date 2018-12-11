@@ -9,6 +9,7 @@ import static io.vavr.API.Some;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import io.vavr.collection.List;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
@@ -48,6 +49,8 @@ public enum AriCommandType {
             body -> None()
     );
 
+    private static final ObjectReader reader = new ObjectMapper().reader();
+
     private final Function<String, Boolean> identifierPredicate;
     private final Function<String, Option<Try<String>>> resourceIdUriExtractor;
     private final Function<String, Option<Try<String>>> resourceIdBodyExtractor;
@@ -81,7 +84,7 @@ public enum AriCommandType {
     }
 
     private static Function<String, Option<Try<String>>> resourceIdFromBody(final String resourceIdXPath) {
-        return body -> Some(Try.of(() -> new ObjectMapper().readTree(body))
+        return body -> Some(Try.of(() -> reader.readTree(body))
                 .toOption()
                 .flatMap(root -> Option.of(root.at(resourceIdXPath)))
                 .map(JsonNode::asText)

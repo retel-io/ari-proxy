@@ -21,7 +21,8 @@ import akka.stream.javadsl.Keep;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.Gson;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
 import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
@@ -38,6 +39,7 @@ import io.retel.ariproxy.config.ServiceConfig;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
+import io.vavr.control.Try;
 import java.nio.charset.Charset;
 import java.util.concurrent.CompletionStage;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -50,6 +52,11 @@ public class AriCommandResponseKafkaProcessor {
 			Logging.InfoLevel(),
 			Logging.ErrorLevel()
 	);
+
+	private static final ObjectMapper mapper = new ObjectMapper();
+	private static final ObjectReader reader = mapper.readerFor(AriCommandEnvelope.class);
+	private static final ObjectWriter ariMessageEnvelopeWriter = mapper.writerFor(AriMessageEnvelope.class);
+	private static final ObjectWriter ariResponseWriter = mapper.writerFor(AriResponse.class);
 
 	public static ProcessingPipeline<ConsumerRecord<String, String>, CommandResponseHandler> commandResponseProcessing() {
 		return config -> system -> commandResponseHandler -> callContextProvider -> metricsService -> source -> sink -> () -> run(
@@ -126,17 +133,14 @@ public class AriCommandResponseKafkaProcessor {
 	}
 
 	private static AriCommandEnvelope unmarshallAriCommandEnvelope(final ConsumerRecord<String, String> record) {
-		return new Gson().fromJson(record.value(), AriCommandEnvelope.class);
+		return Try.of(() -> (AriCommandEnvelope) reader.readValue(record.value())).getOrElseThrow(t -> new RuntimeException(t));
 	}
 
 	private static String lookupCallContext(
 			final String resourceId,
 			final ActorRef callcontextProvider) {
 
-		System.out.println(callcontextProvider);
-
 		final ProvideCallContext message = new ProvideCallContext(resourceId, ProviderPolicy.LOOKUP_ONLY);
-		System.out.println(message);
 
 		return PatternsAdapter.<CallContextProvided>ask(
 				callcontextProvider,
@@ -151,7 +155,7 @@ public class AriCommandResponseKafkaProcessor {
 
 	private static Tuple2<AriMessageEnvelope, CallContextAndResourceId> envelopeAriResponse(
 			AriResponse ariResponse, CallContextAndResourceId callContextAndResourceId, String kafkaCommandsTopic) {
-		String payload = io.vavr.control.Try.of(() -> new ObjectMapper().writeValueAsString(ariResponse))
+		final String payload = Try.of(() -> ariResponseWriter.writeValueAsString(ariResponse))
 				.getOrElseThrow(t -> new RuntimeException("Failed to serialize AriResponse", t));
 
 		final AriMessageEnvelope envelope = new AriMessageEnvelope(
@@ -166,7 +170,7 @@ public class AriCommandResponseKafkaProcessor {
 	}
 
 	private static String marshallAriMessageEnvelope(AriMessageEnvelope messageEnvelope) {
-		return io.vavr.control.Try.of(() -> new ObjectMapper().writeValueAsString(messageEnvelope))
+		return Try.of(() -> ariMessageEnvelopeWriter.writeValueAsString(messageEnvelope))
 				.getOrElseThrow(t -> new RuntimeException("Failed to serialize AriResponse", t));
 	}
 

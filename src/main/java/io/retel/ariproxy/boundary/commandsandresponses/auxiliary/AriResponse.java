@@ -4,17 +4,18 @@ import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToStrin
 import static org.apache.commons.lang3.builder.ToStringStyle.SHORT_PREFIX_STYLE;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 
 public class AriResponse {
 
 	@JsonProperty(value = "status_code")
 	private int statusCode;
-	private String body;
+	private JsonNode body;
 
 	public AriResponse() {
 	}
 
-	public AriResponse(int statusCode, String body) {
+	public AriResponse(int statusCode, JsonNode body) {
 		this.statusCode = statusCode;
 		this.body = body;
 	}
@@ -23,7 +24,7 @@ public class AriResponse {
 		return statusCode;
 	}
 
-	public String getBody() {
+	public JsonNode getBody() {
 		return body;
 	}
 

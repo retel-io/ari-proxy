@@ -3,16 +3,18 @@ package io.retel.ariproxy.boundary.commandsandresponses.auxiliary;
 import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
 import static org.apache.commons.lang3.builder.ToStringStyle.SHORT_PREFIX_STYLE;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 public class AriCommand {
 
 	private String method = null;
 	private String url = null;
-	private String body = null;
+	private JsonNode body = null;
 
 	public AriCommand() {
 	}
 
-	public AriCommand(final String method, final String url, final String body) {
+	public AriCommand(final String method, final String url, final JsonNode body) {
 		this.method = method;
 		this.url = url;
 		this.body = body;
@@ -26,7 +28,7 @@ public class AriCommand {
 		return url;
 	}
 
-	public String getBody() {
+	public JsonNode getBody() {
 		return body;
 	}
 

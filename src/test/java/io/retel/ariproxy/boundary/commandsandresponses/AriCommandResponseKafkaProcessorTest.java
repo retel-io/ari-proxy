@@ -81,7 +81,7 @@ class AriCommandResponseKafkaProcessorTest {
 				+ "   \"ariCommand\" : {\n"
 				+ "      \"url\" : \"/channels/1533286879.42/play/c4958563-1ba4-4f2f-a60f-626a624bf0e6\",\n"
 				+ "      \"method\" : \"POST\",\n"
-				+ "      \"body\" : \"{\\\"media\\\": \\\"sound:hd/register_success\\\", \\\"lang\\\":\\\"de\\\"}\"\n"
+				+ "      \"body\" : {\"media\": \"sound:hd/register_success\", \"lang\":\"de\"}"
 				+ "   }\n"
 				+ "}");
 

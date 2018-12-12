@@ -20,6 +20,7 @@ import akka.stream.Supervision.Directive;
 import akka.stream.javadsl.Keep;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -39,6 +40,7 @@ import io.retel.ariproxy.config.ServiceConfig;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
+import io.vavr.control.Option;
 import io.vavr.control.Try;
 import java.nio.charset.Charset;
 import java.util.concurrent.CompletionStage;
@@ -56,7 +58,7 @@ public class AriCommandResponseKafkaProcessor {
 	private static final ObjectMapper mapper = new ObjectMapper();
 	private static final ObjectReader reader = mapper.readerFor(AriCommandEnvelope.class);
 	private static final ObjectWriter ariMessageEnvelopeWriter = mapper.writerFor(AriMessageEnvelope.class);
-	private static final ObjectWriter ariResponseWriter = mapper.writerFor(AriResponse.class);
+	private static final ObjectWriter genericWriter = mapper.writer();
 
 	public static ProcessingPipeline<ConsumerRecord<String, String>, CommandResponseHandler> commandResponseProcessing() {
 		return config -> system -> commandResponseHandler -> callContextProvider -> metricsService -> source -> sink -> () -> run(
@@ -155,13 +157,10 @@ public class AriCommandResponseKafkaProcessor {
 
 	private static Tuple2<AriMessageEnvelope, CallContextAndResourceId> envelopeAriResponse(
 			AriResponse ariResponse, CallContextAndResourceId callContextAndResourceId, String kafkaCommandsTopic) {
-		final String payload = Try.of(() -> ariResponseWriter.writeValueAsString(ariResponse))
-				.getOrElseThrow(t -> new RuntimeException("Failed to serialize AriResponse", t));
-
 		final AriMessageEnvelope envelope = new AriMessageEnvelope(
 				AriMessageType.RESPONSE,
 				kafkaCommandsTopic,
-				payload,
+				ariResponse,
 				callContextAndResourceId.getResourceId(),
 				callContextAndResourceId.getCommandId()
 		);
@@ -199,13 +198,20 @@ public class AriCommandResponseKafkaProcessor {
 
 	private static HttpRequest toHttpRequest(AriCommand ariCommand, String uri, String user, String password) {
 		final String method = ariCommand.getMethod();
+		final JsonNode body = ariCommand.getBody();
+
+		final String bodyJson = Option.of(body)
+				.map(value -> Try.of(() -> genericWriter.writeValueAsString(value)))
+				.getOrElse(Try.success(""))
+				.getOrElseThrow(t -> new RuntimeException(t));
+
 		return HttpMethods.lookup(method)
 				.map(validHttpMethod -> HttpRequest
 						.create()
 						.withMethod(validHttpMethod)
 						.addCredentials(HttpCredentials.createBasicHttpCredentials(user, password))
 						.withUri(uri + ariCommand.getUrl())
-						.withEntity(ContentTypes.APPLICATION_JSON, ariCommand.getBody().getBytes())
+						.withEntity(ContentTypes.APPLICATION_JSON, bodyJson.getBytes())
 				)
 				.orElseThrow(() -> new RuntimeException(String.format("Invalid http method: %s", method)));
 	}

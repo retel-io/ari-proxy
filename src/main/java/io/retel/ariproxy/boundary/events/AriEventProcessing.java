@@ -66,7 +66,8 @@ public class AriEventProcessing {
 			LoggingAdapter log,
 			Runnable applicationReplacedHandler) {
 
-		final String messageBody = message.asTextMessage().getStrictText();
+		final JsonNode messageBody = Try.of(() -> reader.readTree(message.asTextMessage().getStrictText())).getOrElseThrow(t -> new RuntimeException(t));
+
 		final String eventTypeString = getValueFromMessageByPath(message, "/type").getOrElseThrow(t -> t);
 		final AriMessageType ariMessageType = AriMessageType.fromType(eventTypeString);
 
@@ -100,13 +101,14 @@ public class AriEventProcessing {
 			LoggingAdapter log,
 			String resourceId,
 			String callContext,
-			String messageBody) {
+			JsonNode messageBody) {
 
 		final AriMessageEnvelope envelope = new AriMessageEnvelope(
 				type,
 				kafkaCommandsTopic,
 				messageBody,
-				resourceId);
+				resourceId
+		);
 
 		return Try.of(() -> writer.writeValueAsString(envelope))
 				.map(marshalledEnvelope -> {

@@ -6,7 +6,9 @@ import static org.junit.Assert.assertThat;
 import akka.NotUsed;
 import akka.actor.ActorSystem;
 import akka.http.javadsl.Http;
+import akka.http.javadsl.model.HttpEntity;
 import akka.http.javadsl.model.HttpResponse;
+import akka.http.javadsl.model.ResponseEntity;
 import akka.http.javadsl.model.StatusCodes;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
@@ -19,6 +21,7 @@ import io.retel.ariproxy.config.ConfigLoader;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import javax.swing.text.html.parser.Entity;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.AfterEach;
@@ -93,7 +96,7 @@ class AriCommandResponseKafkaProcessorTest {
 				.withConfig(ConfigLoader.load())
 				.on(system)
 				.withHandler(r -> CompletableFuture.supplyAsync(() ->
-						HttpResponse.create().withStatus(StatusCodes.NO_CONTENT))
+						HttpResponse.create().withStatus(StatusCodes.OK).withEntity("{ \"key\":\"value\" }"))
 				)
 				.withCallContextProvider(callContextProvider.getRef())
 				.withMetricsService(metricsService.getRef())

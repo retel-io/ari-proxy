@@ -20,6 +20,7 @@ import akka.stream.Supervision.Directive;
 import akka.stream.javadsl.Keep;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
@@ -40,10 +41,13 @@ import io.retel.ariproxy.config.ServiceConfig;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
+import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
 import java.nio.charset.Charset;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
@@ -56,9 +60,14 @@ public class AriCommandResponseKafkaProcessor {
 	);
 
 	private static final ObjectMapper mapper = new ObjectMapper();
+	static {
+		mapper.setSerializationInclusion(Include.NON_NULL);
+	}
+
 	private static final ObjectReader reader = mapper.readerFor(AriCommandEnvelope.class);
 	private static final ObjectWriter ariMessageEnvelopeWriter = mapper.writerFor(AriMessageEnvelope.class);
 	private static final ObjectWriter genericWriter = mapper.writer();
+	private static final ObjectReader genericReader = mapper.reader();
 
 	public static ProcessingPipeline<ConsumerRecord<String, String>, CommandResponseHandler> commandResponseProcessing() {
 		return config -> system -> commandResponseHandler -> callContextProvider -> metricsService -> source -> sink -> () -> run(
@@ -100,15 +109,19 @@ public class AriCommandResponseKafkaProcessor {
 							.getOrElseThrow(t -> t).run();
 					return Tuple.of(
 							msgEnvelope.getAriCommand(),
-							new CallContextAndResourceId(callContext, msgEnvelope.getResourceId(), msgEnvelope.getCommandId())
+							new CallContextAndResourceId(callContext, msgEnvelope.getResourceId(),
+									msgEnvelope.getCommandId())
 					);
 				})
-				.map(ariCommandAndContext -> ariCommandAndContext.map1(cmd -> toHttpRequest(cmd, config.getRestUri(), config.getRestUser(), config.getRestPassword())))
+				.map(ariCommandAndContext -> ariCommandAndContext
+						.map1(cmd -> toHttpRequest(cmd, config.getRestUri(), config.getRestUser(),
+								config.getRestPassword())))
 				.mapAsync(1, requestAndContext -> commandResponseHandler.apply(requestAndContext)
 						.thenApply(response -> Tuple.of(response, requestAndContext._2)))
 				.wireTap(Sink.foreach(gatherMetrics(metricsService, config.getStasisApp())))
 				.mapAsync(1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, materializer))
-				.map(ariResponseAndContext -> envelopeAriResponse(ariResponseAndContext._1, ariResponseAndContext._2, config.getKafkaCommandsTopic()))
+				.map(ariResponseAndContext -> envelopeAriResponse(ariResponseAndContext._1, ariResponseAndContext._2,
+						config.getKafkaCommandsTopic()))
 				.map(ariMessageEnvelopeAndContext -> ariMessageEnvelopeAndContext
 						.map1(AriCommandResponseKafkaProcessor::marshallAriMessageEnvelope))
 				.map(ariResponseStringAndContext -> new ProducerRecord<>(
@@ -123,7 +136,8 @@ public class AriCommandResponseKafkaProcessor {
 		return materializer;
 	}
 
-	private static Procedure<Tuple2<HttpResponse, CallContextAndResourceId>> gatherMetrics(ActorRef metricsService, String applicationName) {
+	private static Procedure<Tuple2<HttpResponse, CallContextAndResourceId>> gatherMetrics(ActorRef metricsService,
+			String applicationName) {
 		return rawHttpResponseAndContext ->
 				metricsService.tell(
 						new StopCallSetupTimer(
@@ -135,7 +149,8 @@ public class AriCommandResponseKafkaProcessor {
 	}
 
 	private static AriCommandEnvelope unmarshallAriCommandEnvelope(final ConsumerRecord<String, String> record) {
-		return Try.of(() -> (AriCommandEnvelope) reader.readValue(record.value())).getOrElseThrow(t -> new RuntimeException(t));
+		return Try.of(() -> (AriCommandEnvelope) reader.readValue(record.value()))
+				.getOrElseThrow(t -> new RuntimeException(t));
 	}
 
 	private static String lookupCallContext(
@@ -186,13 +201,15 @@ public class AriCommandResponseKafkaProcessor {
 		return response
 				.entity()
 				.toStrict(contentLength, materializer)
-				.thenApply(strictText -> {
-					AriResponse ariResponse = new AriResponse(
-							response.status().intValue(),
-							strictText.getData().decodeString(Charset.defaultCharset())
-					);
-					return responseWithContext.map1(httpResponse -> ariResponse);
-				});
+				.thenCompose(strictText -> Option.of(StringUtils.trimToNull(strictText.getData().decodeString(Charset.defaultCharset())))
+						.map(rawBody -> Try
+								.of(() -> genericReader.readTree(rawBody))
+								.map(jsonBody -> new AriResponse( response.status().intValue(), jsonBody))
+								.map(res -> responseWithContext.map1(httpResponse -> res))
+								.map(tuple -> CompletableFuture.completedFuture(tuple))
+								.getOrElseGet(t -> Future.<Tuple2<AriResponse, CallContextAndResourceId>>failed(t).toCompletableFuture()))
+						.getOrElse(CompletableFuture.completedFuture(responseWithContext.map1(httpResponse -> new AriResponse(response.status().intValue(), null))))
+				);
 	}
 
 	private static HttpRequest toHttpRequest(AriCommand ariCommand, String uri, String user, String password) {

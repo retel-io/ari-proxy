@@ -150,7 +150,6 @@ public class AriCommandResponseKafkaProcessor {
 				100
 		)
 				.await()
-				.onSuccess(provided -> System.out.println(provided))
 				.get()
 				.callContext();
 	}

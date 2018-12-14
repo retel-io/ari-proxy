@@ -41,6 +41,7 @@ public enum AriMessageType {
 	STASIS_END("StasisEnd", resourceIdFromBody("/channel/id")),
 	STASIS_START("StasisStart", resourceIdFromBody("/channel/id")),
 	RESPONSE("AriResponse", body -> None()),
+	CHANNELVARSET("ChannelVarset", resourceIdFromBody("/channel/id")),
 	UNKNOWN("UnknownAriMessage", body -> Some(Try.failure(new RuntimeException(String.format("Failed to extract resourceId from body=%s", body)))));
 
 	private final String typeName;

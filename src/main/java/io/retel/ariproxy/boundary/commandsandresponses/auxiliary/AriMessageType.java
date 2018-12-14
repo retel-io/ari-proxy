@@ -13,34 +13,35 @@ import org.apache.commons.lang3.StringUtils;
 // Supported event types
 public enum AriMessageType {
 	APPLICATION_REPLACED("ApplicationReplaced", body -> None()),
-	BRIDGE_CREATED("BridgeCreated", resourceIdFromBody("/bridge/id")),
-	BRIDGE_DESTROYED("BridgeDestroyed", resourceIdFromBody("/bridge/id")),
-	BRIDGE_MERGED("BridgeMerged", resourceIdFromBody("/bridge/id")),
-	BRIDGE_VIDEOSOURCE_CHANGED("BridgeVideoSourceChanged", resourceIdFromBody("/bridge/id")),
-	CHANNEL_CALLERID("ChannelCallerId", resourceIdFromBody("/channel/id")),
-	CHANNEL_CONNECTED_LINE("ChannelConnectedLine", resourceIdFromBody("/channel/id")),
-	CHANNEL_CREATED("ChannelCreated", resourceIdFromBody("/channel/id")),
-	CHANNEL_DESTROYED("ChannelDestroyed", resourceIdFromBody("/channel/id")),
-	CHANNEL_DIALPLAN("ChannelDialplan", resourceIdFromBody("/channel/id")),
-	CHANNEL_DTMF_RECEIVED("ChannelDtmfReceived", resourceIdFromBody("/channel/id")),
-	CHANNEL_ENTERED_BRIDGE("ChannelEnteredBridge", resourceIdFromBody("/bridge/id")),
-	CHANNEL_HANGUP_REQUEST("ChannelHangupRequest", resourceIdFromBody("/channel/id")),
-	CHANNEL_HOLD("ChannelHold", resourceIdFromBody("/channel/id")),
-	CHANNEL_LEFT_BRIDGE("ChannelLeftBridge", resourceIdFromBody("/bridge/id")),
-	CHANNEL_STATE_CHANGE("ChannelStateChange", resourceIdFromBody("/channel/id")),
-	CHANNEL_TALKING_FINISHED("ChannelTalkingFinished", resourceIdFromBody("/channel/id")),
-	CHANNEL_TALKING_STARTED("ChannelTalkingStarted", resourceIdFromBody("/channel/id")),
-	CHANNEL_UNHOLD("ChannelUnhold", resourceIdFromBody("/channel/id")),
-	DIAL("Dial", resourceIdFromBody("/peer/id")),
-	PLAYBACK_CONTINUING("PlaybackContinuing", resourceIdFromBody("/playback/id")),
-	PLAYBACK_FINISHED("PlaybackFinished", resourceIdFromBody("/playback/id")),
-	PLAYBACK_STARTED("PlaybackStarted", resourceIdFromBody("/playback/id")),
-	RECORDING_FAILED("RecordingFailed", resourceIdFromBody("/recording/name")),
-	RECORDING_FINISHED("RecordingFinished", resourceIdFromBody("/recording/name")),
-	RECORDING_STARTED("RecordingStarted", resourceIdFromBody("/recording/name")),
-	STASIS_END("StasisEnd", resourceIdFromBody("/channel/id")),
-	STASIS_START("StasisStart", resourceIdFromBody("/channel/id")),
+	BRIDGE_CREATED("BridgeCreated", resourceIdFromBody(XPaths.BRIDGE_ID)),
+	BRIDGE_DESTROYED("BridgeDestroyed", resourceIdFromBody(XPaths.BRIDGE_ID)),
+	BRIDGE_MERGED("BridgeMerged", resourceIdFromBody(XPaths.BRIDGE_ID)),
+	BRIDGE_VIDEOSOURCE_CHANGED("BridgeVideoSourceChanged", resourceIdFromBody(XPaths.BRIDGE_ID)),
+	CHANNEL_CALLERID("ChannelCallerId", resourceIdFromBody(XPaths.CHANNEL_ID)),
+	CHANNEL_CONNECTED_LINE("ChannelConnectedLine", resourceIdFromBody(XPaths.CHANNEL_ID)),
+	CHANNEL_CREATED("ChannelCreated", resourceIdFromBody(XPaths.CHANNEL_ID)),
+	CHANNEL_DESTROYED("ChannelDestroyed", resourceIdFromBody(XPaths.CHANNEL_ID)),
+	CHANNEL_DIALPLAN("ChannelDialplan", resourceIdFromBody(XPaths.CHANNEL_ID)),
+	CHANNEL_DTMF_RECEIVED("ChannelDtmfReceived", resourceIdFromBody(XPaths.CHANNEL_ID)),
+	CHANNEL_ENTERED_BRIDGE("ChannelEnteredBridge", resourceIdFromBody(XPaths.BRIDGE_ID)),
+	CHANNEL_HANGUP_REQUEST("ChannelHangupRequest", resourceIdFromBody(XPaths.CHANNEL_ID)),
+	CHANNEL_HOLD("ChannelHold", resourceIdFromBody(XPaths.CHANNEL_ID)),
+	CHANNEL_LEFT_BRIDGE("ChannelLeftBridge", resourceIdFromBody(XPaths.BRIDGE_ID)),
+	CHANNEL_STATE_CHANGE("ChannelStateChange", resourceIdFromBody(XPaths.CHANNEL_ID)),
+	CHANNEL_TALKING_FINISHED("ChannelTalkingFinished", resourceIdFromBody(XPaths.CHANNEL_ID)),
+	CHANNEL_TALKING_STARTED("ChannelTalkingStarted", resourceIdFromBody(XPaths.CHANNEL_ID)),
+	CHANNEL_UNHOLD("ChannelUnhold", resourceIdFromBody(XPaths.CHANNEL_ID)),
+	DIAL("Dial", resourceIdFromBody(XPaths.PEER_ID)),
+	PLAYBACK_CONTINUING("PlaybackContinuing", resourceIdFromBody(XPaths.PLAYBACK_ID)),
+	PLAYBACK_FINISHED("PlaybackFinished", resourceIdFromBody(XPaths.PLAYBACK_ID)),
+	PLAYBACK_STARTED("PlaybackStarted", resourceIdFromBody(XPaths.PLAYBACK_ID)),
+	RECORDING_FAILED("RecordingFailed", resourceIdFromBody(XPaths.RECORDING_NAME)),
+	RECORDING_FINISHED("RecordingFinished", resourceIdFromBody(XPaths.RECORDING_NAME)),
+	RECORDING_STARTED("RecordingStarted", resourceIdFromBody(XPaths.RECORDING_NAME)),
+	STASIS_END("StasisEnd", resourceIdFromBody(XPaths.CHANNEL_ID)),
+	STASIS_START("StasisStart", resourceIdFromBody(XPaths.CHANNEL_ID)),
 	RESPONSE("AriResponse", body -> None()),
+	CHANNELVARSET("ChannelVarset", resourceIdFromBody(XPaths.CHANNEL_ID)),
 	UNKNOWN("UnknownAriMessage", body -> Some(Try.failure(new RuntimeException(String.format("Failed to extract resourceId from body=%s", body)))));
 
 	private final String typeName;
@@ -68,5 +69,13 @@ public enum AriMessageType {
 						.flatMap(type -> StringUtils.isBlank(type) ? None() : Some(type))
 						.toTry(() -> new Throwable(String.format("Failed to extract resourceId at path=%s from body=%s", resourceIdXPath, body)))
 		);
+	}
+
+	private static class XPaths {
+		static final String BRIDGE_ID = "/bridge/id";
+		static final String CHANNEL_ID = "/channel/id";
+		static final String PLAYBACK_ID = "/playback/id";
+		static final String RECORDING_NAME = "/recording/name";
+		static final String PEER_ID = "/peer/id";
 	}
 }

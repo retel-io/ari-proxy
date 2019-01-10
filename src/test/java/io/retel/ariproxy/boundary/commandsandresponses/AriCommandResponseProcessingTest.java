@@ -102,4 +102,24 @@ class AriCommandResponseProcessingTest {
 		assertThat(registerCallContext.callContext(), is("CALL_CONTEXT"));
 
 	}
+
+	@Test
+	void ensureFallBackToBodyExtractorWorksAsExpectedForChannelCreate() throws IOException {
+		final TestKit callContextProvider = new TestKit(system);
+		final String json = "{ \"method\":\"POST\", \"url\":\"/channels/create\", \"body\":{\"channelId\":\"channel-Id\"}}";
+		final AriCommand ariCommand = ariCommandReader.readValue(json);
+
+		System.out.println(ariCommand);
+
+		final Either<RuntimeException, Runnable> res = AriCommandResponseProcessing
+				.registerCallContext(callContextProvider.getRef(), "CALL_CONTEXT", ariCommand);
+
+		res.get().run();
+
+		final RegisterCallContext registerCallContext = callContextProvider.expectMsgClass(RegisterCallContext.class);
+		assertThat(registerCallContext.resourceId(), is("channel-Id"));
+		assertThat(registerCallContext.callContext(), is("CALL_CONTEXT"));
+
+	}
+
 }

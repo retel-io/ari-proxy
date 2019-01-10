@@ -80,7 +80,10 @@ public enum AriCommandType {
     }
 
     private static Function<String, Option<Try<String>>> resourceIdFromUri(final int resourceIdPosition) {
-        return uri -> Some(Try.of(() -> List.of(uri.split("/")).get(resourceIdPosition)));
+        return uri -> {
+            if ("/channels/create".equals(uri)) { return Some(Try.failure(new Throwable("No ID present in URI"))); }
+            return Some(Try.of(() -> List.of(uri.split("/")).get(resourceIdPosition)));
+        };
     }
 
     private static Function<String, Option<Try<String>>> resourceIdFromBody(final String resourceIdXPath) {

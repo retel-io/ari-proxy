@@ -55,13 +55,13 @@ class CallContextProviderTest {
 						23
 				));
 
-				final RegisterCallContext request = new RegisterCallContext("resourceId", "callContext");
+				final RegisterCallContext request = new RegisterCallContext("callContext", "callContext");
 
 				callContextProvider.tell(request, getRef());
 
 				final CallContextRegistered callContextRegistered = expectMsgClass(CallContextRegistered.class);
 
-				assertThat(callContextRegistered.resourceId(), is("resourceId"));
+				assertThat(callContextRegistered.resourceId(), is("callContext"));
 				assertThat(callContextRegistered.callContext(), is("callContext"));
 			}
 		};
@@ -78,7 +78,7 @@ class CallContextProviderTest {
 
 				watch(callContextProvider);
 
-				final ProvideCallContext request = new ProvideCallContext("resourceId",
+				final ProvideCallContext request = new ProvideCallContext("callContext",
 						ProviderPolicy.CREATE_IF_MISSING);
 
 				callContextProvider.tell(request, getRef());
@@ -99,7 +99,7 @@ class CallContextProviderTest {
 						23
 				));
 
-				final ProvideCallContext request = new ProvideCallContext("resourceId", ProviderPolicy.LOOKUP_ONLY);
+				final ProvideCallContext request = new ProvideCallContext("callContext", ProviderPolicy.LOOKUP_ONLY);
 
 				callContextProvider.tell(request, getRef());
 
@@ -119,7 +119,7 @@ class CallContextProviderTest {
 						1000
 				));
 
-				final ProvideCallContext request = new ProvideCallContext("resourceId",
+				final ProvideCallContext request = new ProvideCallContext("callContext",
 						ProviderPolicy.CREATE_IF_MISSING);
 
 				callContextProvider.tell(request, getRef());
@@ -127,7 +127,7 @@ class CallContextProviderTest {
 				final CallContextProvided createdCallContext = expectMsgClass(Duration.ofMillis(GENEROUS_TIMEOUT),
 						CallContextProvided.class);
 
-				callContextProvider.tell(new ProvideCallContext("resourceId", ProviderPolicy.LOOKUP_ONLY), getRef());
+				callContextProvider.tell(new ProvideCallContext("callContext", ProviderPolicy.LOOKUP_ONLY), getRef());
 
 				assertThat(
 						expectMsgClass(Duration.ofMillis(GENEROUS_TIMEOUT), CallContextProvided.class).callContext(),
@@ -146,7 +146,7 @@ class CallContextProviderTest {
 						1000
 				));
 
-				callContextProvider.tell(new ProvideCallContext("resourceId", ProviderPolicy.LOOKUP_ONLY), getRef());
+				callContextProvider.tell(new ProvideCallContext("callContext", ProviderPolicy.LOOKUP_ONLY), getRef());
 
 				final Failure failure = expectMsgClass(Duration.ofMillis(GENEROUS_TIMEOUT), Failure.class);
 
@@ -164,7 +164,7 @@ class CallContextProviderTest {
 						SMALL_EXPIRATION_TIME
 				));
 
-				final RegisterCallContext request = new RegisterCallContext("resourceId", "callContext");
+				final RegisterCallContext request = new RegisterCallContext("callContext", "callContext");
 
 				send(callContextProvider, request);
 
@@ -172,7 +172,7 @@ class CallContextProviderTest {
 						expectMsgClass(Duration.ofMillis(GENEROUS_TIMEOUT), CallContextRegistered.class).callContext(),
 						is("callContext"));
 
-				send(callContextProvider, new ProvideCallContext("resourceId", ProviderPolicy.LOOKUP_ONLY));
+				send(callContextProvider, new ProvideCallContext("callContext", ProviderPolicy.LOOKUP_ONLY));
 
 				assertThat(
 						expectMsgClass(Duration.ofMillis(GENEROUS_TIMEOUT), CallContextProvided.class).callContext(),
@@ -180,7 +180,7 @@ class CallContextProviderTest {
 
 				Thread.sleep(SMALL_EXPIRATION_TIME + 42);
 
-				send(callContextProvider, new ProvideCallContext("resourceId", ProviderPolicy.LOOKUP_ONLY));
+				send(callContextProvider, new ProvideCallContext("callContext", ProviderPolicy.LOOKUP_ONLY));
 
 				final Failure failure = expectMsgClass(Duration.ofMillis(GENEROUS_TIMEOUT), Failure.class);
 
@@ -248,7 +248,7 @@ class CallContextProviderTest {
 
 				Stream.range(0, amountOfEntries)
 						.map(id -> new RegisterCallContext(
-								String.format("resourceId%s", id),
+								String.format("callContext%s", id),
 								String.format("callContext%s", id))
 						)
 						.forEach(registerCommand -> {
@@ -298,7 +298,7 @@ class CallContextProviderTest {
 
 				watch(callContextProvider);
 
-				callContextProvider.tell(new RegisterCallContext("resourceId", "callContext"), getRef());
+				callContextProvider.tell(new RegisterCallContext("callContext", "callContext"), getRef());
 				expectMsgClass(CallContextRegistered.class); // Note: We don't care about the details here
 
 				callContextProvider.tell(ProvideHealthReport.getInstance(), getRef());

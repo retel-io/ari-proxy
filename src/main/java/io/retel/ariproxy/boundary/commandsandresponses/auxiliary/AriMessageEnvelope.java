@@ -8,24 +8,23 @@ public class AriMessageEnvelope {
 	private AriMessageType type;
 	private String commandsTopic;
 	private Object payload;
-	private String resourceId;
+	private String callContext;
 	private String commandId;
 
 	public AriMessageEnvelope() {
 	}
 
-	public AriMessageEnvelope(AriMessageType type, String commandsTopic, Object payload, String resourceId,
-			String commandId) {
+	public AriMessageEnvelope(AriMessageType type, String commandsTopic, Object payload, String callContext, String commandId) {
 		this.commandsTopic = commandsTopic;
 		this.payload = payload;
-		this.resourceId = resourceId;
+		this.callContext = callContext;
 		this.type = type;
 		this.commandId = commandId;
 	}
 
 
-	public AriMessageEnvelope(AriMessageType type, String commandsTopic, Object payload, String resourceId) {
-		this(type, commandsTopic, payload, resourceId, null);
+	public AriMessageEnvelope(AriMessageType type, String commandsTopic, Object payload, String callContext) {
+		this(type, commandsTopic, payload, callContext, null);
 	}
 
 	public AriMessageType getType() {
@@ -40,8 +39,8 @@ public class AriMessageEnvelope {
 		return payload;
 	}
 
-	public String getResourceId() {
-		return resourceId;
+	public String getCallContext() {
+		return callContext;
 	}
 
 	public String getCommandId() {

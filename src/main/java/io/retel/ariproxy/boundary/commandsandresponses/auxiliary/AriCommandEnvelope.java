@@ -6,14 +6,14 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 public class AriCommandEnvelope {
 
 	private AriCommand ariCommand;
-	private String resourceId;
+	private String callContext;
 	private String commandId;
 
 	private AriCommandEnvelope() {}
 
-	public AriCommandEnvelope(AriCommand ariCommand, String resourceId, String commandId) {
+	public AriCommandEnvelope(AriCommand ariCommand, String callContext, String commandId) {
 		this.ariCommand = ariCommand;
-		this.resourceId = resourceId;
+		this.callContext = callContext;
 		this.commandId = commandId;
 	}
 
@@ -21,15 +21,8 @@ public class AriCommandEnvelope {
 		return ariCommand;
 	}
 
-	/*
-
-	 * represents asterisk resource
-	 *
-	 * e.g. ChannelId, PlaybackID, etc
-	 *
-	 */
-	public String getResourceId() {
-		return resourceId;
+	public String getCallContext() {
+		return callContext;
 	}
 
 	public String getCommandId() {

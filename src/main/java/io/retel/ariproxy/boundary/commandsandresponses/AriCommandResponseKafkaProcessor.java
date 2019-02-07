@@ -25,16 +25,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
-import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
-import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
-import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
-import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommand;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandEnvelope;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageEnvelope;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriResponse;
-import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.CallContextAndResourceId;
+import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.CallContextAndCommandId;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.CommandResponseHandler;
 import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
 import io.retel.ariproxy.config.ServiceConfig;
@@ -103,14 +99,12 @@ public class AriCommandResponseKafkaProcessor {
 				.log(">>>   ARI COMMAND", ConsumerRecord::value).withAttributes(LOG_LEVELS)
 				.map(AriCommandResponseKafkaProcessor::unmarshallAriCommandEnvelope)
 				.map(msgEnvelope -> {
-					final String callContext = lookupCallContext(msgEnvelope.getResourceId(), callContextProvider);
 					AriCommandResponseProcessing
-							.registerCallContext(callContextProvider, callContext, msgEnvelope.getAriCommand())
+							.registerCallContext(callContextProvider, msgEnvelope.getCallContext(), msgEnvelope.getAriCommand())
 							.getOrElseThrow(t -> t).run();
 					return Tuple.of(
 							msgEnvelope.getAriCommand(),
-							new CallContextAndResourceId(callContext, msgEnvelope.getResourceId(),
-									msgEnvelope.getCommandId())
+							new CallContextAndCommandId(msgEnvelope.getCallContext(), msgEnvelope.getCommandId())
 					);
 				})
 				.map(ariCommandAndContext -> ariCommandAndContext
@@ -136,7 +130,7 @@ public class AriCommandResponseKafkaProcessor {
 		return materializer;
 	}
 
-	private static Procedure<Tuple2<HttpResponse, CallContextAndResourceId>> gatherMetrics(ActorRef metricsService,
+	private static Procedure<Tuple2<HttpResponse, CallContextAndCommandId>> gatherMetrics(ActorRef metricsService,
 			String applicationName) {
 		return rawHttpResponseAndContext ->
 				metricsService.tell(
@@ -153,29 +147,13 @@ public class AriCommandResponseKafkaProcessor {
 				.getOrElseThrow(t -> new RuntimeException(t));
 	}
 
-	private static String lookupCallContext(
-			final String resourceId,
-			final ActorRef callcontextProvider) {
-
-		final ProvideCallContext message = new ProvideCallContext(resourceId, ProviderPolicy.LOOKUP_ONLY);
-
-		return PatternsAdapter.<CallContextProvided>ask(
-				callcontextProvider,
-				message,
-				100
-		)
-				.await()
-				.get()
-				.callContext();
-	}
-
-	private static Tuple2<AriMessageEnvelope, CallContextAndResourceId> envelopeAriResponse(
-			AriResponse ariResponse, CallContextAndResourceId callContextAndResourceId, String kafkaCommandsTopic) {
+	private static Tuple2<AriMessageEnvelope, CallContextAndCommandId> envelopeAriResponse(
+			AriResponse ariResponse, CallContextAndCommandId callContextAndResourceId, String kafkaCommandsTopic) {
 		final AriMessageEnvelope envelope = new AriMessageEnvelope(
 				AriMessageType.RESPONSE,
 				kafkaCommandsTopic,
 				ariResponse,
-				callContextAndResourceId.getResourceId(),
+				callContextAndResourceId.getCallContext(),
 				callContextAndResourceId.getCommandId()
 		);
 
@@ -187,8 +165,8 @@ public class AriCommandResponseKafkaProcessor {
 				.getOrElseThrow(t -> new RuntimeException("Failed to serialize AriResponse", t));
 	}
 
-	private static CompletionStage<Tuple2<AriResponse, CallContextAndResourceId>> toAriResponse(
-			Tuple2<HttpResponse, CallContextAndResourceId> responseWithContext,
+	private static CompletionStage<Tuple2<AriResponse, CallContextAndCommandId>> toAriResponse(
+			Tuple2<HttpResponse, CallContextAndCommandId> responseWithContext,
 			Materializer materializer) {
 
 		final HttpResponse response = responseWithContext._1;
@@ -207,7 +185,7 @@ public class AriCommandResponseKafkaProcessor {
 								.map(jsonBody -> new AriResponse( response.status().intValue(), jsonBody))
 								.map(res -> responseWithContext.map1(httpResponse -> res))
 								.map(tuple -> CompletableFuture.completedFuture(tuple))
-								.getOrElseGet(t -> Future.<Tuple2<AriResponse, CallContextAndResourceId>>failed(t).toCompletableFuture()))
+								.getOrElseGet(t -> Future.<Tuple2<AriResponse, CallContextAndCommandId>>failed(t).toCompletableFuture()))
 						.getOrElse(CompletableFuture.completedFuture(responseWithContext.map1(httpResponse -> new AriResponse(response.status().intValue(), null))))
 				);
 	}

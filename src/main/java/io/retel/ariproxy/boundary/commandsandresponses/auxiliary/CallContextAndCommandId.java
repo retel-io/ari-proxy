@@ -1,25 +1,24 @@
-package io.retel.ariproxy.boundary.callcontext.api;
+package io.retel.ariproxy.boundary.commandsandresponses.auxiliary;
 
-import java.io.Serializable;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-public class ProvideCallContext implements Serializable {
+public class CallContextAndCommandId {
 
 	private final String callContext;
-	private final ProviderPolicy policy;
+	private final String commandId;
 
-	public ProvideCallContext(String callContext, ProviderPolicy policy) {
+	public CallContextAndCommandId(String callContext, String commandId) {
 		this.callContext = callContext;
-		this.policy = policy;
+		this.commandId = commandId;
 	}
 
-	public String callContext() {
+	public String getCallContext() {
 		return callContext;
 	}
 
-	public ProviderPolicy policy() {
-		return policy;
+	public String getCommandId() {
+		return commandId;
 	}
 
 	@Override

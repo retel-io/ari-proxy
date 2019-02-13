@@ -14,7 +14,7 @@ public class ProvideCallContext implements Serializable {
 		this.policy = policy;
 	}
 
-	public String resourceId() {
+	public String callContext() {
 		return resourceId;
 	}
 

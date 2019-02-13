@@ -56,14 +56,14 @@ public class CallContextProvider extends AbstractLoggingActor {
 
 	private void provideCallContextHandler(ProvideCallContext cmd) {
 		log().debug("Got command: {}", cmd);
-		final Option<String> maybeCallContext = state.get(cmd.resourceId());
+		final Option<String> maybeCallContext = state.get(cmd.callContext());
 		// NOTE: No combinators, as we need to stay in the current thread!
 		if (maybeCallContext.isDefined()) {
 			replyWithCallContext(maybeCallContext.get());
 		} else {
 			if (ProviderPolicy.CREATE_IF_MISSING.equals(cmd.policy())) {
 				final String callContext = UUID.randomUUID().toString();
-				registerCallContext(cmd.resourceId(), callContext);
+				registerCallContext(cmd.callContext(), callContext);
 				replyWithCallContext(callContext);
 			} else {
 				replyWithFailure(new CallContextLookupError("Failed to lookup call context..."));

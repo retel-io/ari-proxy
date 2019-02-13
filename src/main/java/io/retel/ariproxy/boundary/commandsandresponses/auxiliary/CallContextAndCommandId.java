@@ -3,22 +3,14 @@ package io.retel.ariproxy.boundary.commandsandresponses.auxiliary;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-public class AriCommandEnvelope {
+public class CallContextAndCommandId {
 
-	private AriCommand ariCommand;
-	private String callContext;
-	private String commandId;
+	private final String callContext;
+	private final String commandId;
 
-	private AriCommandEnvelope() {}
-
-	public AriCommandEnvelope(AriCommand ariCommand, String callContext, String commandId) {
-		this.ariCommand = ariCommand;
+	public CallContextAndCommandId(String callContext, String commandId) {
 		this.callContext = callContext;
 		this.commandId = commandId;
-	}
-
-	public AriCommand getAriCommand() {
-		return ariCommand;
 	}
 
 	public String getCallContext() {

@@ -81,7 +81,7 @@ class AriCommandResponseProcessingTest {
 		final Either<RuntimeException, Runnable> res = AriCommandResponseProcessing.registerCallContext(null, null, ariCommand);
 
 		assertThat(res.getLeft(), instanceOf(RuntimeException.class));
-		assertThat(res.getLeft().getMessage(), containsString("Failed to extract callContext from both"));
+		assertThat(res.getLeft().getMessage(), containsString("Failed to extract resourceId from both"));
 	}
 
 	@Test

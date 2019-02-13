@@ -6,16 +6,16 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 
 public class ProvideCallContext implements Serializable {
 
-	private final String callContext;
+	private final String resourceId;
 	private final ProviderPolicy policy;
 
-	public ProvideCallContext(String callContext, ProviderPolicy policy) {
-		this.callContext = callContext;
+	public ProvideCallContext(String resourceId, ProviderPolicy policy) {
+		this.resourceId = resourceId;
 		this.policy = policy;
 	}
 
 	public String callContext() {
-		return callContext;
+		return resourceId;
 	}
 
 	public ProviderPolicy policy() {

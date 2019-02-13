@@ -42,7 +42,7 @@ public enum AriMessageType {
 	STASIS_START("StasisStart", resourceIdFromBody(XPaths.CHANNEL_ID)),
 	RESPONSE("AriResponse", body -> None()),
 	CHANNELVARSET("ChannelVarset", resourceIdFromBody(XPaths.CHANNEL_ID)),
-	UNKNOWN("UnknownAriMessage", body -> Some(Try.failure(new RuntimeException(String.format("Failed to extract callContext from body=%s", body)))));
+	UNKNOWN("UnknownAriMessage", body -> Some(Try.failure(new RuntimeException(String.format("Failed to extract resourceId from body=%s", body)))));
 
 	private final String typeName;
 	private final Function<JsonNode, Option<Try<String>>> resourceIdExtractor;
@@ -67,7 +67,7 @@ public enum AriMessageType {
 				Option.of(body.at(resourceIdXPath))
 						.map(JsonNode::asText)
 						.flatMap(type -> StringUtils.isBlank(type) ? None() : Some(type))
-						.toTry(() -> new Throwable(String.format("Failed to extract callContext at path=%s from body=%s", resourceIdXPath, body)))
+						.toTry(() -> new Throwable(String.format("Failed to extract resourceId at path=%s from body=%s", resourceIdXPath, body)))
 		);
 	}
 

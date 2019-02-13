@@ -101,7 +101,7 @@ public class CallContextProvider extends AbstractLoggingActor {
 	}
 
 	private CallContextRegistered registerCallContext(String resourceId, String callContext) {
-		log().debug("Going to register callContext '{}' => callContext '{}'", resourceId, callContext);
+		log().debug("Going to register resourceId '{}' => callContext '{}'", resourceId, callContext);
 		state.update(resourceId, callContext);
 		return new CallContextRegistered(resourceId, callContext);
 	}

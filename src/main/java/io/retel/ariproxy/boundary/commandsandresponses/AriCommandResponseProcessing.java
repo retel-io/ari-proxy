@@ -51,7 +51,7 @@ public class AriCommandResponseProcessing {
 				.toEither()
 				.mapLeft(cause -> new RuntimeException(
 						String.format(
-								"Failed to extract callContext from both uri='%s' and body='%s'",
+								"Failed to extract resourceId from both uri='%s' and body='%s'",
 								uri,
 								bodyJson
 						),

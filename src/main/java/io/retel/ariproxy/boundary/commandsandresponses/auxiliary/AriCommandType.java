@@ -92,7 +92,7 @@ public enum AriCommandType {
                 .flatMap(root -> Option.of(root.at(resourceIdXPath)))
                 .map(JsonNode::asText)
                 .flatMap(type -> StringUtils.isBlank(type) ? None() : Some(type))
-                .toTry(() -> new Throwable(String.format("Failed to extract callContext at path=%s from body=%s", resourceIdXPath, body))));
+                .toTry(() -> new Throwable(String.format("Failed to extract resourceId at path=%s from body=%s", resourceIdXPath, body))));
     }
 
     private static Option<Try<String>> notAvailable(final String bodyOrUri) {

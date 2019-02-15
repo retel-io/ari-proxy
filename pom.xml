@@ -34,9 +34,15 @@
     <version.mockito>2.21.0</version.mockito>
     <version.micrometer>1.0.5</version.micrometer>
     <version.jackson-databind>2.8.11.3</version.jackson-databind>
+    <version.google-guava>26.0-jre</version.google-guava>
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+      <version>${version.google-guava}</version>
+    </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>

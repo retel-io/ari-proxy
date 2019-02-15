@@ -2,7 +2,6 @@ package io.retel.ariproxy.boundary.callcontext;
 
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
-import scala.concurrent.ExecutionContext;
 
 interface PersistenceStore {
 

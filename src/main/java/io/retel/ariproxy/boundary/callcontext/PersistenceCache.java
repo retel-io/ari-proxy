@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-public abstract class PeristentCache extends AbstractLoggingActor {
+public abstract class PersistenceCache extends AbstractLoggingActor {
 
 	class SetDone implements Serializable {
 
@@ -51,7 +51,7 @@ public abstract class PeristentCache extends AbstractLoggingActor {
 	protected Future<SetDone> update(String key, String value) {
 		String prefixedKey = keyPrefix() + ":" + key;
 		cache.put(prefixedKey, Future.successful(Some(value)));
-		return persistenceStore.set(prefixedKey, value).map(v -> new SetDone(prefixedKey, value);
+		return persistenceStore.set(prefixedKey, value).map(v -> new SetDone(prefixedKey, value));
 	}
 
 	protected Future<Option<String>> query(String key) throws ExecutionException {
@@ -69,6 +69,11 @@ public abstract class PeristentCache extends AbstractLoggingActor {
 	public void postStop() throws Exception {
 		super.postStop();
 		persistenceStore.shutdown();
+	}
+
+	// TODO:
+	public PersistenceStore providePersistenceStore() {
+		return null;
 	}
 }
 

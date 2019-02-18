@@ -1,9 +1,9 @@
-package io.retel.ariproxy.boundary.callcontext;
+package io.retel.ariproxy.persistence;
 
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
 
-interface PersistenceStore {
+public interface PersistenceStore {
 
 	Future<String> set(String key, String value);
 

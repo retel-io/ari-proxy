@@ -1,4 +1,4 @@
-package io.retel.ariproxy.boundary.callcontext;
+package io.retel.ariproxy.persistence;
 
 import static io.vavr.API.Some;
 
@@ -6,6 +6,8 @@ import akka.actor.AbstractLoggingActor;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import io.retel.ariproxy.config.ConfigLoader;
+import io.retel.ariproxy.config.ServiceConfig;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
 import java.io.Serializable;
@@ -72,16 +74,14 @@ public abstract class PersistenceCache extends AbstractLoggingActor {
 	}
 
 	// TODO:
-	public PersistenceStore providePersistenceStore() {
+	private PersistenceStore providePersistenceStore() {
+
+		final ServiceConfig config = ConfigLoader.load();
+
 		return null;
 	}
 }
 
-//object PersistentCache {
-//
-//  val config: EngineConfig = EngineConfigLoader.load()
-//}
-//
 //abstract class PersistentCache[K, V](var metricsService: ActorRef = null) extends Actor with ActorLogging {
 //  Actor =>
 //

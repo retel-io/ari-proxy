@@ -10,37 +10,10 @@ import com.typesafe.config.ConfigFactory;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
-import java.io.Serializable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
 
-public abstract class PersistenceCache extends AbstractLoggingActor {
-
-	class SetDone implements Serializable {
-
-		private final String key;
-		private final String value;
-
-		public SetDone(String key, String value) {
-			this.key = key;
-			this.value = value;
-		}
-
-		public String getKey() {
-			return key;
-		}
-
-		public String getValue() {
-			return value;
-		}
-
-		@Override
-		public String toString() {
-			return ReflectionToStringBuilder.toString(this, ToStringStyle.SHORT_PREFIX_STYLE);
-		}
-	}
+public abstract class PersistentCache extends AbstractLoggingActor {
 
 	private PersistenceStore persistenceStore = null;
 

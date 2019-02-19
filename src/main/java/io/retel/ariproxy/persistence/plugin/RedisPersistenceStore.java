@@ -9,12 +9,14 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import io.retel.ariproxy.persistence.PersistenceStore;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
+import java.util.Objects;
 
 public class RedisPersistenceStore implements PersistenceStore {
 
 	private final RedisClient redisClient;
 
 	public RedisPersistenceStore(RedisClient redisClient) {
+		Objects.requireNonNull(redisClient, "No RedisClient provided");
 		this.redisClient = redisClient;
 	}
 

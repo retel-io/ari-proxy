@@ -25,4 +25,8 @@ public class InMemoryPersistenceStore implements PersistenceStore {
 	@Override
 	public void shutdown() {
 	}
+
+	public static InMemoryPersistenceStore create() {
+		return new InMemoryPersistenceStore();
+	}
 }

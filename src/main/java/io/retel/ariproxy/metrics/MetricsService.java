@@ -17,6 +17,8 @@ import java.util.Map;
 
 public class MetricsService extends AbstractLoggingActor {
 
+	private static final String REDIS_UPDATE_DELAY = "RedisUpdateDelay";
+
 	private Map<String, Sample> timers = new HashMap<>();
 	private Map<String, Counter> counters = new HashMap<>();
 	private MeterRegistry registry;
@@ -31,6 +33,8 @@ public class MetricsService extends AbstractLoggingActor {
 	@Override
 	public Receive createReceive() {
 		return ReceiveBuilder.create()
+				.match(RedisUpdateTimerStart.class, this::handleRedisUpdateStart)
+				.match(RedisUpdateTimerStop.class, this::handleRedisUpdateStop)
 				.match(StartCallSetupTimer.class, this::handleStart)
 				.match(StopCallSetupTimer.class, this::handleStop)
 				.match(IncreaseCounter.class, this::handleIncreaseCounter)
@@ -48,6 +52,20 @@ public class MetricsService extends AbstractLoggingActor {
 	public void postStop() throws Exception {
 		registry.close();
 		super.postStop();
+	}
+
+	private void handleRedisUpdateStart(RedisUpdateTimerStart start) {
+		timers.put(start.getContext(), Timer.start(registry));
+		sender().tell(MetricRegistered.TIMER_STARTED, self());
+	}
+
+	private void handleRedisUpdateStop(RedisUpdateTimerStop stop) {
+		Option
+				.of(timers.get(stop.getContext()))
+				.peek(sample -> {
+					sample.stop(registry.timer(REDIS_UPDATE_DELAY));
+					timers.remove(stop.getContext());
+				}).toTry().onSuccess((metric) -> sender().tell(MetricRegistered.TIMER_STOPPED, self()));
 	}
 
 	private void handleIncreaseCounter(IncreaseCounter increaseCounter) {

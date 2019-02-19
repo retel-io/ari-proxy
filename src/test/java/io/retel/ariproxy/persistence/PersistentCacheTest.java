@@ -8,10 +8,15 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.actor.Props;
+import akka.actor.Status.Failure;
 import akka.japi.pf.ReceiveBuilder;
 import akka.testkit.javadsl.TestKit;
 import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
+import io.retel.ariproxy.metrics.IncreaseCounter;
+import io.retel.ariproxy.metrics.RedisUpdateTimerStart;
+import io.retel.ariproxy.metrics.RedisUpdateTimerStop;
 import io.vavr.control.Option;
+import java.time.Duration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,19 +42,23 @@ class PersistentCacheTest {
 	@Test
 	void queryReturnsNone() {
 		final TestKit probe = new TestKit(system);
-		final ActorRef cache = system.actorOf(Props.create(Cache.class), "cache");
+		final TestKit metricsService = new TestKit(system);
+		final ActorRef cache = system.actorOf(Props.create(Cache.class, metricsService.getRef()), "cache");
 
 		probe.send(cache, new QueryCache(KEY));
 
 		final Option result = probe.expectMsgClass(Option.class);
 
 		assertThat(result, is(None()));
+
+		metricsService.expectMsgClass(Duration.ofMillis(100), IncreaseCounter.class);
 	}
 
 	@Test
 	void queryReturnsExpectedValue() {
 		final TestKit probe = new TestKit(system);
-		final ActorRef cache = system.actorOf(Props.create(Cache.class), "cache");
+		final TestKit metricsService = new TestKit(system);
+		final ActorRef cache = system.actorOf(Props.create(Cache.class, metricsService.getRef()), "cache");
 
 		probe.send(cache, new UpdateCache(KEY, VALUE));
 
@@ -58,15 +67,42 @@ class PersistentCacheTest {
 		assertThat(setDone.getKey(), is(cache.path().name() + ":" + KEY));
 		assertThat(setDone.getValue(), is(VALUE));
 
+		final RedisUpdateTimerStart updateTimerStart = metricsService.expectMsgClass(RedisUpdateTimerStart.class);
+		final RedisUpdateTimerStop updateTimerStop = metricsService.expectMsgClass(RedisUpdateTimerStop.class);
+
+		assertThat(updateTimerStart.getContext(), is(updateTimerStop.getContext()));
+
 		probe.send(cache, new QueryCache(KEY));
 
 		final Option result = probe.expectMsgClass(Option.class);
 
 		assertThat(result, is(Some(VALUE)));
+
+		metricsService.expectNoMessage(Duration.ofMillis(100));
+	}
+
+	@Test
+	void updateStillRecordsMetricsIfRedisSetFails() {
+		final TestKit probe = new TestKit(system);
+		final TestKit metricsService = new TestKit(system);
+		final ActorRef cache = system.actorOf(Props.create(Cache.class, metricsService.getRef()), "cache");
+
+		probe.send(cache, new UpdateCache("failure", VALUE));
+
+		probe.expectMsgClass(Duration.ofMillis(100), Failure.class);
+
+		final RedisUpdateTimerStart updateTimerStart = metricsService.expectMsgClass(RedisUpdateTimerStart.class);
+		final RedisUpdateTimerStop updateTimerStop = metricsService.expectMsgClass(RedisUpdateTimerStop.class);
+
+		assertThat(updateTimerStart.getContext(), is(updateTimerStop.getContext()));
 	}
 }
 
 class Cache extends PersistentCache {
+
+	public Cache(ActorRef metricsService) {
+		super(metricsService);
+	}
 
 	@Override
 	protected String keyPrefix() {

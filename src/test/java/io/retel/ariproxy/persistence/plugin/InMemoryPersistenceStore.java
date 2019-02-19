@@ -12,13 +12,15 @@ public class InMemoryPersistenceStore implements PersistenceStore {
 
 	@Override
 	public Future<String> set(String key, String value) {
+		if (key.contains("failure")) {
+			return Future.failed(new Exception("Failed to set value for key"));
+		}
 		store = store.put(key, value);
 		return Future.successful(value);
 	}
 
 	@Override
 	public Future<Option<String>> get(String key) {
-
 		return Future.successful(store.get(key));
 	}
 

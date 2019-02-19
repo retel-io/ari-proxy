@@ -6,10 +6,12 @@ import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.SetArgs.Builder;
 import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.sync.RedisCommands;
 import io.retel.ariproxy.persistence.PersistenceStore;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
 import java.util.Objects;
+import java.util.function.Function;
 
 public class RedisPersistenceStore implements PersistenceStore {
 
@@ -41,18 +43,18 @@ public class RedisPersistenceStore implements PersistenceStore {
 
 	@Override
 	public Future<String> set(String key, String value) {
-		return Future.of(() -> {
-			try (StatefulRedisConnection<String, String> connection = redisClient.connect()) {
-				return connection.sync().set(key, value, Builder.ex(21600));
-			}
-		});
+		return executeRedisCommand(commands -> commands.set(key, value, Builder.ex(21600)));
 	}
 
 	@Override
 	public Future<Option<String>> get(String key) {
+		return executeRedisCommand(commands -> Option.of(commands.get(key)));
+	}
+
+	private <T> Future<T> executeRedisCommand(Function<RedisCommands<String, String>, T> f) {
 		return Future.of(() -> {
 			try (StatefulRedisConnection<String, String> connection = redisClient.connect()) {
-				return Option.of(connection.sync().get(key));
+				return f.apply(connection.sync());
 			}
 		});
 	}

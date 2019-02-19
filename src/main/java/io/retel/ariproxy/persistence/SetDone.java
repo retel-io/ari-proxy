@@ -4,7 +4,7 @@ import java.io.Serializable;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-class SetDone implements Serializable {
+public class SetDone implements Serializable {
 
 	private final String key;
 	private final String value;

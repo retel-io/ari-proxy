@@ -71,8 +71,8 @@ public class Main {
 
 		system.actorOf(HealthService.props(serviceConfig.getInt(HTTPPORT)), HealthService.ACTOR_NAME);
 
-		final ActorRef callContextProvider = system.actorOf(CallContextProvider.props(64_000, 21_600_000));
 		final ActorRef metricsService = system.actorOf(MetricsService.props());
+		final ActorRef callContextProvider = system.actorOf(CallContextProvider.props(metricsService));
 
 		runAriEventProcessor(serviceConfig.getConfig(KAFKA), system, callContextProvider, metricsService, system::terminate);
 

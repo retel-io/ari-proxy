@@ -89,7 +89,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
 				.run();
 
 		final ProvideCallContext provideCallContextForMetrics = callcontextProvider.expectMsgClass(ProvideCallContext.class);
-		assertThat(provideCallContextForMetrics.callContext(), is(resourceId));
+		assertThat(provideCallContextForMetrics.resourceId(), is(resourceId));
 		assertThat(provideCallContextForMetrics.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
 		callcontextProvider.reply(CALL_CONTEXT_PROVIDED);
 
@@ -102,7 +102,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
 		assertThat(callsStartedCounter.getName(), is("CallsStarted"));
 
 		final ProvideCallContext provideCallContextForRouting = callcontextProvider.expectMsgClass(ProvideCallContext.class);
-		assertThat(provideCallContextForRouting.callContext(), is(resourceId));
+		assertThat(provideCallContextForRouting.resourceId(), is(resourceId));
 		assertThat(provideCallContextForRouting.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
 		callcontextProvider.reply(CALL_CONTEXT_PROVIDED);
 

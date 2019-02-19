@@ -8,6 +8,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.typesafe.config.ConfigFactory;
+import io.retel.ariproxy.health.api.HealthReport;
 import io.retel.ariproxy.metrics.IncreaseCounter;
 import io.retel.ariproxy.metrics.MetricsService;
 import io.retel.ariproxy.metrics.RedisUpdateTimerStart;
@@ -16,9 +17,9 @@ import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import org.apache.commons.lang3.StringUtils;
 
 public abstract class PersistentCache extends AbstractLoggingActor {
 
@@ -41,7 +42,7 @@ public abstract class PersistentCache extends AbstractLoggingActor {
 
 	abstract protected String keyPrefix();
 
-	Future<SetDone> update(String key, String value) {
+	protected Future<SetDone> update(String key, String value) {
 		final String prefixedKey = keyPrefix() + ":" + key;
 
 		final String metricsContext = UUID.randomUUID().toString();
@@ -52,9 +53,9 @@ public abstract class PersistentCache extends AbstractLoggingActor {
 				.andThen(done -> metricsService.tell(new RedisUpdateTimerStop(metricsContext), self()));
 	}
 
-	Future<Option<String>> query(String key) throws ExecutionException {
+	protected Future<Option<String>> query(String key) {
 		final String prefixedKey = keyPrefix() + ":" + key;
-		return cache.get(prefixedKey);
+		return Future.of(() -> cache.get(prefixedKey)).flatMap(x -> x);
 	}
 
 	@Override
@@ -68,6 +69,35 @@ public abstract class PersistentCache extends AbstractLoggingActor {
 	public void postStop() throws Exception {
 		super.postStop();
 		persistenceStore.shutdown();
+	}
+
+	protected Future<HealthReport> provideHealthReport() {
+		return provideHealthReport("HEALTHCHECK_" + self().path().toSerializationFormat());
+	}
+
+	protected Future<HealthReport> provideHealthReport(final String key) {
+		final String testValue = StringUtils.reverse(key);
+
+		return persistenceStore.set(key, testValue).flatMap(v -> persistenceStore.get(key)).transformValue(tryOfValue -> {
+
+			if (tryOfValue.isFailure()) {
+				return Try.success(HealthReport.error("RedisCheck: " + tryOfValue.getCause().getMessage()));
+			}
+
+			final Option<String> value = tryOfValue.get();
+
+			if (value.isEmpty()) {
+				return Try.success(HealthReport.error("RedisCheck: empty result on get()"));
+			}
+
+			final String v = value.get();
+
+			if (!testValue.equals(v)) {
+				return Try.success(HealthReport.error(String.format("RedisCheck: %s does not match expected %s", v, testValue)));
+			}
+
+			return Try.success(HealthReport.ok());
+		});
 	}
 
 	private PersistenceStore providePersistenceStore() {

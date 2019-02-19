@@ -192,7 +192,7 @@ class AriEventProcessingTest {
 				final ProvideCallContext provideCallContext = expectMsgClass(ProvideCallContext.class);
 
 				assertThat(provideCallContext.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
-				assertThat(provideCallContext.callContext(), is("RESOURCE_ID"));
+				assertThat(provideCallContext.resourceId(), is("RESOURCE_ID"));
 				reply(new CallContextProvided("CALL_CONTEXT"));
 
 				assertThat(callContext.await().get().get(), is("CALL_CONTEXT"));

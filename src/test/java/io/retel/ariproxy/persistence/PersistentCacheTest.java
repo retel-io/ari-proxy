@@ -12,6 +12,7 @@ import akka.actor.Status.Failure;
 import akka.japi.pf.ReceiveBuilder;
 import akka.testkit.javadsl.TestKit;
 import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
+import io.retel.ariproxy.health.api.ProvideHealthReport;
 import io.retel.ariproxy.metrics.IncreaseCounter;
 import io.retel.ariproxy.metrics.RedisUpdateTimerStart;
 import io.retel.ariproxy.metrics.RedisUpdateTimerStop;
@@ -119,8 +120,21 @@ class Cache extends PersistentCache {
 								update(msg.getKey(), msg.getValue()),
 								sender(),
 								context().dispatcher()))
+				.match(ProvideHealthIntent.class, msg -> PatternsAdapter.pipeTo(provideHealthReport(msg.getKey()), sender(), context().dispatcher()))
 				.matchAny(msg -> log().warning("unexpected message"))
 				.build();
+	}
+}
+
+class ProvideHealthIntent {
+	private String key;
+
+	public ProvideHealthIntent(String key) {
+		this.key = key;
+	}
+
+	public String getKey() {
+		return key;
 	}
 }
 

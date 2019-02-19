@@ -1,11 +1,11 @@
 package io.retel.ariproxy.persistence.plugin;
 
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.SetArgs.Builder;
 import io.lettuce.core.api.StatefulRedisConnection;
-import io.retel.ariproxy.config.ConfigLoader;
-import io.retel.ariproxy.config.ServiceConfig;
 import io.retel.ariproxy.persistence.PersistenceStore;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
@@ -20,12 +20,16 @@ public class RedisPersistenceStore implements PersistenceStore {
 
 	public static RedisPersistenceStore create() {
 
-		final ServiceConfig config = ConfigLoader.load();
+		final Config cfg = ConfigFactory.load().getConfig("service").getConfig("redis");
+		final String host = cfg.getString("host");
+		final int port = cfg.getInt("port");
+		final int db = cfg.getInt("db");
 
 		return create(RedisClient.create(RedisURI.Builder
-				.redis(config.getRedisHost(), config.getHttpPort())
+				.redis(host)
+				.withPort(port)
 				.withSsl(false)
-				.withDatabase(config.getRedisDb())
+				.withDatabase(db)
 				.build()));
 	}
 

@@ -6,8 +6,7 @@ import akka.actor.AbstractLoggingActor;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import io.retel.ariproxy.config.ConfigLoader;
-import io.retel.ariproxy.config.ServiceConfig;
+import com.typesafe.config.ConfigFactory;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
@@ -76,9 +75,9 @@ public abstract class PersistenceCache extends AbstractLoggingActor {
 
 	private PersistenceStore providePersistenceStore() {
 
-		final ServiceConfig config = ConfigLoader.load();
+		final String persistenceStoreClassName = ConfigFactory.load().getConfig("service").getString("persistence-store");
 
-		return Try.of(() -> Class.forName(config.getPersistenceStoreClassName()))
+		return Try.of(() -> Class.forName(persistenceStoreClassName))
 				.flatMap(clazz -> Try.of(() -> clazz.getMethod("create")))
 				.flatMap(method -> Try.of(() -> (PersistenceStore)method.invoke(null)))
 				.getOrElseThrow(t -> new RuntimeException("Failed to load any PersistenceStore", t));

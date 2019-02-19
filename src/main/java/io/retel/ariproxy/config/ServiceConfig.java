@@ -17,6 +17,9 @@ public final class ServiceConfig {
 	private final String stasisApp;
 	private final String websocketUri;
 	private final String persistenceStoreClassName;
+	private final String redisHost;
+	private final int redisPort;
+	private final int redisDb;
 
 	private ServiceConfig(final ServiceConfigBuilder builder) {
 		this.httpPort = builder.httpPort;
@@ -31,7 +34,9 @@ public final class ServiceConfig {
 		this.stasisApp = builder.stasisApp;
 		this.websocketUri = builder.websocketUri;
 		this.persistenceStoreClassName = builder.persistenceStore;
-
+		this.redisHost = builder.redisHost;
+		this.redisPort = builder.redisPort;
+		this.redisDb = builder.redisDb;
 	}
 
 	public int getHttpPort() {
@@ -82,6 +87,17 @@ public final class ServiceConfig {
 		return this.persistenceStoreClassName;
 	}
 
+	public String getRedisHost() {
+		return redisHost;
+	}
+
+	public int getRedisPort() {
+		return redisPort;
+	}
+
+	public int getRedisDb() {
+		return redisDb;
+	}
 
 	public static ServiceConfigBuilder builder() {
 		return new ServiceConfigBuilder();
@@ -106,8 +122,15 @@ public final class ServiceConfig {
 		private String stasisApp;
 		private String websocketUri;
 		private String persistenceStore = "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore";
+		private String redisHost;
+		private int redisDb;
+		private int redisPort = 6379;
 
 		private ServiceConfigBuilder() {
+		}
+
+		public ServiceConfig build() {
+			return new ServiceConfig(this);
 		}
 
 		ServiceConfigBuilder httpPort(final int httpPort) {
@@ -170,9 +193,19 @@ public final class ServiceConfig {
 			return this;
 		}
 
-		public ServiceConfig build() {
-			return new ServiceConfig(this);
+		ServiceConfigBuilder redisHost(String host) {
+			this.redisHost = host;
+			return this;
+		}
+
+		ServiceConfigBuilder redisDb(int db) {
+			this.redisDb = db;
+			return this;
+		}
+
+		ServiceConfigBuilder redisPort(int port) {
+			this.redisPort = port;
+			return this;
 		}
 	}
-
 }

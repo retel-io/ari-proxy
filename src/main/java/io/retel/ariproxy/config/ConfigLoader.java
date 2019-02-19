@@ -20,7 +20,9 @@ public final class ConfigLoader {
 	private static final String STASIS_APP = "stasis-app";
 	private static final String WEBSOCKET_URI = "websocket-uri";
 	private static final String PERSISTENCE_STORE = "persistence-store";
-
+	private static final String REDIS_HOST = "redis.host";
+	private static final String REDIS_PORT = "redis.port";
+	private static final String REDIS_DB = "redis.db";
 
 	private ConfigLoader() {}
 
@@ -39,7 +41,9 @@ public final class ConfigLoader {
 				.kafkaEventsAndResponsesTopic(config.getString(KAFKA_EVENTS_AND_RESPONSES_TOPIC))
 				.restUri(config.getString(REST_URI))
 				.stasisApp(config.getString(STASIS_APP))
-				.websocketUri(config.getString(WEBSOCKET_URI));
+				.websocketUri(config.getString(WEBSOCKET_URI))
+				.redisHost(config.getString(REDIS_HOST))
+				.redisDb(config.getInt(REDIS_DB));
 
 		builder = setOptionalValue(config, builder, ServiceConfigBuilder::httpPort, HTTP_PORT, Config::getInt);
 		builder = setOptionalValue(config, builder, ServiceConfigBuilder::kafkaConsumerGroup, KAFKA_CONSUMER_GROUP);
@@ -47,7 +51,7 @@ public final class ConfigLoader {
 		builder = setOptionalValue(config, builder, ServiceConfigBuilder::restPassword, REST_PASSWORD);
 		builder = setOptionalValue(config, builder, ServiceConfigBuilder::restUser, REST_USER);
 		builder = setOptionalValue(config, builder, ServiceConfigBuilder::persistenceStore, PERSISTENCE_STORE);
-
+		builder = setOptionalValue(config, builder, ServiceConfigBuilder::redisPort, REDIS_PORT, Config::getInt);
 
 		return builder.build();
 	}

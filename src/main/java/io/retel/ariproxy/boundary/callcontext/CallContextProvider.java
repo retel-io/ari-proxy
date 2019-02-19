@@ -3,8 +3,7 @@ package io.retel.ariproxy.boundary.callcontext;
 import akka.actor.AbstractLoggingActor;
 import akka.actor.Props;
 import akka.japi.pf.ReceiveBuilder;
-import akka.pattern.Patterns;
-import io.retel.ariproxy.akkajavainterop.CustomFutureConverters;
+import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextLookupError;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextRegistered;
@@ -94,10 +93,7 @@ public class CallContextProvider extends AbstractLoggingActor {
 	}
 
 	private void replyWithFailure(Throwable t) {
-		Patterns.pipe(
-				CustomFutureConverters.toScala(Future.failed(t)),
-				context().dispatcher()
-		).to(sender());
+		PatternsAdapter.pipeTo(Future.failed(t), sender(), context().dispatcher());
 	}
 
 	private CallContextRegistered registerCallContext(String resourceId, String callContext) {

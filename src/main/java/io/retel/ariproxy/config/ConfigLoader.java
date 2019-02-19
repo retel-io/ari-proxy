@@ -19,6 +19,8 @@ public final class ConfigLoader {
 	private static final String REST_USER = "rest.user";
 	private static final String STASIS_APP = "stasis-app";
 	private static final String WEBSOCKET_URI = "websocket-uri";
+	private static final String PERSISTENCE_STORE = "persistence-store";
+
 
 	private ConfigLoader() {}
 
@@ -44,6 +46,8 @@ public final class ConfigLoader {
 		builder = setOptionalValue(config, builder, ServiceConfigBuilder::name, NAME);
 		builder = setOptionalValue(config, builder, ServiceConfigBuilder::restPassword, REST_PASSWORD);
 		builder = setOptionalValue(config, builder, ServiceConfigBuilder::restUser, REST_USER);
+		builder = setOptionalValue(config, builder, ServiceConfigBuilder::persistenceStore, PERSISTENCE_STORE);
+
 
 		return builder.build();
 	}

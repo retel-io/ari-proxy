@@ -10,6 +10,7 @@ import io.retel.ariproxy.config.ConfigLoader;
 import io.retel.ariproxy.config.ServiceConfig;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
+import io.vavr.control.Try;
 import java.io.Serializable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -73,26 +74,13 @@ public abstract class PersistenceCache extends AbstractLoggingActor {
 		persistenceStore.shutdown();
 	}
 
-	// TODO:
 	private PersistenceStore providePersistenceStore() {
 
 		final ServiceConfig config = ConfigLoader.load();
 
-		return null;
+		return Try.of(() -> Class.forName(config.getPersistenceStoreClassName()))
+				.flatMap(clazz -> Try.of(() -> clazz.getMethod("create")))
+				.flatMap(method -> Try.of(() -> (PersistenceStore)method.invoke(null)))
+				.getOrElseThrow(t -> new RuntimeException("Failed to load any PersistenceStore", t));
 	}
 }
-
-//abstract class PersistentCache[K, V](var metricsService: ActorRef = null) extends Actor with ActorLogging {
-//  Actor =>
-//
-//  private def providePersistenceStore(): PersistenceStore = {
-//    Try(Class.forName(config.getPersistenceStore))
-//      .flatMap(clazz => Try(clazz.getMethod("create")))
-//      .flatMap(method => Try(method.invoke(null).asInstanceOf[PersistenceStore])) match {
-//      case Success(store) =>
-//        store
-//      case Failure(e) =>
-//        throw new RuntimeException("Failed to load any PersistenceStore", e)
-//    }
-//  }
-//}

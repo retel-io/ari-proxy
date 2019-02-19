@@ -16,8 +16,9 @@ public final class ServiceConfig {
     private final String restUser;
     private final String stasisApp;
     private final String websocketUri;
+	private final String persistenceStoreClassName;
 
-    private ServiceConfig(final ServiceConfigBuilder builder) {
+	private ServiceConfig(final ServiceConfigBuilder builder) {
         this.httpPort = builder.httpPort;
         this.kafkaBootstrapServers = builder.kafkaBootstrapServers;
         this.kafkaCommandsTopic = builder.kafkaCommandsTopic;
@@ -29,7 +30,9 @@ public final class ServiceConfig {
         this.restUser = builder.restUser;
         this.stasisApp = builder.stasisApp;
         this.websocketUri = builder.websocketUri;
-    }
+		this.persistenceStoreClassName = builder.persistenceStore;
+
+	}
 
     public int getHttpPort() {
         return this.httpPort;
@@ -75,7 +78,12 @@ public final class ServiceConfig {
         return this.websocketUri;
     }
 
-    public static ServiceConfigBuilder builder() {
+	public String getPersistenceStoreClassName() {
+		return this.persistenceStoreClassName;
+	}
+
+
+	public static ServiceConfigBuilder builder() {
         return new ServiceConfigBuilder();
     }
 
@@ -96,8 +104,9 @@ public final class ServiceConfig {
         private String restUser = "asterisk";
         private String stasisApp;
         private String websocketUri;
+		private String persistenceStore = "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore";
 
-        private ServiceConfigBuilder() {}
+		private ServiceConfigBuilder() {}
 
         ServiceConfigBuilder httpPort(final int httpPort) {
             this.httpPort = httpPort;
@@ -154,9 +163,14 @@ public final class ServiceConfig {
             return this;
         }
 
+        ServiceConfigBuilder persistenceStore(final String persistenceStore) {
+            this.persistenceStore = persistenceStore;
+            return this;
+        }
+
         public ServiceConfig build() {
             return new ServiceConfig(this);
         }
-    }
+	}
 
 }

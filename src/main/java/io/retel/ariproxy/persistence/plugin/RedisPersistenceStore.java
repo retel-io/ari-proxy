@@ -15,6 +15,12 @@ import java.util.function.Function;
 
 public class RedisPersistenceStore implements PersistenceStore {
 
+	private static final String SERVICE = "service";
+	private static final String REDIS = "redis";
+	private static final String HOST = "host";
+	private static final String PORT = "port";
+	private static final String DB = "db";
+
 	private final RedisClient redisClient;
 
 	public RedisPersistenceStore(RedisClient redisClient) {
@@ -24,10 +30,10 @@ public class RedisPersistenceStore implements PersistenceStore {
 
 	public static RedisPersistenceStore create() {
 
-		final Config cfg = ConfigFactory.load().getConfig("service").getConfig("redis");
-		final String host = cfg.getString("host");
-		final int port = cfg.getInt("port");
-		final int db = cfg.getInt("db");
+		final Config cfg = ConfigFactory.load().getConfig(SERVICE).getConfig(REDIS);
+		final String host = cfg.getString(HOST);
+		final int port = cfg.getInt(PORT);
+		final int db = cfg.getInt(DB);
 
 		return create(RedisClient.create(RedisURI.Builder
 				.redis(host)

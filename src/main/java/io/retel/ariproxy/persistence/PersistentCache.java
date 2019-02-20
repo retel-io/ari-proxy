@@ -7,6 +7,7 @@ import akka.actor.ActorRef;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.health.api.HealthReport;
 import io.retel.ariproxy.metrics.IncreaseCounter;
@@ -90,7 +91,11 @@ public abstract class PersistentCache extends AbstractLoggingActor {
 
 	private PersistenceStore providePersistenceStore() {
 
-		final String persistenceStoreClassName = ConfigFactory.load().getConfig("service").getString("persistence-store");
+		final Config serviceConfig = ConfigFactory.load().getConfig("service");
+
+		final String persistenceStoreClassName = serviceConfig.hasPath("persistence-store")
+				? serviceConfig.getString("persistence-store")
+				: "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore";
 
 		return Try.of(() -> Class.forName(persistenceStoreClassName))
 				.flatMap(clazz -> Try.of(() -> clazz.getMethod("create")))

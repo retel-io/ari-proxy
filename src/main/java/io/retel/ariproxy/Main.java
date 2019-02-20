@@ -74,9 +74,9 @@ public class Main {
 		final ActorRef metricsService = system.actorOf(MetricsService.props());
 		final ActorRef callContextProvider = system.actorOf(CallContextProvider.props(metricsService));
 
-		runAriEventProcessor(serviceConfig.getConfig(KAFKA), system, callContextProvider, metricsService, system::terminate);
+		runAriEventProcessor(serviceConfig, system, callContextProvider, metricsService, system::terminate);
 
-		runAriCommandResponseProcessor(serviceConfig, system, callContextProvider, metricsService);
+		runAriCommandResponseProcessor(serviceConfig.getConfig(KAFKA), system, callContextProvider, metricsService);
 	}
 
 	private static ActorMaterializer runAriCommandResponseProcessor(
@@ -136,7 +136,7 @@ public class Main {
 
 		final ProducerSettings<String, String> producerSettings = ProducerSettings
 				.create(system, new StringSerializer(), new StringSerializer())
-				.withBootstrapServers(serviceConfig.getString(BOOTSTRAP_SERVERS));
+				.withBootstrapServers(serviceConfig.getConfig(KAFKA).getString(BOOTSTRAP_SERVERS));
 
 		final Sink<ProducerRecord<String, String>, NotUsed> sink = Producer
 				.plainSink(producerSettings)

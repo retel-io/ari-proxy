@@ -8,7 +8,7 @@ service {
   asterisk {
     user = "asterisk" // optional, default: asterisk
     password = "asterisk" // optional, default: asterisk
-    server = "locahost:8088"
+    server = "localhost:8088"
   }
 
   kafka {

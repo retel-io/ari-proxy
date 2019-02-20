@@ -150,7 +150,11 @@ class CallContextProviderTest {
 				final ActorRef callContextProvider = system.actorOf(CallContextProvider.props(metricsService.getRef()));
 
 				callContextProvider.tell(ProvideHealthReport.getInstance(), getRef());
-				HealthReport healthReport = expectMsgClass(HealthReport.class);
+
+				final HealthReport healthReport = expectMsgClass(HealthReport.class);
+
+				System.out.println(healthReport);
+
 				assertThat(healthReport.errors().size(), is(0));
 			}
 		};

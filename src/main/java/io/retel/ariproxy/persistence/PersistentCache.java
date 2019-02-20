@@ -78,26 +78,14 @@ public abstract class PersistentCache extends AbstractLoggingActor {
 	protected Future<HealthReport> provideHealthReport(final String key) {
 		final String testValue = StringUtils.reverse(key);
 
-		return persistenceStore.set(key, testValue).flatMap(v -> persistenceStore.get(key)).transformValue(tryOfValue -> {
-
-			if (tryOfValue.isFailure()) {
-				return Try.success(HealthReport.error("RedisCheck: " + tryOfValue.getCause().getMessage()));
-			}
-
-			final Option<String> value = tryOfValue.get();
-
-			if (value.isEmpty()) {
-				return Try.success(HealthReport.error("RedisCheck: empty result on get()"));
-			}
-
-			final String v = value.get();
-
-			if (!testValue.equals(v)) {
-				return Try.success(HealthReport.error(String.format("RedisCheck: %s does not match expected %s", v, testValue)));
-			}
-
-			return Try.success(HealthReport.ok());
-		});
+		return persistenceStore.set(key, testValue).flatMap(v -> persistenceStore.get(key)).transformValue(tryOfValue ->
+				tryOfValue
+						.map(maybeValue -> maybeValue.map(v -> testValue.equals(v)
+								? Try.success(HealthReport.ok())
+								: Try.success(HealthReport.error(String.format("RedisCheck: %s does not match expected %s", v, testValue)))
+						)
+						.getOrElse(() -> Try.success(HealthReport.error("RedisCheck: empty result on get()"))))
+						.getOrElseGet(t -> Try.success(HealthReport.error("RedisCheck: " + t.getMessage()))));
 	}
 
 	private PersistenceStore providePersistenceStore() {

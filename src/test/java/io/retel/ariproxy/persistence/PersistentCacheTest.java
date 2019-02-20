@@ -13,7 +13,6 @@ import akka.japi.pf.ReceiveBuilder;
 import akka.testkit.javadsl.TestKit;
 import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
 import io.retel.ariproxy.health.api.HealthReport;
-import io.retel.ariproxy.health.api.ProvideHealthReport;
 import io.retel.ariproxy.metrics.IncreaseCounter;
 import io.retel.ariproxy.metrics.RedisUpdateTimerStart;
 import io.retel.ariproxy.metrics.RedisUpdateTimerStop;

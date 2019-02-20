@@ -17,6 +17,8 @@ import java.util.Map;
 
 public class MetricsService extends AbstractLoggingActor {
 
+	public static final String ACTOR_NAME = "metrics-service";
+
 	private static final String REDIS_UPDATE_DELAY = "RedisUpdateDelay";
 
 	private Map<String, Sample> timers = new HashMap<>();

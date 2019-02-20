@@ -18,7 +18,7 @@ import java.util.UUID;
 
 public class CallContextProvider extends PersistentCache {
 
-	public static final String ACTOR_NAME = CallContextProvider.class.getSimpleName();
+	public static final String ACTOR_NAME = "call-context-provider";
 
 	public static Props props(final ActorRef metricsService) {
 		return Props.create(CallContextProvider.class, metricsService);

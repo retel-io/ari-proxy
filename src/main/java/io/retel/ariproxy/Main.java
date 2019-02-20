@@ -71,8 +71,8 @@ public class Main {
 
 		system.actorOf(HealthService.props(serviceConfig.getInt(HTTPPORT)), HealthService.ACTOR_NAME);
 
-		final ActorRef metricsService = system.actorOf(MetricsService.props());
-		final ActorRef callContextProvider = system.actorOf(CallContextProvider.props(metricsService));
+		final ActorRef metricsService = system.actorOf(MetricsService.props(), MetricsService.ACTOR_NAME);
+		final ActorRef callContextProvider = system.actorOf(CallContextProvider.props(metricsService), CallContextProvider.ACTOR_NAME);
 
 		runAriEventProcessor(serviceConfig, system, callContextProvider, metricsService, system::terminate);
 

@@ -12,6 +12,7 @@ import akka.actor.Status.Failure;
 import akka.japi.pf.ReceiveBuilder;
 import akka.testkit.javadsl.TestKit;
 import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
+import io.retel.ariproxy.health.api.HealthReport;
 import io.retel.ariproxy.health.api.ProvideHealthReport;
 import io.retel.ariproxy.metrics.IncreaseCounter;
 import io.retel.ariproxy.metrics.RedisUpdateTimerStart;
@@ -96,6 +97,32 @@ class PersistentCacheTest {
 		final RedisUpdateTimerStop updateTimerStop = metricsService.expectMsgClass(RedisUpdateTimerStop.class);
 
 		assertThat(updateTimerStart.getContext(), is(updateTimerStop.getContext()));
+	}
+
+	@Test
+	void provideOkHealthReport() {
+		final TestKit probe = new TestKit(system);
+		final TestKit metricsService = new TestKit(system);
+		final ActorRef cache = system.actorOf(Props.create(Cache.class, metricsService.getRef()), "cache");
+
+		probe.send(cache, new ProvideHealthIntent("ok"));
+
+		final HealthReport report = probe.expectMsgClass(Duration.ofMillis(100), HealthReport.class);
+
+		assertThat(report.errors().size(), is(0));
+	}
+
+	@Test
+	void provideNotOkHealthReport() {
+		final TestKit probe = new TestKit(system);
+		final TestKit metricsService = new TestKit(system);
+		final ActorRef cache = system.actorOf(Props.create(Cache.class, metricsService.getRef()), "cache");
+
+		probe.send(cache, new ProvideHealthIntent("failure"));
+
+		final HealthReport report = probe.expectMsgClass(Duration.ofMillis(100), HealthReport.class);
+
+		assertThat(report.errors().size(), is(1));
 	}
 }
 

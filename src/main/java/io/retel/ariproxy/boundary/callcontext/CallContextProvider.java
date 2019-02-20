@@ -53,9 +53,11 @@ public class CallContextProvider extends PersistentCache {
 		final String resourceId = cmd.resourceId();
 		final String callContext = cmd.callContext();
 
+		final ActorRef sender = sender();
+
 		update(resourceId, callContext).andThen(setDone -> {
 			log().debug("Registered resourceId '{}' => callContext '{}'", resourceId, callContext);
-			sender().tell(new CallContextRegistered(resourceId, callContext), self());
+			sender.tell(new CallContextRegistered(resourceId, callContext), self());
 		});
 	}
 

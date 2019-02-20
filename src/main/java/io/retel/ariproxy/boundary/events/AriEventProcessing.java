@@ -36,6 +36,8 @@ public class AriEventProcessing {
 	private static final ObjectMapper mapper = new ObjectMapper();
 	private static final ObjectReader reader = mapper.reader();
 	private static final ObjectWriter writer = mapper.writerFor(AriMessageEnvelope.class);
+	// Note: This timeout is pretty high right now as the initial redis interaction takes quite some time...
+	private static final int PROVIDE_CALLCONTEXT_TIMEOUT = 1000;
 
 	public static Seq<MetricsGatherer> determineMetricsGatherer(AriMessageType type) {
 
@@ -126,7 +128,7 @@ public class AriEventProcessing {
 		return PatternsAdapter.<CallContextProvided>ask(
 				callContextProvider,
 				new ProvideCallContext(resourceId, providerPolicy),
-				100
+				PROVIDE_CALLCONTEXT_TIMEOUT
 		)
 				.map(provided -> provided.callContext())
 				.toTry();

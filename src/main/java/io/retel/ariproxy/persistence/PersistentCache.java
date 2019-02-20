@@ -36,7 +36,7 @@ public abstract class PersistentCache extends AbstractLoggingActor {
 
 	private PersistentCache() {}
 
-	public PersistentCache(final ActorRef metricsService) {
+	protected PersistentCache(final ActorRef metricsService) {
 		this.metricsService = metricsService;
 	}
 

@@ -90,7 +90,6 @@ public abstract class PersistentCache extends AbstractLoggingActor {
 	}
 
 	private PersistenceStore providePersistenceStore() {
-
 		final Config serviceConfig = ConfigFactory.load().getConfig("service");
 
 		final String persistenceStoreClassName = serviceConfig.hasPath("persistence-store")

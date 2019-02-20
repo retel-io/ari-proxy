@@ -69,16 +69,12 @@ public class CallContextProvider extends PersistentCache {
 		final Future<CallContextProvided> response = query(cmd.resourceId())
 				.flatMap(option -> option
 						.map(callContext -> Future.successful(new CallContextProvided(callContext)))
-						.getOrElse(() -> {
-
-							if (ProviderPolicy.CREATE_IF_MISSING.equals(cmd.policy())) {
-								return update(cmd.resourceId(), UUID.randomUUID().toString())
-										.map(setDone -> new CallContextProvided(setDone.getValue()));
-							} else {
-								return Future.failed(new CallContextLookupError("Failed to lookup call context..."));
-							}
-
-						}));
+						.getOrElse(() -> ProviderPolicy.CREATE_IF_MISSING.equals(cmd.policy())
+								? update(cmd.resourceId(), UUID.randomUUID().toString())
+								.map(setDone -> new CallContextProvided(setDone.getValue()))
+								: Future.failed(new CallContextLookupError("Failed to lookup call context...")))
+				)
+				.await();
 
 		PatternsAdapter.pipeTo(response, sender, context().dispatcher());
 	}

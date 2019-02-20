@@ -143,8 +143,7 @@ class CallContextProviderTest {
 
 	@Test
 	void ensureHealthReportIsGeneratedOnRequest() {
-		new TestKit(system)
-		{
+		new TestKit(system) {
 			{
 				final TestKit metricsService = new TestKit(system);
 				final ActorRef callContextProvider = system.actorOf(CallContextProvider.props(metricsService.getRef()));
@@ -152,8 +151,6 @@ class CallContextProviderTest {
 				callContextProvider.tell(ProvideHealthReport.getInstance(), getRef());
 
 				final HealthReport healthReport = expectMsgClass(HealthReport.class);
-
-				System.out.println(healthReport);
 
 				assertThat(healthReport.errors().size(), is(0));
 			}

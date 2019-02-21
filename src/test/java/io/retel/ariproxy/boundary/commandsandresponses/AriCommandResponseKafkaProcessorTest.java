@@ -13,7 +13,6 @@ import akka.stream.javadsl.Source;
 import akka.testkit.javadsl.TestKit;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
 import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
-import io.retel.ariproxy.config.ConfigLoader;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -53,7 +52,6 @@ class AriCommandResponseKafkaProcessorTest {
 				.mapMaterializedValue(q -> NotUsed.getInstance());
 
 		AriCommandResponseKafkaProcessor.commandResponseProcessing()
-				.withConfig(ConfigLoader.load())
 				.on(system)
 				.withHandler(requestAndContext -> Http.get(system).singleRequest(requestAndContext._1))
 				.withCallContextProvider(callContextProvider.getRef())
@@ -88,7 +86,6 @@ class AriCommandResponseKafkaProcessorTest {
 				.actorRef(kafkaProducer.getRef(), new ProducerRecord<String, String>("topic", "endMessage"));
 
 		AriCommandResponseKafkaProcessor.commandResponseProcessing()
-				.withConfig(ConfigLoader.load())
 				.on(system)
 				.withHandler(r -> CompletableFuture.supplyAsync(() ->
 						HttpResponse.create().withStatus(StatusCodes.OK).withEntity("{ \"key\":\"value\" }"))
@@ -137,7 +134,6 @@ class AriCommandResponseKafkaProcessorTest {
 				.actorRef(kafkaProducer.getRef(), new ProducerRecord<String, String>("topic", "endMessage"));
 
 		AriCommandResponseKafkaProcessor.commandResponseProcessing()
-				.withConfig(ConfigLoader.load())
 				.on(system)
 				.withHandler(r -> CompletableFuture.supplyAsync(() ->
 						HttpResponse.create().withStatus(StatusCodes.NO_CONTENT))

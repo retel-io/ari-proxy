@@ -1,15 +1,17 @@
-package io.retel.ariproxy.boundary.callcontext.api;
+package io.retel.ariproxy.metrics;
 
-import java.io.Serializable;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-public class ProvideMetrics implements Serializable {
+public class RedisUpdateTimerStop {
+	private String context;
 
-	private ProvideMetrics() {}
+	public RedisUpdateTimerStop(String context) {
+		this.context = context;
+	}
 
-	public static ProvideMetrics instance() {
-		return new ProvideMetrics();
+	public String getContext() {
+		return context;
 	}
 
 	@Override

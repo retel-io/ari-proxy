@@ -1,8 +1,8 @@
 package io.retel.ariproxy.boundary.processingpipeline;
 
-import io.retel.ariproxy.config.ServiceConfig;
+import akka.actor.ActorSystem;
 
 @FunctionalInterface
 public interface ProcessingPipeline<T, E> {
-	OnSystem<T, E> withConfig(ServiceConfig config);
+	WithHandler<T, E> on(ActorSystem system);
 }

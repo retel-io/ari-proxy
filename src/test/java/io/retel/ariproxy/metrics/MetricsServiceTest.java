@@ -37,29 +37,30 @@ class MetricsServiceTest {
 	}
 
 	@Test()
-	void startCallSetupTimerMessageIsRespondedProperly() {
+	void callSetupTimerMessageIsRespondedProperly() {
 		new TestKit(system) {
 			{
 				final ActorRef metricsService = system.actorOf(MetricsService.props());
-				metricsService.tell(
-						new StartCallSetupTimer("CALL CONTEXT"), getRef());
 
+				metricsService.tell(new StartCallSetupTimer("CALL CONTEXT"), getRef());
 				expectMsg(MetricRegistered.TIMER_STARTED);
+
+				metricsService.tell(new StopCallSetupTimer("CALL CONTEXT","THE APP NAME"), getRef());
+				expectMsg(MetricRegistered.TIMER_STOPPED);
 			}
 		};
 	}
 
 	@Test()
-	void stopCallSetupTimerMessageIsRespondedProperly() {
+	void redisUpdateTimerMessageIsRespondedProperly() {
 		new TestKit(system) {
 			{
 				final ActorRef metricsService = system.actorOf(MetricsService.props());
-				metricsService.tell(
-						new StartCallSetupTimer("CALL CONTEXT"), getRef());
-				expectMsg(MetricRegistered.TIMER_STARTED);
-				metricsService.tell(
-						new StopCallSetupTimer("CALL CONTEXT","THE APP NAME"), getRef());
 
+				metricsService.tell(new RedisUpdateTimerStart("CALL CONTEXT"), getRef());
+				expectMsg(MetricRegistered.TIMER_STARTED);
+
+				metricsService.tell(new RedisUpdateTimerStop("CALL CONTEXT"), getRef());
 				expectMsg(MetricRegistered.TIMER_STOPPED);
 			}
 		};

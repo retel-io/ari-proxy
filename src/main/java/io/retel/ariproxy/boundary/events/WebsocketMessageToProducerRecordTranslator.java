@@ -17,30 +17,40 @@ import akka.stream.Attributes;
 import akka.stream.Supervision;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
-import io.retel.ariproxy.config.ServiceConfig;
 import java.util.function.Supplier;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
 public class WebsocketMessageToProducerRecordTranslator {
 
+	private static final String SERVICE = "service";
+	private static final String KAFKA = "kafka";
+	private static final String EVENTS_AND_RESPONSES_TOPIC = "events-and-responses-topic";
+	private static final String COMMANDS_TOPIC = "commands-topic";
+
 	private static final Attributes LOG_LEVELS = Attributes
 			.createLogLevels(Logging.InfoLevel(), Logging.InfoLevel(), Logging.ErrorLevel());
 
 	public static ProcessingPipeline<Message, Runnable> eventProcessing() {
-		return config -> system -> applicationReplacedHandler -> callContextProvider -> metricsService -> source -> sink -> () -> run(
-				config, system, callContextProvider, metricsService, source, sink, applicationReplacedHandler);
+		return system -> applicationReplacedHandler -> callContextProvider -> metricsService -> source -> sink -> () -> run(
+				system, callContextProvider, metricsService, source, sink, applicationReplacedHandler);
 	}
 
-	private static ActorMaterializer run(ServiceConfig config, ActorSystem system, ActorRef callContextProvider, ActorRef metricsService,
+	private static ActorMaterializer run(ActorSystem system, ActorRef callContextProvider, ActorRef metricsService,
 			Source<Message, NotUsed> source, Sink<ProducerRecord<String, String>, NotUsed> sink,
 			Runnable applicationReplacedHandler) {
 		final Function<Throwable, Supervision.Directive> supervisorStrategy = t -> {
 			system.log().error(t, t.getMessage());
 			return Supervision.resume();
 		};
+
+		final Config kafkaConfig = ConfigFactory.load().getConfig(SERVICE).getConfig(KAFKA);
+		final String commandsTopic = kafkaConfig.getString(COMMANDS_TOPIC);
+		final String eventsAndResponsesTopic = kafkaConfig.getString(EVENTS_AND_RESPONSES_TOPIC);
 
 		final ActorMaterializer materializer = ActorMaterializer.create(
 				ActorMaterializerSettings.create(system).withSupervisionStrategy(supervisorStrategy),
@@ -49,7 +59,7 @@ public class WebsocketMessageToProducerRecordTranslator {
 		source
 				//.throttle(4 * 13, Duration.ofSeconds(1)) // Note: We die right now for calls/s >= 4.8
 				.wireTap(Sink.foreach(msg -> gatherMetrics(msg, metricsService, callContextProvider)))
-				.flatMapConcat((msg) -> generateProducerRecordFromEvent(config.getKafkaCommandsTopic(), config.getKafkaEventsAndResponsesTopic(), msg, callContextProvider, system.log(),
+				.flatMapConcat((msg) -> generateProducerRecordFromEvent(commandsTopic, eventsAndResponsesTopic, msg, callContextProvider, system.log(),
 						applicationReplacedHandler))
 				.log(">>>   ARI EVENT", record -> record.value()).withAttributes(LOG_LEVELS)
 				.to(sink)

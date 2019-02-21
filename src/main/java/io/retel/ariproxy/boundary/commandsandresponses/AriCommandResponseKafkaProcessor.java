@@ -25,6 +25,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommand;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandEnvelope;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageEnvelope;
@@ -33,7 +35,6 @@ import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriResponse;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.CallContextAndCommandId;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.CommandResponseHandler;
 import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
-import io.retel.ariproxy.config.ServiceConfig;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
@@ -56,6 +57,16 @@ public class AriCommandResponseKafkaProcessor {
 	);
 
 	private static final ObjectMapper mapper = new ObjectMapper();
+	private static final String SERVICE = "service";
+	public static final String REST = "rest";
+	public static final String URI = "uri";
+	public static final String PASSWORD = "password";
+	public static final String USER = "user";
+	public static final String STASIS_APP = "stasis-app";
+	public static final String KAFKA = "kafka";
+	public static final String EVENTS_AND_RESPONSES_TOPIC = "events-and-responses-topic";
+	public static final String COMMANDS_TOPIC = "commands-topic";
+
 	static {
 		mapper.setSerializationInclusion(Include.NON_NULL);
 	}
@@ -66,8 +77,7 @@ public class AriCommandResponseKafkaProcessor {
 	private static final ObjectReader genericReader = mapper.reader();
 
 	public static ProcessingPipeline<ConsumerRecord<String, String>, CommandResponseHandler> commandResponseProcessing() {
-		return config -> system -> commandResponseHandler -> callContextProvider -> metricsService -> source -> sink -> () -> run(
-				config,
+		return system -> commandResponseHandler -> callContextProvider -> metricsService -> source -> sink -> () -> run(
 				system,
 				commandResponseHandler,
 				callContextProvider,
@@ -78,7 +88,6 @@ public class AriCommandResponseKafkaProcessor {
 	}
 
 	private static ActorMaterializer run(
-			ServiceConfig config,
 			ActorSystem system,
 			CommandResponseHandler commandResponseHandler,
 			ActorRef callContextProvider,
@@ -90,6 +99,18 @@ public class AriCommandResponseKafkaProcessor {
 			system.log().error(t, "Error in some stage; restarting stream ...");
 			return Supervision.restart();
 		};
+
+		final Config serviceConfig = ConfigFactory.load().getConfig(SERVICE);
+		final String stasisApp = serviceConfig.getString(STASIS_APP);
+
+		final Config kafkaConfig = serviceConfig.getConfig(KAFKA);
+		final String commandsTopic = kafkaConfig.getString(COMMANDS_TOPIC);
+		final String eventsAndResponsesTopic = kafkaConfig.getString(EVENTS_AND_RESPONSES_TOPIC);
+
+		final Config restConfig = serviceConfig.getConfig(REST);
+		final String restUri = restConfig.getString(URI);
+		final String restUser = restConfig.getString(USER);
+		final String restPassword = restConfig.getString(PASSWORD);
 
 		final ActorMaterializer materializer = ActorMaterializer.create(
 				ActorMaterializerSettings.create(system).withSupervisionStrategy(decider),
@@ -108,18 +129,17 @@ public class AriCommandResponseKafkaProcessor {
 					);
 				})
 				.map(ariCommandAndContext -> ariCommandAndContext
-						.map1(cmd -> toHttpRequest(cmd, config.getRestUri(), config.getRestUser(),
-								config.getRestPassword())))
+						.map1(cmd -> toHttpRequest(cmd, restUri, restUser, restPassword)))
 				.mapAsync(1, requestAndContext -> commandResponseHandler.apply(requestAndContext)
 						.thenApply(response -> Tuple.of(response, requestAndContext._2)))
-				.wireTap(Sink.foreach(gatherMetrics(metricsService, config.getStasisApp())))
+				.wireTap(Sink.foreach(gatherMetrics(metricsService, stasisApp)))
 				.mapAsync(1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, materializer))
 				.map(ariResponseAndContext -> envelopeAriResponse(ariResponseAndContext._1, ariResponseAndContext._2,
-						config.getKafkaCommandsTopic()))
+						commandsTopic))
 				.map(ariMessageEnvelopeAndContext -> ariMessageEnvelopeAndContext
 						.map1(AriCommandResponseKafkaProcessor::marshallAriMessageEnvelope))
 				.map(ariResponseStringAndContext -> new ProducerRecord<>(
-						config.getKafkaEventsAndResponsesTopic(),
+						eventsAndResponsesTopic,
 						ariResponseStringAndContext._2.getCallContext(),
 						ariResponseStringAndContext._1)
 				)

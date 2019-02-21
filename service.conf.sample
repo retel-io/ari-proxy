@@ -8,7 +8,7 @@ service {
   asterisk {
     user = "asterisk" // optional, default: asterisk
     password = "asterisk" // optional, default: asterisk
-    server = "locahost:8088"
+    server = "localhost:8088"
   }
 
   kafka {
@@ -16,5 +16,11 @@ service {
     consumer-group = "ari-proxy" // optional, default: ari-proxy
     commands-topic = "ari-commands-topic"
     events-and-responses-topic = "ari-eventsandresponses-topic"
+  }
+
+  redis {
+    host = 127.0.0.1
+    port = 6379
+    db = 0
   }
 }

@@ -1,3 +1,16 @@
+ari-proxy (1.2.1) unstable; urgency=low
+
+  * fix: always pass call-context to AriMessageEnvelope
+
+ -- re-tel <re-tel@sipgate.de>  Mon, 25 Feb 2019 07:00:00 +0100
+
+ari-proxy (1.2.0) unstable; urgency=low
+
+  * feat: route by call-context
+  * feat: implement restart-safety
+
+ -- re-tel <re-tel@sipgate.de>  Fr, 22 Feb 2019 07:00:00 +0100
+
 ari-proxy (1.1.0) unstable; urgency=low
 
   * feat: treat all nested json objects as such

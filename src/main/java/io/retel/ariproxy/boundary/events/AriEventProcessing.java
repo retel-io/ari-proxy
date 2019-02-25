@@ -20,7 +20,6 @@ import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageEnvel
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.metrics.IncreaseCounter;
 import io.retel.ariproxy.metrics.StartCallSetupTimer;
-import io.vavr.Tuple;
 import io.vavr.collection.List;
 import io.vavr.collection.Seq;
 import io.vavr.control.Either;
@@ -87,9 +86,15 @@ public class AriEventProcessing {
 								AriMessageType.STASIS_START.equals(ariMessageType)
 										? ProviderPolicy.CREATE_IF_MISSING
 										: ProviderPolicy.LOOKUP_ONLY
-						).map(cc -> Tuple.of(id, cc)))
-						.flatMap(idAndCc -> createSource(kafkaCommandsTopic, kafkaEventsAndResponsesTopic, ariMessageType,
-								log, idAndCc._1, idAndCc._2, messageBody))
+						))
+						.flatMap(callContext -> createSource(
+								kafkaCommandsTopic,
+								kafkaEventsAndResponsesTopic,
+								ariMessageType,
+								log,
+								callContext,
+								messageBody
+						))
 				)
 				.toTry()
 				.flatMap(Function.identity())
@@ -101,7 +106,6 @@ public class AriEventProcessing {
 			String kafkaEventsAndResponsesTopic,
 			AriMessageType type,
 			LoggingAdapter log,
-			String resourceId,
 			String callContext,
 			JsonNode messageBody) {
 
@@ -109,7 +113,7 @@ public class AriEventProcessing {
 				type,
 				kafkaCommandsTopic,
 				messageBody,
-				resourceId
+				callContext
 		);
 
 		return Try.of(() -> writer.writeValueAsString(envelope))

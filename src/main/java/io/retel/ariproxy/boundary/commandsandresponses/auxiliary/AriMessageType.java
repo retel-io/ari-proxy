@@ -13,6 +13,7 @@ import org.apache.commons.lang3.StringUtils;
 // Supported event types
 public enum AriMessageType {
 	APPLICATION_REPLACED("ApplicationReplaced", body -> None()),
+	BRIDGE_BLIND_TRANSFER("BridgeBlindTransfer", resourceIdFromBody(XPaths.CHANNEL_ID)),
 	BRIDGE_CREATED("BridgeCreated", resourceIdFromBody(XPaths.BRIDGE_ID)),
 	BRIDGE_DESTROYED("BridgeDestroyed", resourceIdFromBody(XPaths.BRIDGE_ID)),
 	BRIDGE_MERGED("BridgeMerged", resourceIdFromBody(XPaths.BRIDGE_ID)),

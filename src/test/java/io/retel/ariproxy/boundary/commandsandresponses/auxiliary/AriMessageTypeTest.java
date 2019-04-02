@@ -57,6 +57,7 @@ class AriMessageTypeTest {
 
 	private static Stream<Arguments> messageBodyProvider() {
 		return Stream.of(
+				Arguments.of("BridgeBlindTransfer", BODY_WITH_CHANNEL_ID, CHANNEL_ID),
 				Arguments.of("BridgeCreated", BODY_WITH_BRIDGE_ID, BRIDGE_ID),
 				Arguments.of("BridgeDestroyed", BODY_WITH_BRIDGE_ID, BRIDGE_ID),
 				Arguments.of("BridgeMerged", BODY_WITH_BRIDGE_ID, BRIDGE_ID),

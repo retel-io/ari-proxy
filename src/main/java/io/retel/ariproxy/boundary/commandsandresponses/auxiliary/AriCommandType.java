@@ -88,6 +88,7 @@ public enum AriCommandType {
 
     private static Function<String, Option<Try<String>>> resourceIdFromBody(final String resourceIdXPath) {
         return body -> Some(Try.of(() -> reader.readTree(body))
+                .flatMap(root -> Option.of(root).toTry())
                 .toOption()
                 .flatMap(root -> Option.of(root.at(resourceIdXPath)))
                 .map(JsonNode::asText)

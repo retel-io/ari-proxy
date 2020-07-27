@@ -36,6 +36,7 @@
     <version.jackson-databind>2.11.1</version.jackson-databind>
     <version.google-guava>29.0-jre</version.google-guava>
     <version.lettuce>5.3.2.RELEASE</version.lettuce>
+    <version.datastax>4.7.2</version.datastax>
   </properties>
 
   <dependencies>
@@ -43,6 +44,11 @@
       <groupId>io.lettuce</groupId>
       <artifactId>lettuce-core</artifactId>
       <version>${version.lettuce}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.datastax.oss</groupId>
+      <artifactId>java-driver-core</artifactId>
+      <version>${version.datastax}</version>
     </dependency>
     <dependency>
       <groupId>com.google.guava</groupId>

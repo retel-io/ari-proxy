@@ -202,7 +202,9 @@ class AriEventProcessingTest {
 
 	@Test
 	void verifyGetCallContextReturnsAFailedTryIfNoCallContextCanBeProvided() {
-		assertThat(AriEventProcessing.getCallContext("RESOURCE_ID", system.lookupRoot(), ProviderPolicy.CREATE_IF_MISSING).isFailure(), is(true));
+		new TestKit(system) {{
+			assertThat(AriEventProcessing.getCallContext("RESOURCE_ID", getRef(), ProviderPolicy.CREATE_IF_MISSING).isFailure(), is(true));
+		}};
 	}
 
 	@ParameterizedTest

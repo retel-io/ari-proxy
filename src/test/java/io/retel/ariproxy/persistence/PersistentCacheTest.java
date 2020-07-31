@@ -90,7 +90,7 @@ class PersistentCacheTest {
 
 		probe.send(cache, new UpdateCache("failure", VALUE));
 
-		probe.expectMsgClass(Duration.ofMillis(150), Failure.class);
+		probe.expectMsgClass(Duration.ofMillis(500), Failure.class);
 
 		final RedisUpdateTimerStart updateTimerStart = metricsService.expectMsgClass(RedisUpdateTimerStart.class);
 		final RedisUpdateTimerStop updateTimerStop = metricsService.expectMsgClass(RedisUpdateTimerStop.class);

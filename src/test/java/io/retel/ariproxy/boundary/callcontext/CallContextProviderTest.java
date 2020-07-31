@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 class CallContextProviderTest {
 
 	private final String TEST_SYSTEM = this.getClass().getSimpleName();
-	private static final long TIMEOUT = 150;
+	private static final long TIMEOUT = 500;
 	private ActorSystem system;
 
 	private static final String RESOURCE_ID = "resourceId";

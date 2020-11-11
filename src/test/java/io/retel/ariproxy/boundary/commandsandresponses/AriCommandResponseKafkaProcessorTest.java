@@ -119,6 +119,10 @@ class AriCommandResponseKafkaProcessorTest {
 		assertThat(responseValue.get("callContext").asText(), is("CALL_CONTEXT"));
 		assertThat(responseValue.get("commandId").asText(), is("COMMANDID"));
 
+		JsonNode responseCommand = responseValue.get("commandRequest");
+		assertThat(responseCommand.get("method").asText(), is("POST"));
+		assertThat(responseCommand.get("url").asText(), is("/channels/1533286879.42/play/c4958563-1ba4-4f2f-a60f-626a624bf0e6"));
+
 		JsonNode responsePayload = responseValue.get("payload");
 		assertThat(responsePayload.get("status_code").asInt(), is(200));
 

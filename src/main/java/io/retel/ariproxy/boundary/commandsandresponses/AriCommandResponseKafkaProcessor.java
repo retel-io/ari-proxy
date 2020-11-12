@@ -27,13 +27,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
-import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommand;
-import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandEnvelope;
-import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageEnvelope;
-import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
-import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriResponse;
-import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.CallContextAndCommandId;
-import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.CommandResponseHandler;
+import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.*;
 import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
@@ -113,45 +107,48 @@ public class AriCommandResponseKafkaProcessor {
 		final String restPassword = restConfig.getString(PASSWORD);
 
 		final ActorMaterializer materializer = ActorMaterializer.create(
-				ActorMaterializerSettings.create(system).withSupervisionStrategy(decider),
-				system);
+			ActorMaterializerSettings.create(system).withSupervisionStrategy(decider),
+			system);
 
 		source
-				.log(">>>   ARI COMMAND", ConsumerRecord::value).withAttributes(LOG_LEVELS)
-				.map(AriCommandResponseKafkaProcessor::unmarshallAriCommandEnvelope)
-				.map(msgEnvelope -> {
-					AriCommandResponseProcessing
-							.registerCallContext(callContextProvider, msgEnvelope.getCallContext(), msgEnvelope.getAriCommand())
-							.getOrElseThrow(t -> t).run();
-					return Tuple.of(
-							msgEnvelope.getAriCommand(),
-							new CallContextAndCommandId(msgEnvelope.getCallContext(), msgEnvelope.getCommandId())
-					);
-				})
-				.map(ariCommandAndContext -> ariCommandAndContext
-						.map1(cmd -> toHttpRequest(cmd, restUri, restUser, restPassword)))
-				.mapAsync(1, requestAndContext -> commandResponseHandler.apply(requestAndContext)
-						.thenApply(response -> Tuple.of(response, requestAndContext._2)))
-				.wireTap(Sink.foreach(gatherMetrics(metricsService, stasisApp)))
-				.mapAsync(1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, materializer))
-				.map(ariResponseAndContext -> envelopeAriResponse(ariResponseAndContext._1, ariResponseAndContext._2,
-						commandsTopic))
-				.map(ariMessageEnvelopeAndContext -> ariMessageEnvelopeAndContext
-						.map1(AriCommandResponseKafkaProcessor::marshallAriMessageEnvelope))
-				.map(ariResponseStringAndContext -> new ProducerRecord<>(
-						eventsAndResponsesTopic,
-						ariResponseStringAndContext._2.getCallContext(),
-						ariResponseStringAndContext._1)
-				)
-				.log(">>>   ARI RESPONSE", ProducerRecord::value).withAttributes(LOG_LEVELS)
-				.toMat(sink, Keep.none())
-				.run(materializer);
+			.log(">>>   ARI COMMAND", ConsumerRecord::value).withAttributes(LOG_LEVELS)
+			.map(AriCommandResponseKafkaProcessor::unmarshallAriCommandEnvelope)
+			.map(msgEnvelope -> {
+				AriCommandResponseProcessing
+					.registerCallContext(callContextProvider, msgEnvelope.getCallContext(), msgEnvelope.getAriCommand())
+					.getOrElseThrow(t -> t).run();
+				return new CallContextAndCommandRequestContext(msgEnvelope.getCallContext(), msgEnvelope.getCommandId(), msgEnvelope.getAriCommand());
+			})
+			.map(context -> Tuple.of(toHttpRequest(context.getAriCommand(), restUri, restUser, restPassword), context))
+			.mapAsync(1, requestAndContext -> commandResponseHandler.apply(requestAndContext)
+				.thenApply(response -> Tuple.of(response, requestAndContext._2)))
+			.wireTap(Sink.foreach(gatherMetrics(metricsService, stasisApp)))
+			.mapAsync(1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, materializer))
+			.map(ariResponseAndContext -> envelopeAriResponseToProducerRecord(commandsTopic, eventsAndResponsesTopic, ariResponseAndContext))
+			.log(">>>   ARI RESPONSE", ProducerRecord::value).withAttributes(LOG_LEVELS)
+			.toMat(sink, Keep.none())
+			.run(materializer);
 
 		return materializer;
 	}
 
-	private static Procedure<Tuple2<HttpResponse, CallContextAndCommandId>> gatherMetrics(ActorRef metricsService,
-			String applicationName) {
+	private static ProducerRecord<String, String> envelopeAriResponseToProducerRecord(
+			final String commandsTopic,
+			final String eventsAndResponsesTopic,
+			final Tuple2<AriResponse, CallContextAndCommandRequestContext> ariResponseAndContext) {
+		final AriResponse ariResponse = ariResponseAndContext._1;
+		final CallContextAndCommandRequestContext context = ariResponseAndContext._2;
+
+		AriMessageEnvelope ariMessageEnvelope = envelopeAriResponse(ariResponse, context, commandsTopic);
+
+		return new ProducerRecord<>(
+			eventsAndResponsesTopic,
+			context.getCallContext(),
+			marshallAriMessageEnvelope(ariMessageEnvelope));
+	}
+
+	private static Procedure<Tuple2<HttpResponse, CallContextAndCommandRequestContext>> gatherMetrics(ActorRef metricsService,
+																									  String applicationName) {
 		return rawHttpResponseAndContext ->
 				metricsService.tell(
 						new StopCallSetupTimer(
@@ -167,17 +164,17 @@ public class AriCommandResponseKafkaProcessor {
 				.getOrElseThrow(t -> new RuntimeException(t));
 	}
 
-	private static Tuple2<AriMessageEnvelope, CallContextAndCommandId> envelopeAriResponse(
-			AriResponse ariResponse, CallContextAndCommandId callContextAndResourceId, String kafkaCommandsTopic) {
-		final AriMessageEnvelope envelope = new AriMessageEnvelope(
-				AriMessageType.RESPONSE,
-				kafkaCommandsTopic,
-				ariResponse,
-				callContextAndResourceId.getCallContext(),
-				callContextAndResourceId.getCommandId()
+	private static AriMessageEnvelope envelopeAriResponse(AriResponse ariResponse, CallContextAndCommandRequestContext context, String kafkaCommandsTopic) {
+		return new AriMessageEnvelope(
+			AriMessageType.RESPONSE,
+			kafkaCommandsTopic,
+			ariResponse,
+			context.getCallContext(),
+			context.getCommandId(),
+			new CommandRequest(
+				context.getAriCommand().getMethod(),
+				context.getAriCommand().getUrl())
 		);
-
-		return Tuple.of(envelope, callContextAndResourceId);
 	}
 
 	private static String marshallAriMessageEnvelope(AriMessageEnvelope messageEnvelope) {
@@ -185,8 +182,8 @@ public class AriCommandResponseKafkaProcessor {
 				.getOrElseThrow(t -> new RuntimeException("Failed to serialize AriResponse", t));
 	}
 
-	private static CompletionStage<Tuple2<AriResponse, CallContextAndCommandId>> toAriResponse(
-			Tuple2<HttpResponse, CallContextAndCommandId> responseWithContext,
+	private static CompletionStage<Tuple2<AriResponse, CallContextAndCommandRequestContext>> toAriResponse(
+			Tuple2<HttpResponse, CallContextAndCommandRequestContext> responseWithContext,
 			Materializer materializer) {
 
 		final HttpResponse response = responseWithContext._1;
@@ -205,7 +202,7 @@ public class AriCommandResponseKafkaProcessor {
 								.map(jsonBody -> new AriResponse( response.status().intValue(), jsonBody))
 								.map(res -> responseWithContext.map1(httpResponse -> res))
 								.map(tuple -> CompletableFuture.completedFuture(tuple))
-								.getOrElseGet(t -> Future.<Tuple2<AriResponse, CallContextAndCommandId>>failed(t).toCompletableFuture()))
+								.getOrElseGet(t -> Future.<Tuple2<AriResponse, CallContextAndCommandRequestContext>>failed(t).toCompletableFuture()))
 						.getOrElse(CompletableFuture.completedFuture(responseWithContext.map1(httpResponse -> new AriResponse(response.status().intValue(), null))))
 				);
 	}

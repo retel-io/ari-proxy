@@ -1,0 +1,16 @@
+{
+  "type": "RESPONSE",
+  "commandsTopic": "commandsTopic",
+  "payload": {
+    "body": {
+      "key": "value"
+    },
+    "status_code": 200
+  },
+  "callContext": "CALL_CONTEXT",
+  "commandId": "COMMANDID",
+  "commandRequest": {
+    "method": "POST",
+    "url": "/channels/1533286879.42/play/c4958563-1ba4-4f2f-a60f-626a624bf0e6"
+  }
+}

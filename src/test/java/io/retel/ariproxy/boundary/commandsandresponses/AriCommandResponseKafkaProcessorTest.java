@@ -1,7 +1,8 @@
 package io.retel.ariproxy.boundary.commandsandresponses;
 
 import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
 
 import akka.NotUsed;
 import akka.actor.ActorSystem;
@@ -11,12 +12,14 @@ import akka.http.javadsl.model.StatusCodes;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import akka.testkit.javadsl.TestKit;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
 import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -28,6 +31,7 @@ import scala.concurrent.duration.Duration;
 
 class AriCommandResponseKafkaProcessorTest {
 
+	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	private final String TEST_SYSTEM = this.getClass().getSimpleName();
 	private ActorSystem system;
 
@@ -67,22 +71,14 @@ class AriCommandResponseKafkaProcessorTest {
 	}
 
 	@Test()
-	void handlePlaybackCommand() throws JsonProcessingException {
+	void handlePlaybackCommand() throws Exception {
 
 		final TestKit kafkaProducer = new TestKit(system);
 		final TestKit metricsService = new TestKit(system);
 		final TestKit callContextProvider = new TestKit(system);
 
 		final ConsumerRecord<String, String> consumerRecord = new ConsumerRecord<>("topic", 0, 0,
-				"none", "{\n"
-				+ "   \"callContext\" : \"CALL_CONTEXT\",\n"
-				+ "   \"commandId\" : \"COMMANDID\",\n"
-				+ "   \"ariCommand\" : {\n"
-				+ "      \"url\" : \"/channels/1533286879.42/play/c4958563-1ba4-4f2f-a60f-626a624bf0e6\",\n"
-				+ "      \"method\" : \"POST\",\n"
-				+ "      \"body\" : {\"media\": \"sound:hd/register_success\", \"lang\":\"de\"}"
-				+ "   }\n"
-				+ "}");
+				"none", loadJsonAsString("messages/commands/channelPlaybackCommand.json"));
 
 		final Source<ConsumerRecord<String, String>, NotUsed> source = Source.single(consumerRecord);
 		final Sink<ProducerRecord<String, String>, NotUsed> sink = Sink
@@ -108,47 +104,29 @@ class AriCommandResponseKafkaProcessorTest {
 		assertThat(stopCallSetupTimer.getCallcontext(), is("CALL_CONTEXT"));
 		assertThat(stopCallSetupTimer.getApplication(), is("test-app"));
 
+		@SuppressWarnings("unchecked")
 		final ProducerRecord<String, String> responseRecord = kafkaProducer.expectMsgClass(ProducerRecord.class);
 		assertThat(responseRecord.topic(), is("eventsAndResponsesTopic"));
 		assertThat(responseRecord.key(), is("CALL_CONTEXT"));
+		assertEquals(
+				OBJECT_MAPPER.readTree(loadJsonAsString("messages/responses/channelPlaybackResponse.json")),
+				OBJECT_MAPPER.readTree(responseRecord.value())
+		);
 
-		ObjectMapper mapper = new ObjectMapper();
-		JsonNode responseValue = mapper.readTree(responseRecord.value());
-		assertThat(responseValue.get("type").asText(), is("RESPONSE"));
-		assertThat(responseValue.get("commandsTopic").asText(), is("commandsTopic"));
-		assertThat(responseValue.get("callContext").asText(), is("CALL_CONTEXT"));
-		assertThat(responseValue.get("commandId").asText(), is("COMMANDID"));
-
-		JsonNode responseCommand = responseValue.get("commandRequest");
-		assertThat(responseCommand.get("method").asText(), is("POST"));
-		assertThat(responseCommand.get("url").asText(), is("/channels/1533286879.42/play/c4958563-1ba4-4f2f-a60f-626a624bf0e6"));
-
-		JsonNode responsePayload = responseValue.get("payload");
-		assertThat(responsePayload.get("status_code").asInt(), is(200));
-
-		JsonNode responsePayloadBody = responsePayload.get("body");
-		assertThat(responsePayloadBody.get("key").asText(), is("value"));
-
-		final ProducerRecord endMsg = kafkaProducer.expectMsgClass(ProducerRecord.class);
+		@SuppressWarnings("unchecked")
+		final ProducerRecord<String, String> endMsg = kafkaProducer.expectMsgClass(ProducerRecord.class);
 		assertThat(endMsg.topic(), is("topic"));
 		assertThat(endMsg.value(), is("endMessage"));
 	}
 
 	@Test()
-	void handleAnswerCommand() {
+	void handleAnswerCommand() throws Exception {
 		final TestKit kafkaProducer = new TestKit(system);
 		final TestKit metricsService = new TestKit(system);
 		final TestKit callContextProvider = new TestKit(system);
 
 		final ConsumerRecord<String, String> consumerRecord = new ConsumerRecord<>("topic", 0, 0,
-				"none", "{\n"
-				+ "   \"callContext\" : \"CALL_CONTEXT\",\n"
-				+ "   \"ariCommand\" : {\n"
-				+ "      \"url\" : \"/channels/1533218784.36/answer\",\n"
-				+ "      \"body\" : \"\",\n"
-				+ "      \"method\" : \"POST\"\n"
-				+ "   }\n"
-				+ "}");
+				"none", loadJsonAsString("messages/commands/channelAnswerCommand.json"));
 		final Source<ConsumerRecord<String, String>, NotUsed> source = Source.single(consumerRecord);
 		final Sink<ProducerRecord<String, String>, NotUsed> sink = Sink
 				.actorRef(kafkaProducer.getRef(), new ProducerRecord<String, String>("topic", "endMessage"));
@@ -168,12 +146,25 @@ class AriCommandResponseKafkaProcessorTest {
 		assertThat(stopCallSetupTimer.getCallcontext(), is("CALL_CONTEXT"));
 		assertThat(stopCallSetupTimer.getApplication(), is("test-app"));
 
-		final ProducerRecord responseRecord = kafkaProducer.expectMsgClass(ProducerRecord.class);
+		@SuppressWarnings("unchecked")
+		final ProducerRecord<String, String> responseRecord = kafkaProducer.expectMsgClass(ProducerRecord.class);
 		assertThat(responseRecord.topic(), is("eventsAndResponsesTopic"));
 		assertThat(responseRecord.key(), is("CALL_CONTEXT"));
+		assertEquals(
+				OBJECT_MAPPER.readTree(loadJsonAsString("messages/responses/channelAnswerResponse.json")),
+				OBJECT_MAPPER.readTree(responseRecord.value())
+		);
 
-		final ProducerRecord endMsg = kafkaProducer.expectMsgClass(ProducerRecord.class);
+		@SuppressWarnings("unchecked")
+		final ProducerRecord<String, String> endMsg = kafkaProducer.expectMsgClass(ProducerRecord.class);
 		assertThat(endMsg.topic(), is("topic"));
 		assertThat(endMsg.value(), is("endMessage"));
 	}
+
+	private static String loadJsonAsString(final String fileName) throws IOException {
+		final ClassLoader classLoader = AriCommandResponseKafkaProcessorTest.class.getClassLoader();
+		final File file = new File(classLoader.getResource(fileName).getFile());
+		return new String(Files.readAllBytes(file.toPath()));
+	}
+
 }

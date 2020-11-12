@@ -5,7 +5,6 @@
     "status_code": 204
   },
   "callContext": "CALL_CONTEXT",
-  "commandId": "COMMANDID",
   "commandRequest": {
     "method": "POST",
     "url": "/channels/1533218784.36/answer"

@@ -20,13 +20,21 @@ import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
+
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.ArgumentsProvider;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 import scala.concurrent.duration.Duration;
 
 class AriCommandResponseKafkaProcessorTest {
@@ -70,15 +78,21 @@ class AriCommandResponseKafkaProcessorTest {
 		kafkaProducer.expectNoMsg(Duration.apply(250, TimeUnit.MILLISECONDS));
 	}
 
-	@Test()
-	void handlePlaybackCommand() throws Exception {
+	@ParameterizedTest
+	@ArgumentsSource(ResponseArgumentsProvider.class)
+	void testCommandResponseProcessing(
+			final String commandJsonFilename,
+			final HttpResponse asteriskResponse,
+			final String expectedResponseJsonFilename,
+			final String resourceIdExpectedToRegisterInCallContext
+	) throws Exception {
 
 		final TestKit kafkaProducer = new TestKit(system);
 		final TestKit metricsService = new TestKit(system);
 		final TestKit callContextProvider = new TestKit(system);
 
 		final ConsumerRecord<String, String> consumerRecord = new ConsumerRecord<>("topic", 0, 0,
-				"none", loadJsonAsString("messages/commands/channelPlaybackCommand.json"));
+				"none", loadJsonAsString(commandJsonFilename));
 
 		final Source<ConsumerRecord<String, String>, NotUsed> source = Source.single(consumerRecord);
 		final Sink<ProducerRecord<String, String>, NotUsed> sink = Sink
@@ -86,8 +100,7 @@ class AriCommandResponseKafkaProcessorTest {
 
 		AriCommandResponseKafkaProcessor.commandResponseProcessing()
 				.on(system)
-				.withHandler(r -> CompletableFuture.supplyAsync(() ->
-						HttpResponse.create().withStatus(StatusCodes.OK).withEntity("{ \"key\":\"value\" }"))
+				.withHandler(r -> CompletableFuture.supplyAsync(() -> asteriskResponse)
 				)
 				.withCallContextProvider(callContextProvider.getRef())
 				.withMetricsService(metricsService.getRef())
@@ -95,70 +108,54 @@ class AriCommandResponseKafkaProcessorTest {
 				.to(sink)
 				.run();
 
-		final RegisterCallContext registerCallContext = callContextProvider.expectMsgClass(RegisterCallContext.class);
-		assertThat(registerCallContext.callContext(), is("CALL_CONTEXT"));
-		assertThat(registerCallContext.resourceId(), is("c4958563-1ba4-4f2f-a60f-626a624bf0e6"));
-		callContextProvider.reply(new CallContextProvided("CALL CONTEXT"));
+		Optional.ofNullable(resourceIdExpectedToRegisterInCallContext).ifPresent(resourceId -> {
+			final RegisterCallContext registerCallContext = callContextProvider.expectMsgClass(RegisterCallContext.class);
+			assertThat(registerCallContext.callContext(), is("CALL_CONTEXT"));
+			assertThat(registerCallContext.resourceId(), is(resourceId));
+			callContextProvider.reply(new CallContextProvided("CALL CONTEXT"));
+		});
 
 		final StopCallSetupTimer stopCallSetupTimer = metricsService.expectMsgClass(StopCallSetupTimer.class);
 		assertThat(stopCallSetupTimer.getCallcontext(), is("CALL_CONTEXT"));
 		assertThat(stopCallSetupTimer.getApplication(), is("test-app"));
 
-		@SuppressWarnings("unchecked")
-		final ProducerRecord<String, String> responseRecord = kafkaProducer.expectMsgClass(ProducerRecord.class);
+		@SuppressWarnings("unchecked") final ProducerRecord<String, String> responseRecord = kafkaProducer.expectMsgClass(ProducerRecord.class);
 		assertThat(responseRecord.topic(), is("eventsAndResponsesTopic"));
 		assertThat(responseRecord.key(), is("CALL_CONTEXT"));
 		assertEquals(
-				OBJECT_MAPPER.readTree(loadJsonAsString("messages/responses/channelPlaybackResponse.json")),
+				OBJECT_MAPPER.readTree(loadJsonAsString(expectedResponseJsonFilename)),
 				OBJECT_MAPPER.readTree(responseRecord.value())
 		);
 
-		@SuppressWarnings("unchecked")
-		final ProducerRecord<String, String> endMsg = kafkaProducer.expectMsgClass(ProducerRecord.class);
+		@SuppressWarnings("unchecked") final ProducerRecord<String, String> endMsg = kafkaProducer.expectMsgClass(ProducerRecord.class);
 		assertThat(endMsg.topic(), is("topic"));
 		assertThat(endMsg.value(), is("endMessage"));
 	}
 
-	@Test()
-	void handleAnswerCommand() throws Exception {
-		final TestKit kafkaProducer = new TestKit(system);
-		final TestKit metricsService = new TestKit(system);
-		final TestKit callContextProvider = new TestKit(system);
-
-		final ConsumerRecord<String, String> consumerRecord = new ConsumerRecord<>("topic", 0, 0,
-				"none", loadJsonAsString("messages/commands/channelAnswerCommand.json"));
-		final Source<ConsumerRecord<String, String>, NotUsed> source = Source.single(consumerRecord);
-		final Sink<ProducerRecord<String, String>, NotUsed> sink = Sink
-				.actorRef(kafkaProducer.getRef(), new ProducerRecord<String, String>("topic", "endMessage"));
-
-		AriCommandResponseKafkaProcessor.commandResponseProcessing()
-				.on(system)
-				.withHandler(r -> CompletableFuture.supplyAsync(() ->
-						HttpResponse.create().withStatus(StatusCodes.NO_CONTENT))
-				)
-				.withCallContextProvider(callContextProvider.getRef())
-				.withMetricsService(metricsService.getRef())
-				.from(source)
-				.to(sink)
-				.run();
-
-		final StopCallSetupTimer stopCallSetupTimer = metricsService.expectMsgClass(StopCallSetupTimer.class);
-		assertThat(stopCallSetupTimer.getCallcontext(), is("CALL_CONTEXT"));
-		assertThat(stopCallSetupTimer.getApplication(), is("test-app"));
-
-		@SuppressWarnings("unchecked")
-		final ProducerRecord<String, String> responseRecord = kafkaProducer.expectMsgClass(ProducerRecord.class);
-		assertThat(responseRecord.topic(), is("eventsAndResponsesTopic"));
-		assertThat(responseRecord.key(), is("CALL_CONTEXT"));
-		assertEquals(
-				OBJECT_MAPPER.readTree(loadJsonAsString("messages/responses/channelAnswerResponse.json")),
-				OBJECT_MAPPER.readTree(responseRecord.value())
-		);
-
-		@SuppressWarnings("unchecked")
-		final ProducerRecord<String, String> endMsg = kafkaProducer.expectMsgClass(ProducerRecord.class);
-		assertThat(endMsg.topic(), is("topic"));
-		assertThat(endMsg.value(), is("endMessage"));
+	static class ResponseArgumentsProvider implements ArgumentsProvider {
+		@Override
+		public Stream<? extends Arguments> provideArguments(ExtensionContext context) {
+			return Stream.of(
+					Arguments.of(
+							"messages/commands/channelPlaybackCommand.json",
+							HttpResponse.create().withStatus(StatusCodes.OK).withEntity("{ \"key\":\"value\" }"),
+							"messages/responses/channelPlaybackResponse.json",
+							"c4958563-1ba4-4f2f-a60f-626a624bf0e6"
+					),
+					Arguments.of(
+							"messages/commands/channelAnswerCommand.json",
+							HttpResponse.create().withStatus(StatusCodes.NO_CONTENT),
+							"messages/responses/channelAnswerResponse.json",
+							null
+					),
+					Arguments.of(
+							"messages/commands/channelAnswerCommandWithoutCommandId.json",
+							HttpResponse.create().withStatus(StatusCodes.NO_CONTENT),
+							"messages/responses/channelAnswerResponseWithoutCommandId.json",
+							null
+					)
+			);
+		}
 	}
 
 	private static String loadJsonAsString(final String fileName) throws IOException {

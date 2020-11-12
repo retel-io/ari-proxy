@@ -1,31 +1,67 @@
 package io.retel.ariproxy.boundary.commandsandresponses.auxiliary;
 
-import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
+import static org.apache.commons.lang3.builder.EqualsBuilder.reflectionEquals;
+import static org.apache.commons.lang3.builder.HashCodeBuilder.reflectionHashCode;
+import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
+import static org.apache.commons.lang3.builder.ToStringStyle.SHORT_PREFIX_STYLE;
 
 public class AriMessageEnvelope {
-
 	private final AriMessageType type;
 	private final String commandsTopic;
 	private final Object payload;
 	private final String callContext;
-	private final String commandId;
+  private final AriCommandResourceDto resource;
+  private final String commandId;
 	private final CommandRequest commandRequest;
 
-	public AriMessageEnvelope(AriMessageType type, String commandsTopic, Object payload, String callContext, String commandId, CommandRequest commandRequest) {
+	public AriMessageEnvelope(
+			final AriMessageType type,
+			final String commandsTopic,
+			final Object payload,
+			final String callContext,
+			final AriCommandResourceDto resource,
+			final String commandId,
+			final CommandRequest commandRequest
+	) {
 		this.commandsTopic = commandsTopic;
 		this.payload = payload;
 		this.callContext = callContext;
 		this.type = type;
-		this.commandId = commandId;
+    this.resource = resource;
+    this.commandId = commandId;
 		this.commandRequest = commandRequest;
 	}
+  public AriMessageEnvelope(
+      final AriMessageType type,
+      final String commandsTopic,
+      final Object payload,
+      final String callContext,
+      final String commandId,
+      final CommandRequest commandRequest
+  ) {
+    this(type, commandsTopic, payload, callContext, null, commandId, commandRequest);
+  }
 
-	public AriMessageEnvelope(AriMessageType type, String commandsTopic, Object payload, String callContext) {
-		this(type, commandsTopic, payload, callContext, null, null);
+	public AriMessageEnvelope(
+			final AriMessageType type,
+			final String commandsTopic,
+			final Object payload,
+			final String callContext,
+      final AriCommandResourceDto resource
+	) {
+		this(type, commandsTopic, payload, callContext, resource, null, null);
 	}
 
-	public AriMessageType getType() {
+	public AriMessageEnvelope(
+			final AriMessageType type,
+			final String commandsTopic,
+			final Object payload,
+			final String callContext
+	) {
+		this(type, commandsTopic, payload, callContext, null, null, null);
+	}
+
+  public AriMessageType getType() {
 		return type;
 	}
 
@@ -41,14 +77,31 @@ public class AriMessageEnvelope {
 		return callContext;
 	}
 
-	public String getCommandId() {
+  public AriCommandResourceDto getResource() {
+    return resource;
+  }
+
+  public String getCommandId() {
 		return commandId;
 	}
 
-	public CommandRequest getCommandRequest() { return commandRequest; }
-
-	@Override
-	public String toString() {
-		return ReflectionToStringBuilder.toString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+	public CommandRequest getCommandRequest() {
+		return commandRequest;
 	}
+
+
+  @Override
+  public String toString() {
+    return reflectionToString(this, SHORT_PREFIX_STYLE);
+  }
+
+  @Override
+  public boolean equals(final Object o) {
+    return reflectionEquals(this, o);
+  }
+
+  @Override
+  public int hashCode() {
+    return reflectionHashCode(this);
+  }
 }

@@ -1,19 +1,14 @@
 package io.retel.ariproxy.boundary.commandsandresponses.auxiliary;
 
-import static io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandType.BRIDGE;
-import static io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandType.CHANNEL;
-import static io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandType.COMMAND_NOT_CREATING_A_NEW_RESOURCE;
-import static io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandType.PLAYBACK;
-import static io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandType.RECORDING;
-import static io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandType.SNOOPING;
+import static io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandType.*;
 import static io.vavr.API.None;
 import static io.vavr.API.Some;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.*;
 
+import io.vavr.control.Option;
 import io.vavr.control.Try;
 import io.vavr.control.Try.Failure;
 import java.util.stream.Stream;
@@ -48,6 +43,7 @@ class AriCommandTypeTest {
 	private static final String CHANNEL_CREATION_URI = "/channels";
 	private static final String CHANNEL_CREATION_URI_ALT = "/channels/create";
 	private static final String CHANNEL_CREATION_URI_WITH_ID = String.format("/channels/%s", CHANNEL_ID);
+	private static final String CHANNEL_ANSWER_URI_WITH_ID = String.format("/channels/%s/answer", CHANNEL_ID);
 	private static final String PLAYBACK_ON_CHANNEL_URI = String.format("/channels/%s/play", CHANNEL_ID);
 	private static final String PLAYBACK_ON_CHANNEL_URI_WIH_ID = String.format("/channels/%s/play/%s", CHANNEL_ID, PLAYBACK_ID);
 	private static final String RECORDING_ON_CHANNEL_URI = String.format("/channels/%s/record", CHANNEL_ID);
@@ -68,7 +64,7 @@ class AriCommandTypeTest {
 	void ensureExtractResourceIdFromUriWorksForAnyType(String uri, String expectedResourceId) {
 		assertThat(
 				AriCommandType.fromRequestUri(uri).extractResourceIdFromUri(uri),
-				is(Some(Try.success(expectedResourceId)))
+				is(Some(expectedResourceId))
 		);
 	}
 
@@ -79,11 +75,11 @@ class AriCommandTypeTest {
 	}
 
 	@ParameterizedTest
-	@EnumSource(value = AriCommandType.class, mode = Mode.EXCLUDE, names = {"COMMAND_NOT_CREATING_A_NEW_RESOURCE"})
+	@EnumSource(value = AriCommandType.class, mode = Mode.EXCLUDE, names = {"UNKNOWN"})
 	void ensureInvalidUriAndBodyResultInAFailure(AriCommandType type) {
 		assertAll(
 				String.format("Extractors for type=%s", type),
-				() -> assertThat(type.extractResourceIdFromUri(INVALID_COMMAND_URI).get(), instanceOf(Failure.class)),
+				() -> assertEquals(Option.none(), type.extractResourceIdFromUri(INVALID_COMMAND_URI)),
 				() -> assertThat(type.extractResourceIdFromBody(INVALID_COMMAND_BODY).get(), instanceOf(Failure.class))
 		);
 	}
@@ -92,30 +88,31 @@ class AriCommandTypeTest {
 	void ensureCommandsNotCreatingANewResourceResultInANone() {
 		assertAll(
 				() -> assertThat(
-						COMMAND_NOT_CREATING_A_NEW_RESOURCE.extractResourceIdFromUri(INVALID_COMMAND_URI), is(None())
+						UNKNOWN.extractResourceIdFromUri(INVALID_COMMAND_URI), is(None())
 				),
 				() -> assertThat(
-						COMMAND_NOT_CREATING_A_NEW_RESOURCE.extractResourceIdFromBody(INVALID_COMMAND_BODY), is(None())
+						UNKNOWN.extractResourceIdFromBody(INVALID_COMMAND_BODY), is(None())
 				)
 		);
 	}
 
 	private static Stream<Arguments> commandUriProvider() {
 		return Stream.of(
-				Arguments.of(BRIDGE, BRIDGE_CREATION_URI),
-				Arguments.of(BRIDGE, BRIDGE_CREATION_URI_WITH_ID),
-				Arguments.of(CHANNEL, CHANNEL_CREATION_URI),
-				Arguments.of(CHANNEL, CHANNEL_CREATION_URI_ALT),
-				Arguments.of(CHANNEL, CHANNEL_CREATION_URI_WITH_ID),
-				Arguments.of(PLAYBACK, PLAYBACK_ON_BRIDGE_URI),
-				Arguments.of(PLAYBACK, PLAYBACK_ON_BRIDGE_URI_WITH_ID),
-				Arguments.of(PLAYBACK, PLAYBACK_ON_CHANNEL_URI),
-				Arguments.of(PLAYBACK, PLAYBACK_ON_CHANNEL_URI_WIH_ID),
-				Arguments.of(RECORDING, RECORDING_ON_CHANNEL_URI),
-				Arguments.of(RECORDING, RECORDING_ON_BRIDGE_URI),
-				Arguments.of(SNOOPING, SNOOPING_ON_CHANNEL),
-				Arguments.of(SNOOPING, SNOOPING_ON_CHANNEL_WITH_ID),
-				Arguments.of(COMMAND_NOT_CREATING_A_NEW_RESOURCE, INVALID_COMMAND_URI)
+				Arguments.of(BRIDGE_CREATION, BRIDGE_CREATION_URI),
+				Arguments.of(BRIDGE_CREATION, BRIDGE_CREATION_URI_WITH_ID),
+				Arguments.of(CHANNEL_CREATION, CHANNEL_CREATION_URI),
+				Arguments.of(CHANNEL_CREATION, CHANNEL_CREATION_URI_ALT),
+				Arguments.of(CHANNEL_CREATION, CHANNEL_CREATION_URI_WITH_ID),
+				Arguments.of(CHANNEL, CHANNEL_ANSWER_URI_WITH_ID),
+				Arguments.of(PLAYBACK_CREATION, PLAYBACK_ON_BRIDGE_URI),
+				Arguments.of(PLAYBACK_CREATION, PLAYBACK_ON_BRIDGE_URI_WITH_ID),
+				Arguments.of(PLAYBACK_CREATION, PLAYBACK_ON_CHANNEL_URI),
+				Arguments.of(PLAYBACK_CREATION, PLAYBACK_ON_CHANNEL_URI_WIH_ID),
+				Arguments.of(RECORDING_CREATION, RECORDING_ON_CHANNEL_URI),
+				Arguments.of(RECORDING_CREATION, RECORDING_ON_BRIDGE_URI),
+				Arguments.of(SNOOPING_CREATION, SNOOPING_ON_CHANNEL),
+				Arguments.of(SNOOPING_CREATION, SNOOPING_ON_CHANNEL_WITH_ID),
+				Arguments.of(UNKNOWN, INVALID_COMMAND_URI)
 		);
 	}
 
@@ -134,8 +131,8 @@ class AriCommandTypeTest {
 				Arguments.of(BRIDGE, BODY_WITH_BRIDGE_ID, BRIDGE_ID),
 				Arguments.of(CHANNEL, BODY_WITH_CHANNEL_ID, CHANNEL_ID),
 				Arguments.of(PLAYBACK, BODY_WITH_PLAYBACK_ID, PLAYBACK_ID),
-				Arguments.of(RECORDING, BODY_WITH_RECORDING_NAME, RECORDING_NAME),
-				Arguments.of(SNOOPING, BODY_WITH_SNOOP_ID, SNOOP_ID)
+				Arguments.of(RECORDING_CREATION, BODY_WITH_RECORDING_NAME, RECORDING_NAME),
+				Arguments.of(SNOOPING_CREATION, BODY_WITH_SNOOP_ID, SNOOP_ID)
 		);
 	}
 }

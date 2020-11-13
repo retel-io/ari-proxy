@@ -5,7 +5,7 @@ import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextRegistered;
 import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommand;
-import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandResource;
+import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriResource;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
 
@@ -18,7 +18,7 @@ public class AriCommandResponseProcessing {
       return Try.success(null);
     }
 
-    final Option<AriCommandResource> maybeResource = AriCommandResource.ofAriCommand(ariCommand);
+    final Option<AriResource> maybeResource = AriResource.ofAriCommand(ariCommand);
     if (maybeResource.isEmpty()) {
       return Try.failure(
           new RuntimeException(
@@ -26,7 +26,7 @@ public class AriCommandResponseProcessing {
                   "Failed to extract resourceId from command '%s'", ariCommand.toString())));
     }
 
-    final AriCommandResource resource = maybeResource.get();
+    final AriResource resource = maybeResource.get();
     return Try.of(
         () -> {
           PatternsAdapter.<CallContextRegistered>ask(

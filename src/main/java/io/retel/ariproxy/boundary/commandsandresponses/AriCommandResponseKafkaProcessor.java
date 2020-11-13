@@ -195,8 +195,7 @@ public class AriCommandResponseKafkaProcessor {
       AriResponse ariResponse,
       CallContextAndCommandRequestContext context,
       String kafkaCommandsTopic) {
-    final Option<AriCommandResource> maybeResource =
-        AriCommandResource.ofAriCommand(context.getAriCommand());
+    final Option<AriResource> maybeResource = AriResource.ofAriCommand(context.getAriCommand());
 
     return maybeResource
         .map(

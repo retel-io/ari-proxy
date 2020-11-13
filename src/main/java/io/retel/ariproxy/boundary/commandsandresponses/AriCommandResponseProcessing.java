@@ -18,7 +18,7 @@ public class AriCommandResponseProcessing {
       return Try.success(null);
     }
 
-    final Option<AriCommandResource> maybeResource = ariCommand.extractResource();
+    final Option<AriCommandResource> maybeResource = AriCommandResource.ofAriCommand(ariCommand);
     if (maybeResource.isEmpty()) {
       return Try.failure(
           new RuntimeException(
@@ -30,11 +30,7 @@ public class AriCommandResponseProcessing {
     return Try.of(
         () -> {
           PatternsAdapter.<CallContextRegistered>ask(
-                  callContextProvider,
-                  new RegisterCallContext(
-                      resource.getId(),
-                      callContext),
-                  100)
+                  callContextProvider, new RegisterCallContext(resource.getId(), callContext), 100)
               .await();
           return null;
         });

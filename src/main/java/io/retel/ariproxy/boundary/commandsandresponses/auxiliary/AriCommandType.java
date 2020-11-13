@@ -1,69 +1,33 @@
 package io.retel.ariproxy.boundary.commandsandresponses.auxiliary;
 
-import static io.retel.ariproxy.boundary.commandsandresponses.auxiliary.Companion.RESOURCE_ID_POSITION;
-import static io.retel.ariproxy.boundary.commandsandresponses.auxiliary.Companion.RESOURCE_ID_POSITION_ON_ANOTHER_RESOURCE;
 import static io.vavr.API.None;
 import static io.vavr.API.Some;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
-import io.vavr.Value;
-import io.vavr.collection.List;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 
 public enum AriCommandType {
-  BRIDGE_CREATION(
-      AriResourceType.BRIDGE,
-      true,
-      resourceIdFromUri(RESOURCE_ID_POSITION),
-      resourceIdFromBody("/bridgeId")),
-  BRIDGE(
-      AriResourceType.BRIDGE,
-      false,
-      resourceIdFromUri(RESOURCE_ID_POSITION),
-      resourceIdFromBody("/bridgeId")),
-  CHANNEL_CREATION(
-      AriResourceType.CHANNEL,
-      true,
-      resourceIdFromUri(RESOURCE_ID_POSITION),
-      resourceIdFromBody("/channelId")),
-  CHANNEL(
-      AriResourceType.CHANNEL,
-      false,
-      resourceIdFromUri(RESOURCE_ID_POSITION),
-      resourceIdFromBody("/channelId")),
-  PLAYBACK_CREATION(
-      AriResourceType.PLAYBACK,
-      true,
-      resourceIdFromUri(RESOURCE_ID_POSITION_ON_ANOTHER_RESOURCE),
-      resourceIdFromBody("/playbackId")),
-  PLAYBACK(
-      AriResourceType.PLAYBACK,
-      false,
-      resourceIdFromUri(RESOURCE_ID_POSITION_ON_ANOTHER_RESOURCE),
-      resourceIdFromBody("/playbackId")),
-  RECORDING_CREATION(
-      AriResourceType.RECORDING, true, AriCommandType::notAvailable, resourceIdFromBody("/name")),
-  RECORDING(
-      AriResourceType.RECORDING, false, AriCommandType::notAvailable, resourceIdFromBody("/name")),
-  SNOOPING_CREATION(
-      AriResourceType.SNOOPING,
-      true,
-      resourceIdFromUri(RESOURCE_ID_POSITION_ON_ANOTHER_RESOURCE),
-      resourceIdFromBody("/snoopId")),
-  SNOOPING(
-      AriResourceType.SNOOPING,
-      false,
-      resourceIdFromUri(RESOURCE_ID_POSITION_ON_ANOTHER_RESOURCE),
-      resourceIdFromBody("/snoopId")),
-  UNKNOWN(AriResourceType.UNKNOWN, false, uri -> None(), body -> None());
+  BRIDGE_CREATION(AriResourceType.BRIDGE, true, resourceIdFromBody("/bridgeId")),
+  BRIDGE(AriResourceType.BRIDGE, false, resourceIdFromBody("/bridgeId")),
+  CHANNEL_CREATION(AriResourceType.CHANNEL, true, resourceIdFromBody("/channelId")),
+  CHANNEL(AriResourceType.CHANNEL, false, resourceIdFromBody("/channelId")),
+  PLAYBACK_CREATION(AriResourceType.PLAYBACK, true, resourceIdFromBody("/playbackId")),
+  PLAYBACK(AriResourceType.PLAYBACK, false, resourceIdFromBody("/playbackId")),
+  RECORDING_CREATION(AriResourceType.RECORDING, true, resourceIdFromBody("/name")),
+  RECORDING(AriResourceType.RECORDING, false, resourceIdFromBody("/name")),
+  SNOOPING_CREATION(AriResourceType.SNOOPING, true, resourceIdFromBody("/snoopId")),
+  UNKNOWN(AriResourceType.UNKNOWN, false, body -> None());
 
   private static final Map<String, AriCommandType> pathsToCommandTypes = new HashMap<>();
 
@@ -115,38 +79,36 @@ public enum AriCommandType {
     pathsToCommandTypes.put("/recordings/live/{recordingName}/mute", RECORDING);
   }
 
-  private static final ObjectReader reader = new ObjectMapper().reader();
+  private static final ObjectReader READER = new ObjectMapper().reader();
 
   private final AriResourceType resourceType;
   private final boolean isCreationCommand;
-  private final Function<String, Option<Try<String>>> resourceIdUriExtractor;
   private final Function<String, Option<Try<String>>> resourceIdBodyExtractor;
 
   AriCommandType(
       final AriResourceType resourceType,
       final boolean isCreationCommand,
-      final Function<String, Option<Try<String>>> resourceIdUriExtractor,
       final Function<String, Option<Try<String>>> resourceIdBodyExtractor) {
     this.resourceType = resourceType;
     this.isCreationCommand = isCreationCommand;
-    this.resourceIdUriExtractor = resourceIdUriExtractor;
     this.resourceIdBodyExtractor = resourceIdBodyExtractor;
   }
 
   public static AriCommandType fromRequestUri(final String uri) {
     final Optional<AriCommandType> ariCommandType =
         pathsToCommandTypes.entrySet().stream()
-            .filter(
-                entry -> {
-                  final String path = entry.getKey();
-                  final String pathRegexWithWildcardsForPlaceholders =
-                      path.replaceAll("\\{[^}]+}", "[^\\\\/]+");
-                  return uri.matches(pathRegexWithWildcardsForPlaceholders);
-                })
+            .filter(entry -> pathMatchesPathTemplateWithPlaceholders(uri, entry.getKey()))
             .findFirst()
             .map(Map.Entry::getValue);
 
     return ariCommandType.orElse(UNKNOWN);
+  }
+
+  private static boolean pathMatchesPathTemplateWithPlaceholders(
+      final String path, final String pathTemplate) {
+    final String regexWithWildcardsForPlaceholders =
+        pathTemplate.replaceAll("\\{[^}]+}", "[^\\\\/]+");
+    return path.matches(regexWithWildcardsForPlaceholders);
   }
 
   public AriResourceType getResourceType() {
@@ -158,32 +120,68 @@ public enum AriCommandType {
   }
 
   public Option<String> extractResourceIdFromUri(final String uri) {
-    if (this == UNKNOWN) {
+    if (this == UNKNOWN || uri.equals("/channels/create")) {
       return Option.none();
     }
 
-    return this.resourceIdUriExtractor.apply(uri).flatMap(Value::toOption);
+    final Optional<String> maybePathTemplate =
+        pathsToCommandTypes.entrySet().stream()
+            .filter(entry -> pathMatchesPathTemplateWithPlaceholders(uri, entry.getKey()))
+            .findFirst()
+            .map(Map.Entry::getKey);
+
+    if (!maybePathTemplate.isPresent()) {
+      return Option.none();
+    }
+
+    final String pathTemplate = maybePathTemplate.get();
+    final String identifierPlaceholder =
+        this.getResourceType().getPathResourceIdentifierPlaceholder();
+
+    final String regex = "(\\{[a-zA-Z]+\\})";
+    final java.util.List<String> matches = findAllMatchingGroups(pathTemplate, regex);
+
+    if (matches.isEmpty()) {
+      return Option.none();
+    }
+
+    final int desiredPosition = matches.indexOf(identifierPlaceholder);
+    if (desiredPosition < 0) {
+      return Option.none();
+    }
+
+    final String placeholderRegex = pathTemplate.replaceAll("\\{[^}]+}", "([^\\\\/]+)");
+    final java.util.List<String> uriMatches = findAllMatchingGroups(uri, placeholderRegex);
+    if (uriMatches.isEmpty()) {
+      return Option.none();
+    }
+
+    return Option.of(uriMatches.get(desiredPosition));
   }
 
   public Option<Try<String>> extractResourceIdFromBody(final String body) {
     return resourceIdBodyExtractor.apply(body);
   }
 
-  private static Function<String, Option<Try<String>>> resourceIdFromUri(
-      final int resourceIdPosition) {
-    return uri -> {
-      if ("/channels/create".equals(uri)) {
-        return Some(Try.failure(new Throwable("No ID present in URI")));
+  private static java.util.List<String> findAllMatchingGroups(final String str, final String regex) {
+    final Pattern pattern = Pattern.compile(regex);
+    final Matcher matcher = pattern.matcher(str);
+
+    final java.util.List<String> matches = new ArrayList<>();
+    while (matcher.find()) {
+      for (int i = 1; i <= matcher.groupCount(); i++) {
+        matches.add(matcher.group(i));
       }
-      return Some(Try.of(() -> List.of(uri.split("/")).get(resourceIdPosition)));
-    };
+    }
+
+    return matches;
   }
 
   private static Function<String, Option<Try<String>>> resourceIdFromBody(
       final String resourceIdXPath) {
     return body ->
         Some(
-            Try.of(() -> reader.readTree(body))
+            Try.of(() -> READER.readTree(body))
                 .flatMap(root -> Option.of(root).toTry())
                 .toOption()
                 .flatMap(root -> Option.of(root.at(resourceIdXPath)))
@@ -196,13 +194,4 @@ public enum AriCommandType {
                                 "Failed to extract resourceId at path=%s from body=%s",
                                 resourceIdXPath, body))));
   }
-
-  private static Option<Try<String>> notAvailable(final String bodyOrUri) {
-    return Some(Try.failure(new ExtractorNotAvailable(bodyOrUri)));
-  }
-}
-
-class Companion {
-  static final int RESOURCE_ID_POSITION = 2;
-  static final int RESOURCE_ID_POSITION_ON_ANOTHER_RESOURCE = 4;
 }

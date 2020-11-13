@@ -101,8 +101,6 @@ class AriCommandResponseProcessingTest {
         "{ \"method\":\"POST\", \"url\":\"/channels/create\", \"body\":{\"channelId\":\"channel-Id\"}}";
     final AriCommand ariCommand = ariCommandReader.readValue(json);
 
-    System.out.println(ariCommand);
-
     final Try<Void> res =
         AriCommandResponseProcessing.registerCallContext(
             callContextProvider.getRef(), "CALL_CONTEXT", ariCommand);

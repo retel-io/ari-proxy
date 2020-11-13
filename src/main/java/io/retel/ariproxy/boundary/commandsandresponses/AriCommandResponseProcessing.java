@@ -27,13 +27,12 @@ public class AriCommandResponseProcessing {
     }
 
     final AriCommandResource resource = maybeResource.get();
-
     return Try.of(
         () -> {
           PatternsAdapter.<CallContextRegistered>ask(
                   callContextProvider,
                   new RegisterCallContext(
-                      resource.getId().get(), // TODO: this should not be optional
+                      resource.getId(),
                       callContext),
                   100)
               .await();

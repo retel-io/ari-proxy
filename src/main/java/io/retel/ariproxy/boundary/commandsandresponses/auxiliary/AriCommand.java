@@ -60,9 +60,8 @@ public class AriCommand {
                   }
                 });
 
-    return maybeResourceId
-        .map(resourceId -> Option.some(new AriCommandResource(type.getResourceType(), resourceId)))
-        .getOrElse(() -> Option.some(new AriCommandResource(type.getResourceType())));
+    return maybeResourceId.flatMap(
+        resourceId -> Option.some(new AriCommandResource(type.getResourceType(), resourceId)));
   }
 
   @Override

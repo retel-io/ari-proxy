@@ -133,6 +133,22 @@ public enum AriCommandType {
     this.resourceIdBodyExtractor = resourceIdBodyExtractor;
   }
 
+  public static AriCommandType fromRequestUri(final String uri) {
+    final Optional<AriCommandType> ariCommandType =
+        pathsToCommandTypes.entrySet().stream()
+            .filter(
+                entry -> {
+                  final String path = entry.getKey();
+                  final String pathRegexWithWildcardsForPlaceholders =
+                      path.replaceAll("\\{[^}]+}", "[^\\\\/]+");
+                  return uri.matches(pathRegexWithWildcardsForPlaceholders);
+                })
+            .findFirst()
+            .map(Map.Entry::getValue);
+
+    return ariCommandType.orElse(UNKNOWN);
+  }
+
   public AriResourceType getResourceType() {
     return resourceType;
   }
@@ -142,42 +158,15 @@ public enum AriCommandType {
   }
 
   public Option<String> extractResourceIdFromUri(final String uri) {
-    final Optional<AriCommandType> ariCommandType =
-        pathsToCommandTypes.entrySet().stream()
-            .filter(
-                entry -> {
-                  final String path = entry.getKey();
-                  final String theHolyRegex = path.replaceAll("\\{[^}]+}", "[^\\\\/]+");
-                  return uri.matches(theHolyRegex);
-                })
-            .findFirst()
-            .map(Map.Entry::getValue);
-
-    if (ariCommandType.isPresent()) {
-      return Option.ofOptional(ariCommandType)
-          .flatMap(type -> type.resourceIdUriExtractor.apply(uri).flatMap(Value::toOption));
-    } else {
+    if (this == UNKNOWN) {
       return Option.none();
     }
+
+    return this.resourceIdUriExtractor.apply(uri).flatMap(Value::toOption);
   }
 
   public Option<Try<String>> extractResourceIdFromBody(final String body) {
     return resourceIdBodyExtractor.apply(body);
-  }
-
-  public static AriCommandType fromRequestUri(String candidateUri) {
-    final Optional<AriCommandType> ariCommandType =
-        pathsToCommandTypes.entrySet().stream()
-            .filter(
-                entry -> {
-                  final String path = entry.getKey();
-                  final String theHolyRegex = path.replaceAll("\\{[^}]+}", "[^\\\\/]+");
-                  return candidateUri.matches(theHolyRegex);
-                })
-            .findFirst()
-            .map(Map.Entry::getValue);
-
-    return ariCommandType.orElse(UNKNOWN);
   }
 
   private static Function<String, Option<Try<String>>> resourceIdFromUri(
@@ -208,7 +197,7 @@ public enum AriCommandType {
                                 resourceIdXPath, body))));
   }
 
-  private static Option<Try<String>> notAvailable(final String bodyOrUri) { // TODO: 🤔
+  private static Option<Try<String>> notAvailable(final String bodyOrUri) {
     return Some(Try.failure(new ExtractorNotAvailable(bodyOrUri)));
   }
 }

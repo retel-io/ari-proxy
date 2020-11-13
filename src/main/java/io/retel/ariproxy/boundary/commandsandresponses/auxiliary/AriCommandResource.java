@@ -5,16 +5,9 @@ import static org.apache.commons.lang3.builder.HashCodeBuilder.reflectionHashCod
 import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
 import static org.apache.commons.lang3.builder.ToStringStyle.SHORT_PREFIX_STYLE;
 
-import java.util.Optional;
-
 public class AriCommandResource {
   private final AriResourceType type;
   private final String id;
-
-  AriCommandResource(final AriResourceType type) {
-    this.type = type;
-    this.id = null;
-  }
 
   AriCommandResource(final AriResourceType type, final String id) {
     this.type = type;
@@ -25,8 +18,8 @@ public class AriCommandResource {
     return type;
   }
 
-  public Optional<String> getId() {
-    return Optional.ofNullable(id);
+  public String getId() {
+    return id;
   }
 
   @Override

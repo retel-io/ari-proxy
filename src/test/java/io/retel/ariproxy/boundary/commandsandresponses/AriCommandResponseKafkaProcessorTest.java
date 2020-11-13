@@ -11,6 +11,9 @@ import akka.http.javadsl.model.StatusCodes;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import akka.testkit.javadsl.TestKit;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
 import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
@@ -64,7 +67,7 @@ class AriCommandResponseKafkaProcessorTest {
 	}
 
 	@Test()
-	void handlePlaybackCommand() {
+	void handlePlaybackCommand() throws JsonProcessingException {
 
 		final TestKit kafkaProducer = new TestKit(system);
 		final TestKit metricsService = new TestKit(system);
@@ -105,9 +108,26 @@ class AriCommandResponseKafkaProcessorTest {
 		assertThat(stopCallSetupTimer.getCallcontext(), is("CALL_CONTEXT"));
 		assertThat(stopCallSetupTimer.getApplication(), is("test-app"));
 
-		final ProducerRecord responseRecord = kafkaProducer.expectMsgClass(ProducerRecord.class);
+		final ProducerRecord<String, String> responseRecord = kafkaProducer.expectMsgClass(ProducerRecord.class);
 		assertThat(responseRecord.topic(), is("eventsAndResponsesTopic"));
 		assertThat(responseRecord.key(), is("CALL_CONTEXT"));
+
+		ObjectMapper mapper = new ObjectMapper();
+		JsonNode responseValue = mapper.readTree(responseRecord.value());
+		assertThat(responseValue.get("type").asText(), is("RESPONSE"));
+		assertThat(responseValue.get("commandsTopic").asText(), is("commandsTopic"));
+		assertThat(responseValue.get("callContext").asText(), is("CALL_CONTEXT"));
+		assertThat(responseValue.get("commandId").asText(), is("COMMANDID"));
+
+		JsonNode responseCommand = responseValue.get("commandRequest");
+		assertThat(responseCommand.get("method").asText(), is("POST"));
+		assertThat(responseCommand.get("url").asText(), is("/channels/1533286879.42/play/c4958563-1ba4-4f2f-a60f-626a624bf0e6"));
+
+		JsonNode responsePayload = responseValue.get("payload");
+		assertThat(responsePayload.get("status_code").asInt(), is(200));
+
+		JsonNode responsePayloadBody = responsePayload.get("body");
+		assertThat(responsePayloadBody.get("key").asText(), is("value"));
 
 		final ProducerRecord endMsg = kafkaProducer.expectMsgClass(ProducerRecord.class);
 		assertThat(endMsg.topic(), is("topic"));

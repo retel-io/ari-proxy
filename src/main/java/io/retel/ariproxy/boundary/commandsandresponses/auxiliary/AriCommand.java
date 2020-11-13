@@ -36,8 +36,12 @@ public class AriCommand {
     return body;
   }
 
+  public AriCommandType extractCommandType() {
+    return AriCommandType.fromRequestUri(getUrl());
+  }
+
   public Option<AriCommandResource> extractResource() {
-    final AriCommandType type = AriCommandType.fromRequestUri(getUrl());
+    final AriCommandType type = extractCommandType();
     if (type == AriCommandType.UNKNOWN) {
       return Option.none();
     }
@@ -57,8 +61,8 @@ public class AriCommand {
                 });
 
     return maybeResourceId
-        .map(resourceId -> Option.some(new AriCommandResource(type, resourceId)))
-        .getOrElse(() -> Option.some(new AriCommandResource(type)));
+        .map(resourceId -> Option.some(new AriCommandResource(type.getResourceType(), resourceId)))
+        .getOrElse(() -> Option.some(new AriCommandResource(type.getResourceType())));
   }
 
   @Override

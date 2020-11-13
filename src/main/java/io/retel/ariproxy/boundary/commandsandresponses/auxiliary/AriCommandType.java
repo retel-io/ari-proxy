@@ -19,29 +19,51 @@ import java.util.function.Function;
 import org.apache.commons.lang3.StringUtils;
 
 public enum AriCommandType {
-  BRIDGE_CREATION(true, resourceIdFromUri(RESOURCE_ID_POSITION), resourceIdFromBody("/bridgeId")),
-  BRIDGE(false, resourceIdFromUri(RESOURCE_ID_POSITION), resourceIdFromBody("/bridgeId")),
-  CHANNEL_CREATION(true, resourceIdFromUri(RESOURCE_ID_POSITION), resourceIdFromBody("/channelId")),
-  CHANNEL(false, resourceIdFromUri(RESOURCE_ID_POSITION), resourceIdFromBody("/channelId")),
+  BRIDGE_CREATION(
+      AriResourceType.BRIDGE,
+      true,
+      resourceIdFromUri(RESOURCE_ID_POSITION),
+      resourceIdFromBody("/bridgeId")),
+  BRIDGE(
+      AriResourceType.BRIDGE,
+      false,
+      resourceIdFromUri(RESOURCE_ID_POSITION),
+      resourceIdFromBody("/bridgeId")),
+  CHANNEL_CREATION(
+      AriResourceType.CHANNEL,
+      true,
+      resourceIdFromUri(RESOURCE_ID_POSITION),
+      resourceIdFromBody("/channelId")),
+  CHANNEL(
+      AriResourceType.CHANNEL,
+      false,
+      resourceIdFromUri(RESOURCE_ID_POSITION),
+      resourceIdFromBody("/channelId")),
   PLAYBACK_CREATION(
+      AriResourceType.PLAYBACK,
       true,
       resourceIdFromUri(RESOURCE_ID_POSITION_ON_ANOTHER_RESOURCE),
       resourceIdFromBody("/playbackId")),
   PLAYBACK(
+      AriResourceType.PLAYBACK,
       false,
       resourceIdFromUri(RESOURCE_ID_POSITION_ON_ANOTHER_RESOURCE),
       resourceIdFromBody("/playbackId")),
-  RECORDING_CREATION(true, AriCommandType::notAvailable, resourceIdFromBody("/name")),
-  RECORDING(false, AriCommandType::notAvailable, resourceIdFromBody("/name")),
+  RECORDING_CREATION(
+      AriResourceType.RECORDING, true, AriCommandType::notAvailable, resourceIdFromBody("/name")),
+  RECORDING(
+      AriResourceType.RECORDING, false, AriCommandType::notAvailable, resourceIdFromBody("/name")),
   SNOOPING_CREATION(
+      AriResourceType.SNOOPING,
       true,
       resourceIdFromUri(RESOURCE_ID_POSITION_ON_ANOTHER_RESOURCE),
       resourceIdFromBody("/snoopId")),
   SNOOPING(
+      AriResourceType.SNOOPING,
       false,
       resourceIdFromUri(RESOURCE_ID_POSITION_ON_ANOTHER_RESOURCE),
       resourceIdFromBody("/snoopId")),
-  UNKNOWN(false, uri -> None(), body -> None());
+  UNKNOWN(AriResourceType.UNKNOWN, false, uri -> None(), body -> None());
 
   private static final Map<String, AriCommandType> pathsToCommandTypes = new HashMap<>();
 
@@ -95,17 +117,28 @@ public enum AriCommandType {
 
   private static final ObjectReader reader = new ObjectMapper().reader();
 
-  private final boolean isResourceCreationCommand;
+  private final AriResourceType resourceType;
+  private final boolean isCreationCommand;
   private final Function<String, Option<Try<String>>> resourceIdUriExtractor;
   private final Function<String, Option<Try<String>>> resourceIdBodyExtractor;
 
   AriCommandType(
-      final boolean isResourceCreationCommand,
+      final AriResourceType resourceType,
+      final boolean isCreationCommand,
       final Function<String, Option<Try<String>>> resourceIdUriExtractor,
       final Function<String, Option<Try<String>>> resourceIdBodyExtractor) {
-    this.isResourceCreationCommand = isResourceCreationCommand;
+    this.resourceType = resourceType;
+    this.isCreationCommand = isCreationCommand;
     this.resourceIdUriExtractor = resourceIdUriExtractor;
     this.resourceIdBodyExtractor = resourceIdBodyExtractor;
+  }
+
+  public AriResourceType getResourceType() {
+    return resourceType;
+  }
+
+  public boolean isCreationCommand() {
+    return isCreationCommand;
   }
 
   public Option<String> extractResourceIdFromUri(final String uri) {
@@ -155,10 +188,6 @@ public enum AriCommandType {
       }
       return Some(Try.of(() -> List.of(uri.split("/")).get(resourceIdPosition)));
     };
-  }
-
-  public boolean isResourceCreationCommand() {
-    return isResourceCreationCommand;
   }
 
   private static Function<String, Option<Try<String>>> resourceIdFromBody(

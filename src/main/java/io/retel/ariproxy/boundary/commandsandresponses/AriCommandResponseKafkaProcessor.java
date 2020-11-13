@@ -205,7 +205,7 @@ public class AriCommandResponseKafkaProcessor {
                     kafkaCommandsTopic,
                     ariResponse,
                     context.getCallContext(),
-                    AriCommandResourceDto.of(resource),
+                    resource,
                     context.getCommandId(),
                     new CommandRequest(
                         context.getAriCommand().getMethod(), context.getAriCommand().getUrl())))

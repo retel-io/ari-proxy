@@ -10,7 +10,7 @@ public class AriMessageEnvelope {
   private final String commandsTopic;
   private final Object payload;
   private final String callContext;
-  private final AriCommandResourceDto resource;
+  private final AriCommandResource resource;
   private final String commandId;
   private final CommandRequest commandRequest;
 
@@ -19,7 +19,7 @@ public class AriMessageEnvelope {
       final String commandsTopic,
       final Object payload,
       final String callContext,
-      final AriCommandResourceDto resource,
+      final AriCommandResource resource,
       final String commandId,
       final CommandRequest commandRequest) {
     this.commandsTopic = commandsTopic;
@@ -46,7 +46,7 @@ public class AriMessageEnvelope {
       final String commandsTopic,
       final Object payload,
       final String callContext,
-      final AriCommandResourceDto resource) {
+      final AriCommandResource resource) {
     this(type, commandsTopic, payload, callContext, resource, null, null);
   }
 
@@ -74,7 +74,7 @@ public class AriMessageEnvelope {
     return callContext;
   }
 
-  public AriCommandResourceDto getResource() {
+  public AriCommandResource getResource() {
     return resource;
   }
 

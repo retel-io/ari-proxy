@@ -13,6 +13,11 @@ public class AriCommandResponseProcessing {
 
   public static Try<Void> registerCallContext(
       final ActorRef callContextProvider, final String callContext, final AriCommand ariCommand) {
+
+    if (!ariCommand.extractCommandType().isCreationCommand()) {
+      return Try.success(null);
+    }
+
     final Option<AriCommandResource> maybeResource = ariCommand.extractResource();
     if (maybeResource.isEmpty()) {
       return Try.failure(
@@ -22,10 +27,6 @@ public class AriCommandResponseProcessing {
     }
 
     final AriCommandResource resource = maybeResource.get();
-
-    if (!resource.getType().isResourceCreationCommand()) {
-      return Try.success(null);
-    }
 
     return Try.of(
         () -> {

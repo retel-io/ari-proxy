@@ -8,20 +8,20 @@ import static org.apache.commons.lang3.builder.ToStringStyle.SHORT_PREFIX_STYLE;
 import java.util.Optional;
 
 public class AriCommandResource {
-  private final AriCommandType type;
+  private final AriResourceType type;
   private final String id;
 
-  AriCommandResource(final AriCommandType type) {
+  AriCommandResource(final AriResourceType type) {
     this.type = type;
     this.id = null;
   }
 
-  AriCommandResource(final AriCommandType type, final String id) {
+  AriCommandResource(final AriResourceType type, final String id) {
     this.type = type;
     this.id = id;
   }
 
-  public AriCommandType getType() {
+  public AriResourceType getType() {
     return type;
   }
 

@@ -1,11 +1,11 @@
 package io.retel.ariproxy.boundary.commandsandresponses.auxiliary;
 
-import java.util.Optional;
-
 import static org.apache.commons.lang3.builder.EqualsBuilder.reflectionEquals;
 import static org.apache.commons.lang3.builder.HashCodeBuilder.reflectionHashCode;
 import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
 import static org.apache.commons.lang3.builder.ToStringStyle.SHORT_PREFIX_STYLE;
+
+import java.util.Optional;
 
 public class AriCommandResource {
   private final AriCommandType type;

@@ -11,43 +11,32 @@ import io.vavr.control.Try;
 
 public class AriCommandResponseProcessing {
 
-	public static Try<Void> registerCallContext(
-			final ActorRef callContextProvider,
-			final String callContext,
-			final AriCommand ariCommand
-	) {
-		final Option<AriCommandResource> maybeResource = ariCommand.extractResource();
-		if (maybeResource.isEmpty()) {
-			return Try.failure(
-					new RuntimeException(
-							String.format(
-									"Failed to extract resourceId from command '%s'",
-									ariCommand.toString()
-							)
-					)
-			);
-		}
+  public static Try<Void> registerCallContext(
+      final ActorRef callContextProvider, final String callContext, final AriCommand ariCommand) {
+    final Option<AriCommandResource> maybeResource = ariCommand.extractResource();
+    if (maybeResource.isEmpty()) {
+      return Try.failure(
+          new RuntimeException(
+              String.format(
+                  "Failed to extract resourceId from command '%s'", ariCommand.toString())));
+    }
 
     final AriCommandResource resource = maybeResource.get();
 
-		if (!resource.getType().isResourceCreationCommand()) {
-			return Try.success(null);
-		}
+    if (!resource.getType().isResourceCreationCommand()) {
+      return Try.success(null);
+    }
 
     return Try.of(
-				() -> {
-					PatternsAdapter
-							.<CallContextRegistered>ask(
-									callContextProvider,
-									new RegisterCallContext(
-											resource.getId().get(), // TODO: this should not be optional
-											callContext
-									),
-									100
-							)
-							.await();
-					return null;
-				}
-		);
-	}
+        () -> {
+          PatternsAdapter.<CallContextRegistered>ask(
+                  callContextProvider,
+                  new RegisterCallContext(
+                      resource.getId().get(), // TODO: this should not be optional
+                      callContext),
+                  100)
+              .await();
+          return null;
+        });
+  }
 }

@@ -13,3 +13,7 @@ This is the process for committing code to the ari-proxy project. There are of c
 5. The Pull Request will then be reviewed.
 6. After the review, you should resolve issues brought up by the reviewers as needed, iterating until the reviewers give their thumbs up.
 7. Once the code has passed review the Pull Request can be merged.
+
+## Code style
+
+We use [spotless](https://github.com/diffplug/spotless) to gradually enforce [Google Java Style](https://google.github.io/styleguide/javaguide.html). Your build will fail, if changed files do not comply with the formatting guidelines. To automatically format your changed files correctly, run ` mvn spotless:apply`. 

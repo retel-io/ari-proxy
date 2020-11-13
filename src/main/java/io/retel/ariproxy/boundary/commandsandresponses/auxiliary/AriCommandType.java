@@ -163,7 +163,8 @@ public enum AriCommandType {
     return resourceIdBodyExtractor.apply(body);
   }
 
-  private static java.util.List<String> findAllMatchingGroups(final String str, final String regex) {
+  private static java.util.List<String> findAllMatchingGroups(
+      final String str, final String regex) {
     final Pattern pattern = Pattern.compile(regex);
     final Matcher matcher = pattern.matcher(str);
 

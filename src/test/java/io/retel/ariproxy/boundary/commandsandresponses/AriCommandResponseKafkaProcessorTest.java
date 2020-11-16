@@ -19,7 +19,6 @@ import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -107,15 +106,13 @@ class AriCommandResponseKafkaProcessorTest {
         .to(sink)
         .run();
 
-    Optional.ofNullable(resourceIdExpectedToRegisterInCallContext)
-        .ifPresent(
-            resourceId -> {
-              final RegisterCallContext registerCallContext =
-                  callContextProvider.expectMsgClass(RegisterCallContext.class);
-              assertThat(registerCallContext.callContext(), is("CALL_CONTEXT"));
-              assertThat(registerCallContext.resourceId(), is(resourceId));
-              callContextProvider.reply(new CallContextProvided("CALL CONTEXT"));
-            });
+    if (resourceIdExpectedToRegisterInCallContext != null) {
+      final RegisterCallContext registerCallContext =
+          callContextProvider.expectMsgClass(RegisterCallContext.class);
+      assertThat(registerCallContext.callContext(), is("CALL_CONTEXT"));
+      assertThat(registerCallContext.resourceId(), is(resourceIdExpectedToRegisterInCallContext));
+      callContextProvider.reply(new CallContextProvided("CALL CONTEXT"));
+    }
 
     final StopCallSetupTimer stopCallSetupTimer =
         metricsService.expectMsgClass(StopCallSetupTimer.class);

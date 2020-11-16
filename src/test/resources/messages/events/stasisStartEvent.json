@@ -30,10 +30,12 @@
     "application": "test-app"
   },
   "callContext": "CALL_CONTEXT_PROVIDED",
-  "resource": {
-    "type": "CHANNEL",
-    "id": "1532965104.0"
-  },
+  "resources": [
+    {
+      "type": "CHANNEL",
+      "id": "1532965104.0"
+    }
+  ],
   "commandId": null,
   "commandRequest": null
 }

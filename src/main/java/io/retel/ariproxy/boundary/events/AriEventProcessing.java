@@ -123,18 +123,14 @@ public class AriEventProcessing {
       final String callContext,
       final JsonNode messageBody) {
 
-    final Option<AriResource> maybeResource =
+    final java.util.List<AriResource> resources =
         messageType
             .getResourceType()
-            .map(resourceType -> new AriResource(resourceType, resourceId));
+            .map(resourceType -> new AriResource(resourceType, resourceId))
+            .toJavaList();
     final AriMessageEnvelope envelope =
-        maybeResource
-            .map(
-                resource ->
-                    new AriMessageEnvelope(
-                        messageType, kafkaCommandsTopic, messageBody, callContext, resource))
-            .getOrElse(
-                new AriMessageEnvelope(messageType, kafkaCommandsTopic, messageBody, callContext));
+        new AriMessageEnvelope(
+            messageType, kafkaCommandsTopic, messageBody, callContext, resources);
 
     return Try.of(() -> writer.writeValueAsString(envelope))
         .map(

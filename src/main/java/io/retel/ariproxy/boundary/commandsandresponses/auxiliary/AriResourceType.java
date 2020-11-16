@@ -1,5 +1,8 @@
 package io.retel.ariproxy.boundary.commandsandresponses.auxiliary;
 
+import java.util.Arrays;
+import java.util.Optional;
+
 public enum AriResourceType {
   BRIDGE("{bridgeId}"),
   CHANNEL("{channelId}"),
@@ -12,6 +15,15 @@ public enum AriResourceType {
 
   AriResourceType(final String pathResourceIdPlaceholder) {
     this.pathResourceIdPlaceholder = pathResourceIdPlaceholder;
+  }
+
+  public static Optional<AriResourceType> of(final String pathResourceIdentifierPlaceholder) {
+    return Arrays.stream(values())
+        .filter(
+            item ->
+                item.getPathResourceIdentifierPlaceholder()
+                    .equals(pathResourceIdentifierPlaceholder))
+        .findFirst();
   }
 
   public String getPathResourceIdentifierPlaceholder() {

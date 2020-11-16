@@ -6,6 +6,7 @@ import static io.vavr.API.Some;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
+import io.vavr.collection.List;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
 import java.util.ArrayList;
@@ -120,8 +121,18 @@ public enum AriCommandType {
   }
 
   public Option<String> extractResourceIdFromUri(final String uri) {
-    if (this == UNKNOWN || uri.equals("/channels/create")) {
+    if (this == UNKNOWN) {
       return Option.none();
+    }
+
+    return extractAllResources(uri)
+        .find(resource -> resource.getType().equals(this.getResourceType()))
+        .map(AriResource::getId);
+  }
+
+  public static List<AriResource> extractAllResources(final String uri) {
+    if (uri.equals("/channels/create")) {
+      return List.empty();
     }
 
     final Optional<String> maybePathTemplate =
@@ -131,32 +142,34 @@ public enum AriCommandType {
             .map(Map.Entry::getKey);
 
     if (!maybePathTemplate.isPresent()) {
-      return Option.none();
+      return List.empty();
     }
 
     final String pathTemplate = maybePathTemplate.get();
-    final String identifierPlaceholder =
-        this.getResourceType().getPathResourceIdentifierPlaceholder();
 
     final String regex = "(\\{[a-zA-Z]+\\})";
     final java.util.List<String> matches = findAllMatchingGroups(pathTemplate, regex);
 
     if (matches.isEmpty()) {
-      return Option.none();
-    }
-
-    final int desiredPosition = matches.indexOf(identifierPlaceholder);
-    if (desiredPosition < 0) {
-      return Option.none();
+      return List.empty();
     }
 
     final String placeholderRegex = pathTemplate.replaceAll("\\{[^}]+}", "([^\\\\/]+)");
     final java.util.List<String> uriMatches = findAllMatchingGroups(uri, placeholderRegex);
     if (uriMatches.isEmpty()) {
-      return Option.none();
+      return List.empty();
     }
-
-    return Option.of(uriMatches.get(desiredPosition));
+    try {
+      return List.ofAll(matches)
+          .zipWithIndex()
+          .map(
+              entry -> {
+                return new AriResource(
+                    AriResourceType.of(entry._1).get(), uriMatches.get(entry._2));
+              });
+    } catch (Exception e) {
+      return List.empty();
+    }
   }
 
   public Option<Try<String>> extractResourceIdFromBody(final String body) {

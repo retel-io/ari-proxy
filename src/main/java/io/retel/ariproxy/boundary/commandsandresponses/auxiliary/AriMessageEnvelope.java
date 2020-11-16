@@ -5,12 +5,14 @@ import static org.apache.commons.lang3.builder.HashCodeBuilder.reflectionHashCod
 import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
 import static org.apache.commons.lang3.builder.ToStringStyle.SHORT_PREFIX_STYLE;
 
+import java.util.List;
+
 public class AriMessageEnvelope {
   private final AriMessageType type;
   private final String commandsTopic;
   private final Object payload;
   private final String callContext;
-  private final AriResource resource;
+  private final List<AriResource> resources;
   private final String commandId;
   private final CommandRequest commandRequest;
 
@@ -19,14 +21,14 @@ public class AriMessageEnvelope {
       final String commandsTopic,
       final Object payload,
       final String callContext,
-      final AriResource resource,
+      final List<AriResource> resources,
       final String commandId,
       final CommandRequest commandRequest) {
     this.commandsTopic = commandsTopic;
     this.payload = payload;
     this.callContext = callContext;
     this.type = type;
-    this.resource = resource;
+    this.resources = resources;
     this.commandId = commandId;
     this.commandRequest = commandRequest;
   }
@@ -46,8 +48,8 @@ public class AriMessageEnvelope {
       final String commandsTopic,
       final Object payload,
       final String callContext,
-      final AriResource resource) {
-    this(type, commandsTopic, payload, callContext, resource, null, null);
+      final List<AriResource> resources) {
+    this(type, commandsTopic, payload, callContext, resources, null, null);
   }
 
   public AriMessageEnvelope(
@@ -74,8 +76,8 @@ public class AriMessageEnvelope {
     return callContext;
   }
 
-  public AriResource getResource() {
-    return resource;
+  public List<AriResource> getResources() {
+    return resources;
   }
 
   public String getCommandId() {

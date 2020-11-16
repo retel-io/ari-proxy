@@ -18,7 +18,7 @@ Example of an encapsulated ARI event (see `payload` field) as it is published to
   "commandsTopic": "ari-callcontroller-demo-commands-000000000002",
   "commandId": null,
   "commandRequest": null,
-  "resource": {
+  "resources": {
     "type": "CHANNEL",
     "id": "1532965104.0"
   },
@@ -84,10 +84,12 @@ Example of an encapsulated ARI response as it is published to Kafka on the *even
     "method": "DELETE",
     "url": "/ari/channels/1538054167.95404"
   },
-  "resource": {
-    "type": "CHANNEL",
-    "id": "1538054167.95404"
-  },
+  "resources": [
+    {
+      "type": "CHANNEL",
+      "id": "1538054167.95404"
+    }
+  ],
   "payload": {
     "status_code": 204
   }

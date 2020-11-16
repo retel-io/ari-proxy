@@ -33,6 +33,7 @@ import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
+import io.vavr.collection.List;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
@@ -97,7 +98,7 @@ public class AriCommandResponseKafkaProcessor {
     final Function<Throwable, Directive> decider =
         t -> {
           system.log().error(t, "Error in some stage; restarting stream ...");
-          return Supervision.restart();
+          return (Directive) Supervision.restart();
         };
 
     final Config serviceConfig = ConfigFactory.load().getConfig(SERVICE);
@@ -195,30 +196,17 @@ public class AriCommandResponseKafkaProcessor {
       AriResponse ariResponse,
       CallContextAndCommandRequestContext context,
       String kafkaCommandsTopic) {
-    final Option<AriResource> maybeResource = AriResource.ofAriCommand(context.getAriCommand());
+    final List<AriResource> ariResources =
+        AriCommandType.extractAllResources(context.getAriCommand().getUrl());
 
-    return maybeResource
-        .map(
-            resource ->
-                new AriMessageEnvelope(
-                    AriMessageType.RESPONSE,
-                    kafkaCommandsTopic,
-                    ariResponse,
-                    context.getCallContext(),
-                    resource,
-                    context.getCommandId(),
-                    new CommandRequest(
-                        context.getAriCommand().getMethod(), context.getAriCommand().getUrl())))
-        .getOrElse(
-            () ->
-                new AriMessageEnvelope(
-                    AriMessageType.RESPONSE,
-                    kafkaCommandsTopic,
-                    ariResponse,
-                    context.getCallContext(),
-                    context.getCommandId(),
-                    new CommandRequest(
-                        context.getAriCommand().getMethod(), context.getAriCommand().getUrl())));
+    return new AriMessageEnvelope(
+        AriMessageType.RESPONSE,
+        kafkaCommandsTopic,
+        ariResponse,
+        context.getCallContext(),
+        ariResources.toJavaList(),
+        context.getCommandId(),
+        new CommandRequest(context.getAriCommand().getMethod(), context.getAriCommand().getUrl()));
   }
 
   private static String marshallAriMessageEnvelope(AriMessageEnvelope messageEnvelope) {

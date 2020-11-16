@@ -9,8 +9,10 @@
     "method": "POST",
     "url": "/channels/1533218784.36/answer"
   },
-  "resource": {
-    "type": "CHANNEL",
-    "id": "1533218784.36"
-  }
+  "resources": [
+    {
+      "type": "CHANNEL",
+      "id": "1533218784.36"
+    }
+  ]
 }

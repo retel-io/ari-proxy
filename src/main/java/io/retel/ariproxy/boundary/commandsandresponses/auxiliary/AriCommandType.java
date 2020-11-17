@@ -9,7 +9,6 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import io.vavr.collection.List;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -148,14 +147,14 @@ public enum AriCommandType {
     final String pathTemplate = maybePathTemplate.get();
 
     final String regex = "(\\{[a-zA-Z]+\\})";
-    final java.util.List<String> matches = findAllMatchingGroups(pathTemplate, regex);
+    final List<String> matches = findAllMatchingGroups(pathTemplate, regex);
 
     if (matches.isEmpty()) {
       return List.empty();
     }
 
     final String placeholderRegex = pathTemplate.replaceAll("\\{[^}]+}", "([^\\\\/]+)");
-    final java.util.List<String> uriMatches = findAllMatchingGroups(uri, placeholderRegex);
+    final List<String> uriMatches = findAllMatchingGroups(uri, placeholderRegex);
     if (uriMatches.isEmpty()) {
       return List.empty();
     }
@@ -176,15 +175,14 @@ public enum AriCommandType {
     return resourceIdBodyExtractor.apply(body);
   }
 
-  private static java.util.List<String> findAllMatchingGroups(
-      final String str, final String regex) {
+  private static List<String> findAllMatchingGroups(final String str, final String regex) {
     final Pattern pattern = Pattern.compile(regex);
     final Matcher matcher = pattern.matcher(str);
 
-    final java.util.List<String> matches = new ArrayList<>();
+    List<String> matches = List.empty();
     while (matcher.find()) {
       for (int i = 1; i <= matcher.groupCount(); i++) {
-        matches.add(matcher.group(i));
+        matches = matches.push(matcher.group(i));
       }
     }
 

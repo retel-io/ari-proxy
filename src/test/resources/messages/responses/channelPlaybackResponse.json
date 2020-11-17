@@ -15,12 +15,12 @@
   },
   "resources": [
     {
-      "type": "CHANNEL",
-      "id": "1533286879.42"
-    },
-    {
       "type": "PLAYBACK",
       "id": "c4958563-1ba4-4f2f-a60f-626a624bf0e6"
+    },
+    {
+      "type": "CHANNEL",
+      "id": "1533286879.42"
     }
   ]
 }

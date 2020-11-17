@@ -21,7 +21,7 @@
     <version.maven-surefire-plugin>3.0.0-M1</version.maven-surefire-plugin>
     <version.scala.compat>2.13</version.scala.compat>
     <version.akka>2.6.8</version.akka>
-    <version.akka.http>10.2.1</version.akka.http>
+    <version.akka.http>10.1.12</version.akka.http>
     <version.akka.stream.kafka>2.0.4</version.akka.stream.kafka>
     <version.vavr>0.10.3</version.vavr>
     <version.commons-lang3>3.11</version.commons-lang3>

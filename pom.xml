@@ -55,6 +55,11 @@
       <version>${version.jackson-databind}</version>
     </dependency>
     <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-jdk8</artifactId>
+      <version>${version.jackson-databind}</version>
+    </dependency>
+    <dependency>
       <groupId>com.typesafe.akka</groupId>
       <artifactId>akka-actor_${version.scala.compat}</artifactId>
       <version>${version.akka}</version>

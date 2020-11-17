@@ -11,11 +11,7 @@ import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.headers.HttpCredentials;
 import akka.japi.function.Function;
 import akka.japi.function.Procedure;
-import akka.stream.ActorMaterializer;
-import akka.stream.ActorMaterializerSettings;
-import akka.stream.Attributes;
-import akka.stream.Materializer;
-import akka.stream.Supervision;
+import akka.stream.*;
 import akka.stream.Supervision.Directive;
 import akka.stream.javadsl.Keep;
 import akka.stream.javadsl.Sink;
@@ -88,7 +84,7 @@ public class AriCommandResponseKafkaProcessor {
                                     sink);
   }
 
-  private static ActorMaterializer run(
+  private static void run(
       ActorSystem system,
       CommandResponseHandler commandResponseHandler,
       ActorRef callContextProvider,
@@ -112,10 +108,6 @@ public class AriCommandResponseKafkaProcessor {
     final String restUri = restConfig.getString(URI);
     final String restUser = restConfig.getString(USER);
     final String restPassword = restConfig.getString(PASSWORD);
-
-    final ActorMaterializer materializer =
-        ActorMaterializer.create(
-            ActorMaterializerSettings.create(system).withSupervisionStrategy(decider), system);
 
     source
         .log(">>>   ARI COMMAND", ConsumerRecord::value)
@@ -148,8 +140,7 @@ public class AriCommandResponseKafkaProcessor {
                     .apply(requestAndContext)
                     .thenApply(response -> Tuple.of(response, requestAndContext._2)))
         .wireTap(Sink.foreach(gatherMetrics(metricsService, stasisApp)))
-        .mapAsync(
-            1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, materializer))
+        .mapAsync(1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, system))
         .map(
             ariResponseAndContext ->
                 envelopeAriResponseToProducerRecord(
@@ -157,9 +148,8 @@ public class AriCommandResponseKafkaProcessor {
         .log(">>>   ARI RESPONSE", ProducerRecord::value)
         .withAttributes(LOG_LEVELS)
         .toMat(sink, Keep.none())
-        .run(materializer);
-
-    return materializer;
+        .withAttributes(ActorAttributes.withSupervisionStrategy(decider))
+        .run(system);
   }
 
   private static ProducerRecord<String, String> envelopeAriResponseToProducerRecord(
@@ -217,7 +207,7 @@ public class AriCommandResponseKafkaProcessor {
   private static CompletionStage<Tuple2<AriResponse, CallContextAndCommandRequestContext>>
       toAriResponse(
           Tuple2<HttpResponse, CallContextAndCommandRequestContext> responseWithContext,
-          Materializer materializer) {
+          ActorSystem system) {
     final HttpResponse response = responseWithContext._1;
 
     final long contentLength =
@@ -228,7 +218,7 @@ public class AriCommandResponseKafkaProcessor {
 
     return response
         .entity()
-        .toStrict(contentLength, materializer)
+        .toStrict(contentLength, system)
         .thenCompose(
             strictText ->
                 Option.of(

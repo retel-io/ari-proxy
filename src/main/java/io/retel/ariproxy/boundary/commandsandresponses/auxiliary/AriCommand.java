@@ -8,6 +8,9 @@ import static org.apache.commons.lang3.builder.ToStringStyle.SHORT_PREFIX_STYLE;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.vavr.Value;
+import io.vavr.collection.List;
+import io.vavr.control.Option;
 
 public class AriCommand {
   private final String method;
@@ -38,6 +41,22 @@ public class AriCommand {
 
   public AriCommandType extractCommandType() {
     return AriCommandType.fromRequestUri(getUrl());
+  }
+
+  public List<AriResource> extractResources() {
+    List<AriResource> ariResources = AriCommandType.extractAllResources(getUrl());
+
+    final AriCommandType commandType = extractCommandType();
+    final Option<AriResource> resourceFromBody =
+        commandType
+            .extractResourceIdFromBody(getBody().toString())
+            .flatMap(Value::toOption)
+            .map(resourceId -> new AriResource(commandType.getResourceType(), resourceId));
+    if (resourceFromBody.isDefined() && !ariResources.contains(resourceFromBody.get())) {
+      ariResources = ariResources.push(resourceFromBody.get());
+    }
+
+    return ariResources;
   }
 
   @Override

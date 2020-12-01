@@ -23,4 +23,26 @@ service {
     port = 6379
     db = 0
   }
+
+// persistence-store: optional, defaults to using the redis persistence store
+// possible values: "io.retel.ariproxy.persistence.plugin.CassandraPersistenceStore", "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore"
+// use CassandraPersistenceStore and the datastax-driver config below, if you want to use cassandra as persistent backend
+  persistence-store = "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore"
+
 }
+
+// for use with cassandra persistence store
+
+//datastax-java-driver {
+//  basic {
+//    contact-points = [ "localhost:9042" ]
+//    session-keyspace = retel
+//    load-balancing-policy.local-datacenter = dc1
+//  }
+//  advanced.auth-provider {
+//    class = PlainTextAuthProvider
+//    username = cassandra
+//    password = cassandra
+//  }
+//}
+

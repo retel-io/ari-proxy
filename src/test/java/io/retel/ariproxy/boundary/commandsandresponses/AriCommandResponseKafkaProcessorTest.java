@@ -140,6 +140,13 @@ class AriCommandResponseKafkaProcessorTest {
     public Stream<? extends Arguments> provideArguments(ExtensionContext context) {
       return Stream.of(
           Arguments.of(
+              "messages/commands/bridgeCreateCommandWithBody.json",
+              HttpResponse.create()
+                  .withStatus(StatusCodes.OK)
+                  .withEntity(loadJsonAsString("messages/ari/responses/bridgeCreateResponse.json")),
+              "messages/responses/bridgeCreateResponseWithBody.json",
+              "BRIDGE_ID"),
+          Arguments.of(
               "messages/commands/channelPlaybackCommand.json",
               HttpResponse.create().withStatus(StatusCodes.OK).withEntity("{ \"key\":\"value\" }"),
               "messages/responses/channelPlaybackResponse.json",
@@ -157,9 +164,13 @@ class AriCommandResponseKafkaProcessorTest {
     }
   }
 
-  private static String loadJsonAsString(final String fileName) throws IOException {
+  private static String loadJsonAsString(final String fileName) {
     final ClassLoader classLoader = AriCommandResponseKafkaProcessorTest.class.getClassLoader();
     final File file = new File(classLoader.getResource(fileName).getFile());
-    return new String(Files.readAllBytes(file.toPath()));
+    try {
+      return new String(Files.readAllBytes(file.toPath()));
+    } catch (IOException e) {
+      throw new IllegalStateException("Unable to load file " + fileName, e);
+    }
   }
 }

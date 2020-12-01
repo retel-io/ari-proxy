@@ -1,0 +1,12 @@
+{
+  "callContext": "CALL_CONTEXT",
+  "commandId": "COMMAND_ID",
+  "ariCommand": {
+    "url": "/bridges",
+    "body": {
+      "bridgeId": "BRIDGE_ID",
+      "name": "BRIDGE_NAME"
+    },
+    "method": "POST"
+  }
+}

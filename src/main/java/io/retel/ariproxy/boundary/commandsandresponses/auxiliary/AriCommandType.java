@@ -6,7 +6,7 @@ import static io.vavr.API.Some;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
-import io.vavr.collection.List;
+import io.vavr.collection.*;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
 import java.util.HashMap;

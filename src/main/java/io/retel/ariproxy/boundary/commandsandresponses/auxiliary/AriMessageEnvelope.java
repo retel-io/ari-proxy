@@ -1,54 +1,105 @@
 package io.retel.ariproxy.boundary.commandsandresponses.auxiliary;
 
-import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
+import static org.apache.commons.lang3.builder.EqualsBuilder.reflectionEquals;
+import static org.apache.commons.lang3.builder.HashCodeBuilder.reflectionHashCode;
+import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
+import static org.apache.commons.lang3.builder.ToStringStyle.SHORT_PREFIX_STYLE;
+
+import java.util.List;
 
 public class AriMessageEnvelope {
+  private final AriMessageType type;
+  private final String commandsTopic;
+  private final Object payload;
+  private final String callContext;
+  private final List<AriResource> resources;
+  private final String commandId;
+  private final CommandRequest commandRequest;
 
-	private final AriMessageType type;
-	private final String commandsTopic;
-	private final Object payload;
-	private final String callContext;
-	private final String commandId;
-	private final CommandRequest commandRequest;
+  public AriMessageEnvelope(
+      final AriMessageType type,
+      final String commandsTopic,
+      final Object payload,
+      final String callContext,
+      final List<AriResource> resources,
+      final String commandId,
+      final CommandRequest commandRequest) {
+    this.commandsTopic = commandsTopic;
+    this.payload = payload;
+    this.callContext = callContext;
+    this.type = type;
+    this.resources = resources;
+    this.commandId = commandId;
+    this.commandRequest = commandRequest;
+  }
 
-	public AriMessageEnvelope(AriMessageType type, String commandsTopic, Object payload, String callContext, String commandId, CommandRequest commandRequest) {
-		this.commandsTopic = commandsTopic;
-		this.payload = payload;
-		this.callContext = callContext;
-		this.type = type;
-		this.commandId = commandId;
-		this.commandRequest = commandRequest;
-	}
+  public AriMessageEnvelope(
+      final AriMessageType type,
+      final String commandsTopic,
+      final Object payload,
+      final String callContext,
+      final String commandId,
+      final CommandRequest commandRequest) {
+    this(type, commandsTopic, payload, callContext, null, commandId, commandRequest);
+  }
 
-	public AriMessageEnvelope(AriMessageType type, String commandsTopic, Object payload, String callContext) {
-		this(type, commandsTopic, payload, callContext, null, null);
-	}
+  public AriMessageEnvelope(
+      final AriMessageType type,
+      final String commandsTopic,
+      final Object payload,
+      final String callContext,
+      final List<AriResource> resources) {
+    this(type, commandsTopic, payload, callContext, resources, null, null);
+  }
 
-	public AriMessageType getType() {
-		return type;
-	}
+  public AriMessageEnvelope(
+      final AriMessageType type,
+      final String commandsTopic,
+      final Object payload,
+      final String callContext) {
+    this(type, commandsTopic, payload, callContext, null, null, null);
+  }
 
-	public String getCommandsTopic() {
-		return commandsTopic;
-	}
+  public AriMessageType getType() {
+    return type;
+  }
 
-	public Object getPayload() {
-		return payload;
-	}
+  public String getCommandsTopic() {
+    return commandsTopic;
+  }
 
-	public String getCallContext() {
-		return callContext;
-	}
+  public Object getPayload() {
+    return payload;
+  }
 
-	public String getCommandId() {
-		return commandId;
-	}
+  public String getCallContext() {
+    return callContext;
+  }
 
-	public CommandRequest getCommandRequest() { return commandRequest; }
+  public List<AriResource> getResources() {
+    return resources;
+  }
 
-	@Override
-	public String toString() {
-		return ReflectionToStringBuilder.toString(this, ToStringStyle.SHORT_PREFIX_STYLE);
-	}
+  public String getCommandId() {
+    return commandId;
+  }
+
+  public CommandRequest getCommandRequest() {
+    return commandRequest;
+  }
+
+  @Override
+  public String toString() {
+    return reflectionToString(this, SHORT_PREFIX_STYLE);
+  }
+
+  @Override
+  public boolean equals(final Object o) {
+    return reflectionEquals(this, o);
+  }
+
+  @Override
+  public int hashCode() {
+    return reflectionHashCode(this);
+  }
 }

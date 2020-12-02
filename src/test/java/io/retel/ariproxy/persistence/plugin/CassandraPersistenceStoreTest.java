@@ -16,10 +16,9 @@ import org.junit.jupiter.api.Test;
 
 class CassandraPersistenceStoreTest {
 
-  private final static String THE_KEY = "key";
-  private final static String THE_VALUE = "value";
+  private static final String THE_KEY = "key";
+  private static final String THE_VALUE = "value";
   private CqlSession cqlSession;
-
 
   @BeforeEach
   public void setup() throws IOException, InterruptedException {
@@ -43,5 +42,4 @@ class CassandraPersistenceStoreTest {
 
     assertThat(store.get(THE_KEY).get(), is(Some(THE_VALUE)));
   }
-
 }

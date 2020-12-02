@@ -192,7 +192,7 @@ public class AriCommandResponseKafkaProcessor {
         kafkaCommandsTopic,
         ariResponse,
         context.getCallContext(),
-        command.extractResources().toJavaList(),
+        command.extractResourceRelations().map(AriResourceRelation::getResource).toJavaList(),
         context.getCommandId(),
         new CommandRequest(command.getMethod(), command.getUrl()));
   }

@@ -5,21 +5,21 @@ import static org.apache.commons.lang3.builder.HashCodeBuilder.reflectionHashCod
 import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
 import static org.apache.commons.lang3.builder.ToStringStyle.SHORT_PREFIX_STYLE;
 
-public class AriResource {
-  private final AriResourceType type;
-  private final String id;
+public class AriResourceRelation {
+  private final AriResource resource;
+  private final boolean isCreated;
 
-  public AriResource(final AriResourceType type, final String id) {
-    this.type = type;
-    this.id = id;
+  public AriResourceRelation(final AriResource resource, final boolean isCreated) {
+    this.resource = resource;
+    this.isCreated = isCreated;
   }
 
-  public AriResourceType getType() {
-    return type;
+  public AriResource getResource() {
+    return resource;
   }
 
-  public String getId() {
-    return id;
+  public boolean isCreated() {
+    return isCreated;
   }
 
   @Override

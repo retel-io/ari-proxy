@@ -18,6 +18,7 @@ service {
     events-and-responses-topic = "ari-eventsandresponses-topic"
   }
 
+
   redis {
     host = 127.0.0.1
     port = 6379
@@ -38,6 +39,11 @@ service {
 //    contact-points = [ "localhost:9042" ]
 //    session-keyspace = retel
 //    load-balancing-policy.local-datacenter = dc1
+//  }
+//  advanced.reconnection-policy {
+//    class = ExponentialReconnectionPolicy
+//    base-delay = 1 second
+//    max-delay = 60 seconds
 //  }
 //  advanced.auth-provider {
 //    class = PlainTextAuthProvider

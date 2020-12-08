@@ -28,7 +28,7 @@ override_dh_install: copy_package copy_jolokia_agent setup_systemd_unit_file
 ##########
 
 build_package:
-	mvn -B -Dmaven.repo.local=$(PWD)/.m2 clean verify
+	mvn -B -Dmaven.repo.local=$(PWD)/.m2 clean verify -Dspotless.check.skip=true
 
 setup_service_lib_dir:
 	mkdir -p $(SERVICE_LIB_DIR)

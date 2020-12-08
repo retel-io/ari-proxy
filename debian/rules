@@ -18,7 +18,7 @@ override_dh_fixperms:
 override_dh_usrlocal:
 override_dh_strip_nondeterminism:
 
-override_dh_install: copy_package copy_jolokia_agent setup_systemd_unit_file
+override_dh_install: copy_package
 
 %:
 	dh $@
@@ -28,17 +28,10 @@ override_dh_install: copy_package copy_jolokia_agent setup_systemd_unit_file
 ##########
 
 build_package:
-	mvn -B -Dmaven.repo.local=$(PWD)/.m2 clean verify
+	mvn -B -Dmaven.repo.local=$(PWD)/.m2 -Dskip-spotless=true clean verify
 
 setup_service_lib_dir:
 	mkdir -p $(SERVICE_LIB_DIR)
 
 copy_package: build_package setup_service_lib_dir
 	cp target/$(SERVICE_NAME)-$(SERVICE_VERSION)-fat.jar $(SERVICE_LIB_DIR)/$(SERVICE_NAME).jar
-
-copy_jolokia_agent: setup_service_lib_dir
-	curl http://search.maven.org/remotecontent?filepath=org/jolokia/jolokia-jvm/1.6.0/jolokia-jvm-1.6.0-agent.jar --output $(SERVICE_LIB_DIR)/jolokia-jvm-1.6.0-agent.jar
-
-setup_systemd_unit_file:
-	mkdir -p $(DEB_PREFIX)/lib/systemd/system
-	cp debian/ari-proxy@.service $(DEB_PREFIX)/lib/systemd/system/ari-proxy@.service

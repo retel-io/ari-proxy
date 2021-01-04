@@ -17,10 +17,12 @@ import akka.stream.javadsl.Keep;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -252,20 +254,33 @@ public class AriCommandResponseKafkaProcessor {
     final String method = ariCommand.getMethod();
     final JsonNode body = ariCommand.getBody();
 
-    final String bodyJson =
-        Option.of(body)
-            .map(value -> Try.of(() -> genericWriter.writeValueAsString(value)))
-            .getOrElse(Try.success(""))
-            .getOrElseThrow(t -> new RuntimeException(t));
+    final Option<String> maybeBodyJson;
+    if (!(body == null || body instanceof NullNode)) {
+      try {
+        maybeBodyJson = Option.some(genericWriter.writeValueAsString(body));
+      } catch (JsonProcessingException e) {
+        throw new IllegalStateException(e);
+      }
+    } else {
+      maybeBodyJson = Option.none();
+    }
 
     return HttpMethods.lookup(method)
         .map(
-            validHttpMethod ->
-                HttpRequest.create()
-                    .withMethod(validHttpMethod)
-                    .addCredentials(HttpCredentials.createBasicHttpCredentials(user, password))
-                    .withUri(uri + ariCommand.getUrl())
-                    .withEntity(ContentTypes.APPLICATION_JSON, bodyJson.getBytes()))
+            validHttpMethod -> {
+              final HttpRequest httpRequest =
+                  HttpRequest.create()
+                      .withMethod(validHttpMethod)
+                      .addCredentials(HttpCredentials.createBasicHttpCredentials(user, password))
+                      .withUri(uri + ariCommand.getUrl());
+
+              return maybeBodyJson
+                  .map(
+                      bodyJson ->
+                          httpRequest.withEntity(
+                              ContentTypes.APPLICATION_JSON, bodyJson.getBytes()))
+                  .getOrElse(httpRequest);
+            })
         .orElseThrow(() -> new RuntimeException(String.format("Invalid http method: %s", method)));
   }
 }

@@ -3,6 +3,7 @@ package io.retel.ariproxy.boundary.commandsandresponses;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import akka.NotUsed;
 import akka.actor.ActorSystem;
@@ -15,6 +16,7 @@ import akka.stream.javadsl.Source;
 import akka.testkit.javadsl.TestKit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.MissingNode;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
 import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
@@ -144,9 +146,6 @@ class AriCommandResponseKafkaProcessorTest {
 
   private void validateRequest(final HttpRequest actualHttpRequest, final String inputString) {
     try {
-      assertEquals(
-          "application/json", actualHttpRequest.entity().getContentType().mediaType().toString());
-
       final JsonNode actualBody =
           OBJECT_MAPPER.readTree(
               actualHttpRequest
@@ -158,7 +157,11 @@ class AriCommandResponseKafkaProcessorTest {
                   .utf8String());
       final JsonNode expectedBody =
           OBJECT_MAPPER.readTree(inputString).get("ariCommand").get("body");
-      assertEquals(expectedBody, actualBody);
+      if (expectedBody == null) {
+        assertTrue(actualBody instanceof MissingNode);
+      } else {
+        assertEquals(expectedBody, actualBody);
+      }
     } catch (Exception e) {
       throw new IllegalStateException(e);
     }

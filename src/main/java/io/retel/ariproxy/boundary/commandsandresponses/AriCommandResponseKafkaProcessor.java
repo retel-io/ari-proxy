@@ -250,18 +250,6 @@ public class AriCommandResponseKafkaProcessor {
   private static HttpRequest toHttpRequest(
       AriCommand ariCommand, String uri, String user, String password) {
     final String method = ariCommand.getMethod();
-    final JsonNode body = ariCommand.getBody();
-
-    final Option<String> maybeBodyJson;
-    if (!(body == null || body instanceof NullNode)) {
-      try {
-        maybeBodyJson = Option.some(genericWriter.writeValueAsString(body));
-      } catch (JsonProcessingException e) {
-        throw new IllegalStateException(e);
-      }
-    } else {
-      maybeBodyJson = Option.none();
-    }
 
     return HttpMethods.lookup(method)
         .map(
@@ -272,13 +260,26 @@ public class AriCommandResponseKafkaProcessor {
                       .addCredentials(HttpCredentials.createBasicHttpCredentials(user, password))
                       .withUri(uri + ariCommand.getUrl());
 
-              return maybeBodyJson
-                  .map(
-                      bodyJson ->
-                          httpRequest.withEntity(
-                              ContentTypes.APPLICATION_JSON, bodyJson.getBytes()))
-                  .getOrElse(httpRequest);
+              final Option<String> maybeBodyJson = extractBodyJson(ariCommand.getBody());
+              if (maybeBodyJson.isDefined()) {
+                return httpRequest.withEntity(
+                    ContentTypes.APPLICATION_JSON, maybeBodyJson.get().getBytes());
+              } else {
+                return httpRequest;
+              }
             })
         .orElseThrow(() -> new RuntimeException(String.format("Invalid http method: %s", method)));
+  }
+
+  private static Option<String> extractBodyJson(final JsonNode body) {
+    if (!(body == null || body instanceof NullNode)) {
+      try {
+        return Option.some(genericWriter.writeValueAsString(body));
+      } catch (JsonProcessingException e) {
+        throw new IllegalStateException(e);
+      }
+    } else {
+      return Option.none();
+    }
   }
 }

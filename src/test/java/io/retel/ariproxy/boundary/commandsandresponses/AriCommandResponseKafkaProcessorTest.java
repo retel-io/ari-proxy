@@ -3,16 +3,20 @@ package io.retel.ariproxy.boundary.commandsandresponses;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import akka.NotUsed;
 import akka.actor.ActorSystem;
 import akka.http.javadsl.Http;
+import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.StatusCodes;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import akka.testkit.javadsl.TestKit;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.MissingNode;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
 import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
@@ -89,8 +93,9 @@ class AriCommandResponseKafkaProcessorTest {
     final TestKit metricsService = new TestKit(system);
     final TestKit callContextProvider = new TestKit(system);
 
+    final String inputString = loadJsonAsString(commandJsonFilename);
     final ConsumerRecord<String, String> consumerRecord =
-        new ConsumerRecord<>("topic", 0, 0, "none", loadJsonAsString(commandJsonFilename));
+        new ConsumerRecord<>("topic", 0, 0, "none", inputString);
 
     final Source<ConsumerRecord<String, String>, NotUsed> source = Source.single(consumerRecord);
     final Sink<ProducerRecord<String, String>, NotUsed> sink =
@@ -99,7 +104,11 @@ class AriCommandResponseKafkaProcessorTest {
 
     AriCommandResponseKafkaProcessor.commandResponseProcessing()
         .on(system)
-        .withHandler(r -> CompletableFuture.supplyAsync(() -> asteriskResponse))
+        .withHandler(
+            context -> {
+              validateRequest(context._1(), inputString);
+              return CompletableFuture.supplyAsync(() -> asteriskResponse);
+            })
         .withCallContextProvider(callContextProvider.getRef())
         .withMetricsService(metricsService.getRef())
         .from(source)
@@ -133,6 +142,29 @@ class AriCommandResponseKafkaProcessorTest {
         kafkaProducer.expectMsgClass(ProducerRecord.class);
     assertThat(endMsg.topic(), is("topic"));
     assertThat(endMsg.value(), is("endMessage"));
+  }
+
+  private void validateRequest(final HttpRequest actualHttpRequest, final String inputString) {
+    try {
+      final JsonNode actualBody =
+          OBJECT_MAPPER.readTree(
+              actualHttpRequest
+                  .entity()
+                  .toStrict(1000L, system)
+                  .toCompletableFuture()
+                  .get()
+                  .getData()
+                  .utf8String());
+      final JsonNode expectedBody =
+          OBJECT_MAPPER.readTree(inputString).get("ariCommand").get("body");
+      if (expectedBody == null) {
+        assertTrue(actualBody instanceof MissingNode);
+      } else {
+        assertEquals(expectedBody, actualBody);
+      }
+    } catch (Exception e) {
+      throw new IllegalStateException(e);
+    }
   }
 
   static class ResponseArgumentsProvider implements ArgumentsProvider {

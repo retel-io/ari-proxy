@@ -5,6 +5,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import akka.Done;
 import akka.actor.ActorSystem;
 import akka.testkit.javadsl.TestKit;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,7 +42,7 @@ class AriCommandResponseProcessingTest {
     final TestKit callContextProvider = new TestKit(system);
     final AriCommand ariCommand = new AriCommand(null, "/channels/CHANNEL_ID/answer", null);
 
-    final Try<Void> res =
+    final Try<Done> res =
         AriCommandResponseProcessing.registerCallContext(
             callContextProvider.getRef(), "CALL_CONTEXT", ariCommand);
 
@@ -55,7 +56,7 @@ class AriCommandResponseProcessingTest {
     final AriCommand ariCommand =
         new AriCommand(null, "/channels/CHANNEL_ID/play/PLAYBACK_ID", null);
 
-    final Try<Void> res =
+    final Try<Done> res =
         AriCommandResponseProcessing.registerCallContext(
             callContextProvider.getRef(), "CALL_CONTEXT", ariCommand);
 
@@ -70,7 +71,7 @@ class AriCommandResponseProcessingTest {
   @Test
   void registerCallContextThrowsARuntimeExceptionIfTheAriCommandIsMalformed() {
     final AriCommand ariCommand = new AriCommand(null, "/channels", null);
-    final Try<Void> res = AriCommandResponseProcessing.registerCallContext(null, null, ariCommand);
+    final Try<Done> res = AriCommandResponseProcessing.registerCallContext(null, null, ariCommand);
 
     assertTrue(res.isFailure());
   }
@@ -82,7 +83,7 @@ class AriCommandResponseProcessingTest {
         "{ \"method\":\"POST\", \"url\":\"/channels/CHANNEL_ID/record\", \"body\":{\"name\":\"RECORD_NAME\"}}";
     final AriCommand ariCommand = ariCommandReader.readValue(json);
 
-    final Try<Void> res =
+    final Try<Done> res =
         AriCommandResponseProcessing.registerCallContext(
             callContextProvider.getRef(), "CALL_CONTEXT", ariCommand);
 
@@ -101,7 +102,7 @@ class AriCommandResponseProcessingTest {
         "{ \"method\":\"POST\", \"url\":\"/channels/create\", \"body\":{\"channelId\":\"channel-Id\"}}";
     final AriCommand ariCommand = ariCommandReader.readValue(json);
 
-    final Try<Void> res =
+    final Try<Done> res =
         AriCommandResponseProcessing.registerCallContext(
             callContextProvider.getRef(), "CALL_CONTEXT", ariCommand);
 

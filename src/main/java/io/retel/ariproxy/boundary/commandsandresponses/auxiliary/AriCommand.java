@@ -7,9 +7,16 @@ import static org.apache.commons.lang3.builder.ToStringStyle.SHORT_PREFIX_STYLE;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.vavr.Value;
+import io.vavr.collection.List;
+import io.vavr.control.Option;
 
 public class AriCommand {
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
   private final String method;
   private final String url;
   private final JsonNode body;
@@ -38,6 +45,40 @@ public class AriCommand {
 
   public AriCommandType extractCommandType() {
     return AriCommandType.fromRequestUri(getUrl());
+  }
+
+  public List<AriResourceRelation> extractResourceRelations() {
+    List<AriResource> ariResources = AriCommandType.extractAllResources(getUrl());
+
+    final AriCommandType commandType = AriCommandType.fromRequestUri(getUrl());
+    if (!commandType.isCreationCommand()) {
+      return ariResources.map(r -> new AriResourceRelation(r, false));
+    }
+
+    final Option<AriResource> createdResourceFromUri =
+        ariResources.find(resource -> resource.getType().equals(commandType.getResourceType()));
+
+    try {
+      final Option<AriResource> createdResourceFromBody =
+          commandType
+              .extractResourceIdFromBody(OBJECT_MAPPER.writeValueAsString(getBody()))
+              .flatMap(Value::toOption)
+              .map(resourceId -> new AriResource(commandType.getResourceType(), resourceId));
+
+      final Option<AriResource> createdResource =
+          createdResourceFromUri.orElse(createdResourceFromBody);
+
+      if (createdResource.isDefined() && !ariResources.contains(createdResource.get())) {
+        ariResources = ariResources.push(createdResource.get());
+      }
+
+      return ariResources.map(
+          ariResource ->
+              new AriResourceRelation(
+                  ariResource, createdResource.map(r -> r.equals(ariResource)).getOrElse(false)));
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("Unable to serialize command body: " + this, e);
+    }
   }
 
   @Override

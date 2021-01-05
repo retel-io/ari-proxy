@@ -31,7 +31,6 @@ import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
-import io.vavr.collection.List;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
@@ -188,17 +187,16 @@ public class AriCommandResponseKafkaProcessor {
       AriResponse ariResponse,
       CallContextAndCommandRequestContext context,
       String kafkaCommandsTopic) {
-    final List<AriResource> ariResources =
-        AriCommandType.extractAllResources(context.getAriCommand().getUrl());
+    final AriCommand command = context.getAriCommand();
 
     return new AriMessageEnvelope(
         AriMessageType.RESPONSE,
         kafkaCommandsTopic,
         ariResponse,
         context.getCallContext(),
-        ariResources.toJavaList(),
+        command.extractResourceRelations().map(AriResourceRelation::getResource).toJavaList(),
         context.getCommandId(),
-        new CommandRequest(context.getAriCommand().getMethod(), context.getAriCommand().getUrl()));
+        new CommandRequest(command.getMethod(), command.getUrl()));
   }
 
   private static String marshallAriMessageEnvelope(AriMessageEnvelope messageEnvelope) {

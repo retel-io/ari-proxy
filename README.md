@@ -45,6 +45,35 @@ Run the fat jar:
 java -Dconfig.file=/path/to/service.conf [-Dlog4j.configurationFile=/path/to/log4j2.xml] -jar target/ari-proxy-1.3.0-fat.jar
 ```
 
+#### Persistence-store
+
+There are two ways to persist the in-memory data storage (Asterisk Object ID -> Kafka Routing Key).
+
+First there is Redis (default). The redis needs to be configured in service.conf file in order to be able to connect. Also a keyspace needs to be configured.
+Second possibility to store the data is Cassandra. This is a more robust but more complex configuration as it provides HA and better scalability. You need to configure the Cassandra nodes in the "datastax" section of "service.conf"
+
+In order to choose one option you need to enable the one or the other backend by set the parameter `persistence-store` to one of these values:
+
+- "io.retel.ariproxy.persistence.plugin.CassandraPersistenceStore"
+
+- "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore"
+
+
+In case you want to use Cassandra you need to create a keyspace and table in Cassandra. This snippet might help to create one. (please adapt replication factor and names according your setup)
+
+```cql
+CREATE KEYSPACE retel with replication = {'class':'SimpleStrategy','replication_factor':1};
+
+USE retel;
+
+CREATE TABLE retel (
+"key" text primary key,
+"value" text
+);
+```
+
+Hint: do not forget some kind of housekeeping by adding TTL or a cleanup job.
+
 ## Metrics
 Ari-proxy provides service specific metrics using the [micrometer framework](http://micrometer.io) which are available via JMX.
 

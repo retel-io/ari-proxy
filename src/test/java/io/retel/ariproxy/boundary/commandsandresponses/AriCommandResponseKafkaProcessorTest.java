@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -84,7 +85,7 @@ class AriCommandResponseKafkaProcessorTest {
   @ArgumentsSource(ResponseArgumentsProvider.class)
   void testCommandResponseProcessing(
       final String commandJsonFilename,
-      final HttpResponse asteriskResponse,
+      final CompletionStage<HttpResponse> asteriskResponse,
       final String expectedResponseJsonFilename,
       final String resourceIdExpectedToRegisterInCallContext)
       throws Exception {
@@ -107,7 +108,7 @@ class AriCommandResponseKafkaProcessorTest {
         .withHandler(
             context -> {
               validateRequest(context._1(), inputString);
-              return CompletableFuture.supplyAsync(() -> asteriskResponse);
+              return asteriskResponse;
             })
         .withCallContextProvider(callContextProvider.getRef())
         .withMetricsService(metricsService.getRef())
@@ -173,26 +174,41 @@ class AriCommandResponseKafkaProcessorTest {
       return Stream.of(
           Arguments.of(
               "messages/commands/bridgeCreateCommandWithBody.json",
-              HttpResponse.create()
-                  .withStatus(StatusCodes.OK)
-                  .withEntity(loadJsonAsString("messages/ari/responses/bridgeCreateResponse.json")),
+              CompletableFuture.completedFuture(
+                  HttpResponse.create()
+                      .withStatus(StatusCodes.OK)
+                      .withEntity(
+                          loadJsonAsString("messages/ari/responses/bridgeCreateResponse.json"))),
               "messages/responses/bridgeCreateResponseWithBody.json",
               "BRIDGE_ID"),
           Arguments.of(
               "messages/commands/channelPlaybackCommand.json",
-              HttpResponse.create().withStatus(StatusCodes.OK).withEntity("{ \"key\":\"value\" }"),
+              CompletableFuture.completedFuture(
+                  HttpResponse.create()
+                      .withStatus(StatusCodes.OK)
+                      .withEntity("{ \"key\":\"value\" }")),
               "messages/responses/channelPlaybackResponse.json",
               "c4958563-1ba4-4f2f-a60f-626a624bf0e6"),
           Arguments.of(
               "messages/commands/channelAnswerCommand.json",
-              HttpResponse.create().withStatus(StatusCodes.NO_CONTENT),
+              CompletableFuture.completedFuture(
+                  HttpResponse.create().withStatus(StatusCodes.NO_CONTENT)),
               "messages/responses/channelAnswerResponse.json",
               null),
           Arguments.of(
               "messages/commands/channelAnswerCommandWithoutCommandId.json",
-              HttpResponse.create().withStatus(StatusCodes.NO_CONTENT),
+              CompletableFuture.completedFuture(
+                  HttpResponse.create().withStatus(StatusCodes.NO_CONTENT)),
               "messages/responses/channelAnswerResponseWithoutCommandId.json",
-              null));
+              null),
+          Arguments.of(
+              "messages/commands/bridgeCreateCommandWithBody.json",
+              CompletableFuture.supplyAsync(
+                  () -> {
+                    throw new IllegalStateException("http request failed");
+                  }),
+              "messages/responses/bridgeCreateRequestFailedResponse.json",
+              "BRIDGE_ID"));
     }
   }
 

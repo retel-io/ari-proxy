@@ -11,6 +11,7 @@ import akka.http.javadsl.Http;
 import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.StatusCodes;
+import akka.stream.StreamTcpException;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import akka.testkit.javadsl.TestKit;
@@ -206,6 +207,15 @@ class AriCommandResponseKafkaProcessorTest {
               CompletableFuture.supplyAsync(
                   () -> {
                     throw new IllegalStateException("http request failed");
+                  }),
+              "messages/responses/bridgeCreateRequestFailedResponse.json",
+              "BRIDGE_ID"),
+          Arguments.of(
+              "messages/commands/bridgeCreateCommandWithBody.json",
+              CompletableFuture.supplyAsync(
+                  () -> {
+                    throw new StreamTcpException(
+                        "Tcp command [Connect(api.example.com:443,None,List(),Some(10 milliseconds),true)] failed because of akka.io.TcpOutgoingConnection$$anon$2: Connect timeout of Some(10 milliseconds) expired");
                   }),
               "messages/responses/bridgeCreateRequestFailedResponse.json",
               "BRIDGE_ID"));

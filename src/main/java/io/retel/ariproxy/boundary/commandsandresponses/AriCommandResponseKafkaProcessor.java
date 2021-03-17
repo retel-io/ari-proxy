@@ -139,7 +139,11 @@ public class AriCommandResponseKafkaProcessor {
             requestAndContext ->
                 commandResponseHandler
                     .apply(requestAndContext)
-                    .thenApply(response -> Tuple.of(response, requestAndContext._2)))
+                    .handle(
+                        (response, error) -> {
+                          return Tuple.of(
+                              handleErrorInHTTPResponse(response, error), requestAndContext._2);
+                        }))
         .wireTap(Sink.foreach(gatherMetrics(metricsService, stasisApp)))
         .mapAsync(1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, system))
         .map(
@@ -151,6 +155,10 @@ public class AriCommandResponseKafkaProcessor {
         .toMat(sink, Keep.none())
         .withAttributes(ActorAttributes.withSupervisionStrategy(decider))
         .run(system);
+  }
+
+  private static HttpResponse handleErrorInHTTPResponse(HttpResponse response, Throwable error) {
+    return error != null ? HttpResponse.create().withStatus(500) : response;
   }
 
   private static ProducerRecord<String, String> envelopeAriResponseToProducerRecord(

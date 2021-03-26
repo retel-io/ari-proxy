@@ -1,8 +1,5 @@
 package io.retel.ariproxy.boundary.events;
 
-import static io.vavr.API.None;
-import static io.vavr.API.Some;
-
 import akka.NotUsed;
 import akka.actor.ActorRef;
 import akka.event.LoggingAdapter;
@@ -23,7 +20,6 @@ import io.retel.ariproxy.metrics.IncreaseCounter;
 import io.retel.ariproxy.metrics.StartCallSetupTimer;
 import io.vavr.collection.List;
 import io.vavr.collection.Seq;
-import io.vavr.control.Either;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
 import java.util.function.Function;
@@ -75,7 +71,8 @@ public class AriEventProcessing {
             .getOrElseThrow(t -> new RuntimeException(t));
 
     final String eventTypeString =
-        getValueFromMessageByPath(message, "/type").getOrElseThrow(t -> t);
+        getValueFromMessageByPath(message, "/type")
+            .getOrElseThrow(() -> new RuntimeException(message.asTextMessage().getStrictText()));
     final AriMessageType ariMessageType = AriMessageType.fromType(eventTypeString);
 
     if (AriMessageType.APPLICATION_REPLACED.equals(ariMessageType)) {
@@ -83,6 +80,9 @@ public class AriEventProcessing {
       applicationReplacedHandler.run();
       return Source.empty();
     }
+
+    final Option<String> maybeCallContextFromChannelVars =
+        getValueFromMessageByPath(message, "/channel/channelvars/CALL_CONTEXT");
 
     return ariMessageType
         .extractResourceIdFromBody(messageBody)
@@ -94,6 +94,7 @@ public class AriEventProcessing {
                           getCallContext(
                               resourceId,
                               callContextProvider,
+                              maybeCallContextFromChannelVars,
                               AriMessageType.STASIS_START.equals(ariMessageType)
                                   ? ProviderPolicy.CREATE_IF_MISSING
                                   : ProviderPolicy.LOOKUP_ONLY);
@@ -142,23 +143,24 @@ public class AriEventProcessing {
   }
 
   public static Try<String> getCallContext(
-      String resourceId, ActorRef callContextProvider, ProviderPolicy providerPolicy) {
+      String resourceId,
+      ActorRef callContextProvider,
+      final Option<String> maybeCallContextFromChannelVars,
+      ProviderPolicy providerPolicy) {
     return PatternsAdapter.<CallContextProvided>ask(
             callContextProvider,
-            new ProvideCallContext(resourceId, providerPolicy),
+            new ProvideCallContext(resourceId, maybeCallContextFromChannelVars, providerPolicy),
             PROVIDE_CALLCONTEXT_TIMEOUT)
-        .map(provided -> provided.callContext())
+        .map(CallContextProvided::callContext)
         .toTry();
   }
 
-  public static Either<RuntimeException, String> getValueFromMessageByPath(
-      Message message, String path) {
+  public static Option<String> getValueFromMessageByPath(Message message, String path) {
     return Try.of(() -> reader.readTree(message.asTextMessage().getStrictText()))
-        .toOption()
-        .flatMap(root -> Option.of(root.at(path)))
+        .map(root -> root.at(path))
         .map(JsonNode::asText)
-        .flatMap(type -> StringUtils.isBlank(type) ? None() : Some(type))
-        .toEither(() -> new RuntimeException(message.asTextMessage().getStrictText()));
+        .filter(StringUtils::isNotBlank)
+        .toOption();
   }
 }
 

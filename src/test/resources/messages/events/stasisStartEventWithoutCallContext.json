@@ -21,7 +21,10 @@
         "context": "default"
       },
       "name": "PJSIP/proxy-00000000",
-      "creationtime": "2018-07-30T17:38:24.433+0200"
+      "creationtime": "2018-07-30T17:38:24.433+0200",
+      "channelvars":{
+        "CALL_CONTEXT": ""
+      }
     },
     "asterisk_id": "00:00:00:00:00:01",
     "type": "StasisStart",

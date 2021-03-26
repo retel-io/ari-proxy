@@ -1,9 +1,6 @@
 package io.retel.ariproxy.boundary.events;
 
-import static io.retel.ariproxy.boundary.events.AriEventProcessing.determineMetricsGatherer;
-import static io.retel.ariproxy.boundary.events.AriEventProcessing.generateProducerRecordFromEvent;
-import static io.retel.ariproxy.boundary.events.AriEventProcessing.getCallContext;
-import static io.retel.ariproxy.boundary.events.AriEventProcessing.getValueFromMessageByPath;
+import static io.retel.ariproxy.boundary.events.AriEventProcessing.*;
 
 import akka.NotUsed;
 import akka.actor.ActorRef;
@@ -78,7 +75,7 @@ public class WebsocketMessageToProducerRecordTranslator {
                     callContextProvider,
                     system.log(),
                     applicationReplacedHandler))
-        .log(">>>   ARI EVENT", record -> record.value())
+        .log(">>>   ARI EVENT", ProducerRecord::value)
         .withAttributes(LOG_LEVELS)
         .to(sink)
         .withAttributes(ActorAttributes.withSupervisionStrategy(decider))
@@ -94,11 +91,14 @@ public class WebsocketMessageToProducerRecordTranslator {
                 .flatMap(
                     channelId ->
                         getCallContext(
-                            channelId, callContextProvider, ProviderPolicy.CREATE_IF_MISSING))
-                .getOrElseThrow(t -> new RuntimeException(t.getMessage()));
+                            channelId,
+                            callContextProvider,
+                            getValueFromMessageByPath(message, "/channel/channelvars/CALL_CONTEXT"),
+                            ProviderPolicy.CREATE_IF_MISSING))
+                .getOrElseThrow(
+                    () -> new RuntimeException(message.asTextMessage().getStrictText()));
 
     getValueFromMessageByPath(message, "/type")
-        .toOption()
         .map(type -> determineMetricsGatherer(AriMessageType.fromType(type)))
         .forEach(
             gatherers ->

@@ -87,7 +87,10 @@ public class CallContextProvider extends PersistentCache {
                                     .map(setDone -> new CallContextProvided(setDone.getValue()));
                               }
                               return Future.failed(
-                                  new CallContextLookupError("Failed to lookup call context..."));
+                                  new CallContextLookupError(
+                                      String.format(
+                                          "Failed to lookup call context for resource id %s...",
+                                          cmd.resourceId())));
                             }))
             .await();
 

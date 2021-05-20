@@ -115,6 +115,36 @@ class CallContextProviderTest {
   }
 
   @Test
+  void verifyCreateIfMissingPolicyIsAppliedProperlyWhenCallContextIsProvidedInChannelVarAndInDB() {
+    new TestKit(system) {
+      {
+        final TestKit metricsService = new TestKit(system);
+        final ActorRef callContextProvider =
+            system.actorOf(CallContextProvider.props(metricsService.getRef()));
+
+        final ProvideCallContext firstrequest =
+            new ProvideCallContext(RESOURCE_ID, Option.none(), ProviderPolicy.CREATE_IF_MISSING);
+
+        callContextProvider.tell(firstrequest, getRef());
+        expectMsgClass(Duration.ofMillis(TIMEOUT), CallContextProvided.class);
+
+        watch(callContextProvider);
+        final ProvideCallContext request =
+            new ProvideCallContext(
+                RESOURCE_ID,
+                Option.some(CALL_CONTEXT_FROM_CHANNEL_VARS),
+                ProviderPolicy.CREATE_IF_MISSING);
+
+        callContextProvider.tell(request, getRef());
+
+        final CallContextProvided callContextProvided = expectMsgClass(CallContextProvided.class);
+
+        assertEquals(CALL_CONTEXT_FROM_CHANNEL_VARS, callContextProvided.callContext());
+      }
+    };
+  }
+
+  @Test
   void verifyLookupOnlyPolicyIsAppliedProperly() {
     new TestKit(system) {
       {

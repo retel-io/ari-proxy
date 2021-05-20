@@ -70,13 +70,15 @@ public class CallContextProvider extends PersistentCache {
     final ActorRef sender = sender();
 
     final Future<CallContextProvided> callContext =
-            ProviderPolicy.CREATE_IF_MISSING.equals(cmd.policy()) ?
-                    provideCallContextForCreateIfMissingPolicy(cmd) : provideCallContextForLookupOnlyPolicy(cmd);
+        ProviderPolicy.CREATE_IF_MISSING.equals(cmd.policy())
+            ? provideCallContextForCreateIfMissingPolicy(cmd)
+            : provideCallContextForLookupOnlyPolicy(cmd);
 
     PatternsAdapter.pipeTo(callContext, sender, context().dispatcher());
   }
 
-  private Future<CallContextProvided> provideCallContextForLookupOnlyPolicy(final ProvideCallContext cmd) {
+  private Future<CallContextProvided> provideCallContextForLookupOnlyPolicy(
+      final ProvideCallContext cmd) {
     return query(cmd.resourceId())
         .flatMap(
             maybeCallContextFromDB ->
@@ -85,32 +87,38 @@ public class CallContextProvider extends PersistentCache {
                         callContextFromDB ->
                             Future.successful(new CallContextProvided(callContextFromDB)))
                     .getOrElse(
-                        () -> Future.failed(
-                            new CallContextLookupError(
-                                String.format(
-                                    "Failed to lookup call context for resource id %s...",
-                                    cmd.resourceId())))))
+                        () ->
+                            Future.failed(
+                                new CallContextLookupError(
+                                    String.format(
+                                        "Failed to lookup call context for resource id %s...",
+                                        cmd.resourceId())))))
         .await();
   }
 
-  private Future<CallContextProvided> provideCallContextForCreateIfMissingPolicy(final ProvideCallContext cmd) {
-    if(cmd.maybeCallContextFromChannelVars().isDefined()){
-      final CallContextProvided callContextFromChannelVars = new CallContextProvided(cmd.maybeCallContextFromChannelVars().get());
+  private Future<CallContextProvided> provideCallContextForCreateIfMissingPolicy(
+      final ProvideCallContext cmd) {
+    if (cmd.maybeCallContextFromChannelVars().isDefined()) {
+      final CallContextProvided callContextFromChannelVars =
+          new CallContextProvided(cmd.maybeCallContextFromChannelVars().get());
       update(cmd.resourceId(), callContextFromChannelVars.callContext())
-              .map(setDone -> new CallContextProvided(setDone.getValue()));
+          .map(setDone -> new CallContextProvided(setDone.getValue()));
 
       return Future.successful(callContextFromChannelVars);
     }
 
-    final Future<CallContextProvided> callContext = query(cmd.resourceId()).map(
-            maybeCallContextFromDB ->
-                    new CallContextProvided(maybeCallContextFromDB.getOrElse(() -> {
-                      final String generatedCallContext = UUID.randomUUID().toString();
-                      update(cmd.resourceId(), generatedCallContext)
-                              .map(setDone -> new CallContextProvided(setDone.getValue()));
-                      return generatedCallContext;
-                    })
-    ));
+    final Future<CallContextProvided> callContext =
+        query(cmd.resourceId())
+            .map(
+                maybeCallContextFromDB ->
+                    new CallContextProvided(
+                        maybeCallContextFromDB.getOrElse(
+                            () -> {
+                              final String generatedCallContext = UUID.randomUUID().toString();
+                              update(cmd.resourceId(), generatedCallContext)
+                                  .map(setDone -> new CallContextProvided(setDone.getValue()));
+                              return generatedCallContext;
+                            })));
 
     return callContext;
   }

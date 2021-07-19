@@ -75,6 +75,11 @@
     </dependency>
     <dependency>
       <groupId>com.typesafe.akka</groupId>
+      <artifactId>akka-actor-typed_${version.scala.compat}</artifactId>
+      <version>${version.akka}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.typesafe.akka</groupId>
       <artifactId>akka-stream_${version.scala.compat}</artifactId>
       <version>${version.akka}</version>
     </dependency>
@@ -182,6 +187,12 @@
       <groupId>org.cassandraunit</groupId>
       <artifactId>cassandra-unit</artifactId>
       <version>${version.cassandraunit}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.tngtech.archunit</groupId>
+      <artifactId>archunit-junit5</artifactId>
+      <version>0.20.0</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

@@ -9,7 +9,7 @@ import io.vavr.control.Try;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
-public interface KeyValueStore<K, V> {
+public interface KeyValueStore<K, V> extends AutoCloseable {
   CompletableFuture<Void> put(K key, V value);
 
   CompletableFuture<Optional<V>> get(K key);

@@ -43,4 +43,9 @@ public class PerformanceMeteringKeyValueStore implements KeyValueStore<String, S
   public CompletableFuture<HealthReport> checkHealth() {
     return store.checkHealth();
   }
+
+  @Override
+  public void close() throws Exception {
+    store.close();
+  }
 }

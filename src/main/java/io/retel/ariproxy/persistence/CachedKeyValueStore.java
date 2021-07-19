@@ -63,4 +63,9 @@ public class CachedKeyValueStore implements KeyValueStore<String, String> {
   public CompletableFuture<HealthReport> checkHealth() {
     return store.checkHealth();
   }
+
+  @Override
+  public void close() throws Exception {
+    store.close();
+  }
 }

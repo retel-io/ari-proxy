@@ -54,4 +54,9 @@ public class PersistentKeyValueStore implements KeyValueStore<String, String> {
               return HealthReport.ok();
             });
   }
+
+  @Override
+  public void close() {
+    persistenceStore.shutdown();
+  }
 }

@@ -60,8 +60,7 @@ public class Main {
                   ctx.spawn(MetricsService.create(), "metrics-service");
 
               final ActorRef<CallContextProviderMessage> callContextProvider =
-                  ctx.spawn(
-                      CallContextProvider.create(metricService), "call-context-provider");
+                  ctx.spawn(CallContextProvider.create(metricService), "call-context-provider");
 
               // Classic system init
               final akka.actor.ActorSystem classicSystem = ctx.getSystem().classicSystem();

@@ -4,13 +4,12 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
+import akka.actor.typed.PostStop;
+import akka.actor.typed.PreRestart;
 import akka.actor.typed.javadsl.Behaviors;
-import com.typesafe.config.Config;
-import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.api.*;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
-import io.retel.ariproxy.persistence.*;
-import io.vavr.control.Try;
+import io.retel.ariproxy.persistence.KeyValueStore;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -42,6 +41,8 @@ public class CallContextProvider {
                 .onMessage(RegisterCallContext.class, msg -> registerCallContextHandler(store, msg))
                 .onMessage(ProvideCallContext.class, msg -> provideCallContextHandler(store, msg))
                 .onMessage(ReportHealth.class, msg -> handleReportHealth(store, msg))
+                .onSignal(PostStop.class, signal -> cleanup(store))
+                .onSignal(PreRestart.class, signal -> cleanup(store))
                 .build());
   }
 
@@ -138,6 +139,16 @@ public class CallContextProvider {
   private static Behavior<CallContextProviderMessage> handleReportHealth(
       final KeyValueStore<String, String> store, final ReportHealth msg) {
     store.checkHealth().thenAccept(healthReport -> msg.replyTo().tell(healthReport));
+
+    return Behaviors.same();
+  }
+
+  private static Behavior<CallContextProviderMessage> cleanup(final KeyValueStore<String, String> store) {
+    try {
+      store.close();
+    } catch (Exception e) {
+      LOGGER.warn("Unable to close store", e);
+    }
 
     return Behaviors.same();
   }

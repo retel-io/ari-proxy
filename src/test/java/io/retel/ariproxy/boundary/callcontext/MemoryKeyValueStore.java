@@ -4,7 +4,6 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
 
 import io.retel.ariproxy.health.api.HealthReport;
 import io.retel.ariproxy.persistence.KeyValueStore;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -36,5 +35,10 @@ public class MemoryKeyValueStore implements KeyValueStore<String, String> {
   @Override
   public CompletableFuture<HealthReport> checkHealth() {
     return completedFuture(HealthReport.ok());
+  }
+
+  @Override
+  public void close() {
+    // intentionally left blank
   }
 }

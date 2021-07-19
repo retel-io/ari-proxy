@@ -3,8 +3,9 @@ package io.retel.ariproxy.boundary.events;
 import static io.retel.ariproxy.boundary.events.AriEventProcessing.*;
 
 import akka.NotUsed;
-import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
+import akka.actor.typed.ActorRef;
+import akka.actor.typed.javadsl.Adapter;
 import akka.event.Logging;
 import akka.http.javadsl.model.ws.Message;
 import akka.japi.function.Function;
@@ -16,6 +17,7 @@ import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
+import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import java.util.function.Supplier;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
@@ -48,8 +50,8 @@ public class WebsocketMessageToProducerRecordTranslator {
 
   private static void run(
       ActorSystem system,
-      ActorRef callContextProvider,
-      ActorRef metricsService,
+      akka.actor.ActorRef callContextProvider,
+      akka.actor.typed.ActorRef<MetricsServiceMessage> metricsService,
       Source<Message, NotUsed> source,
       Sink<ProducerRecord<String, String>, NotUsed> sink,
       Runnable applicationReplacedHandler) {
@@ -83,7 +85,9 @@ public class WebsocketMessageToProducerRecordTranslator {
   }
 
   private static void gatherMetrics(
-      Message message, ActorRef metricsService, ActorRef callContextProvider) {
+      Message message,
+      ActorRef<MetricsServiceMessage> metricsService,
+      akka.actor.ActorRef callContextProvider) {
     final Supplier<String> callContextSupplier =
         () ->
             getValueFromMessageByPath(message, "/channel/id")
@@ -98,15 +102,18 @@ public class WebsocketMessageToProducerRecordTranslator {
                 .getOrElseThrow(
                     () -> new RuntimeException(message.asTextMessage().getStrictText()));
 
+    final akka.actor.ActorRef metricsServiceClassic = Adapter.toClassic(metricsService);
     getValueFromMessageByPath(message, "/type")
         .map(type -> determineMetricsGatherer(AriMessageType.fromType(type)))
         .forEach(
             gatherers ->
                 gatherers.forEach(
-                    gatherer ->
-                        metricsService.tell(
-                            // Note: This will only be evaluated if required
-                            gatherer.withCallContextSupplier(callContextSupplier),
-                            ActorRef.noSender())));
+                    gatherer -> {
+                      // TODO: use typed actor here
+                      metricsServiceClassic.tell(
+                          // Note: This will only be evaluated if required
+                          gatherer.withCallContextSupplier(callContextSupplier),
+                          akka.actor.ActorRef.noSender());
+                    }));
   }
 }

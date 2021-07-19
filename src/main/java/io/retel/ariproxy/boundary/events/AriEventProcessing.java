@@ -39,19 +39,20 @@ public class AriEventProcessing {
   public static Seq<MetricsGatherer> determineMetricsGatherer(AriMessageType type) {
 
     List<MetricsGatherer> metricsGatherers =
-        List.of(callContextSupplier -> new IncreaseCounter(type.name()));
+        List.of(callContextSupplier -> new IncreaseCounter(type.name(), null)); // TODO
 
     switch (type) {
       case STASIS_START:
         metricsGatherers =
             metricsGatherers.appendAll(
                 List.of(
-                    callContextSupplier -> new IncreaseCounter("CallsStarted"),
+                    callContextSupplier -> new IncreaseCounter("CallsStarted", null), // TODO
                     callContextSupplier -> new StartCallSetupTimer(callContextSupplier.get())));
         break;
       case STASIS_END:
         metricsGatherers =
-            metricsGatherers.append(callContextSupplier -> new IncreaseCounter("CallsEnded"));
+            metricsGatherers.append(
+                callContextSupplier -> new IncreaseCounter("CallsEnded", null)); // TODO
         break;
     }
 

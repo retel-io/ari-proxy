@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 
 import akka.NotUsed;
 import akka.actor.ActorSystem;
+import akka.actor.typed.javadsl.Adapter;
 import akka.http.javadsl.Http;
 import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.HttpResponse;
@@ -74,7 +75,7 @@ class AriCommandResponseKafkaProcessorTest {
         .on(system)
         .withHandler(requestAndContext -> Http.get(system).singleRequest(requestAndContext._1))
         .withCallContextProvider(callContextProvider.getRef())
-        .withMetricsService(metricsService.getRef())
+        .withMetricsService(Adapter.toTyped(metricsService.getRef()))
         .from(source)
         .to(sink)
         .run();
@@ -112,7 +113,7 @@ class AriCommandResponseKafkaProcessorTest {
               return asteriskResponse;
             })
         .withCallContextProvider(callContextProvider.getRef())
-        .withMetricsService(metricsService.getRef())
+        .withMetricsService(Adapter.toTyped(metricsService.getRef()))
         .from(source)
         .to(sink)
         .run();

@@ -1,8 +1,8 @@
 package io.retel.ariproxy.boundary.commandsandresponses;
 
 import akka.NotUsed;
-import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
+import akka.actor.typed.ActorRef;
 import akka.event.Logging;
 import akka.http.javadsl.model.ContentTypes;
 import akka.http.javadsl.model.HttpMethods;
@@ -28,6 +28,7 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.*;
 import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
+import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
@@ -88,8 +89,8 @@ public class AriCommandResponseKafkaProcessor {
   private static void run(
       ActorSystem system,
       CommandResponseHandler commandResponseHandler,
-      ActorRef callContextProvider,
-      ActorRef metricsService,
+      akka.actor.ActorRef callContextProvider,
+      ActorRef<MetricsServiceMessage> metricsService,
       Source<ConsumerRecord<String, String>, NotUsed> source,
       Sink<ProducerRecord<String, String>, NotUsed> sink) {
     final Function<Throwable, Directive> decider =
@@ -178,11 +179,10 @@ public class AriCommandResponseKafkaProcessor {
   }
 
   private static Procedure<Tuple2<HttpResponse, CallContextAndCommandRequestContext>> gatherMetrics(
-      ActorRef metricsService, String applicationName) {
+      ActorRef<MetricsServiceMessage> metricsService, String applicationName) {
     return rawHttpResponseAndContext ->
         metricsService.tell(
-            new StopCallSetupTimer(rawHttpResponseAndContext._2.getCallContext(), applicationName),
-            ActorRef.noSender());
+            new StopCallSetupTimer(rawHttpResponseAndContext._2.getCallContext(), applicationName));
   }
 
   private static AriCommandEnvelope unmarshallAriCommandEnvelope(

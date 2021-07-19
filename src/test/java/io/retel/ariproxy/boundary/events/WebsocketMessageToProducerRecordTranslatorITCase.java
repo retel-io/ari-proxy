@@ -7,6 +7,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import akka.NotUsed;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
+import akka.actor.typed.javadsl.Adapter;
 import akka.http.javadsl.model.ws.Message;
 import akka.http.scaladsl.model.ws.TextMessage.Strict;
 import akka.stream.javadsl.Sink;
@@ -64,7 +65,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
         .withHandler(
             () -> catchAllProbe.getRef().tell("Application replaced", catchAllProbe.getRef()))
         .withCallContextProvider(catchAllProbe.getRef())
-        .withMetricsService(catchAllProbe.getRef())
+        .withMetricsService(Adapter.toTyped(catchAllProbe.getRef()))
         .from(source)
         .to(sink)
         .run();
@@ -102,7 +103,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
                     .getRef()
                     .tell("Application replaced", ActorRef.noSender()))
         .withCallContextProvider(callcontextProvider.getRef())
-        .withMetricsService(metricsService.getRef())
+        .withMetricsService(Adapter.toTyped(metricsService.getRef()))
         .from(source)
         .to(sink)
         .run();
@@ -177,7 +178,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
                     .getRef()
                     .tell("Application replaced", ActorRef.noSender()))
         .withCallContextProvider(callcontextProvider.getRef())
-        .withMetricsService(metricsService.getRef())
+        .withMetricsService(Adapter.toTyped(metricsService.getRef()))
         .from(source)
         .to(sink)
         .run();

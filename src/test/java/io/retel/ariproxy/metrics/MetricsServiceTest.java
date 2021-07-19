@@ -1,68 +1,55 @@
 package io.retel.ariproxy.metrics;
 
-import akka.actor.ActorRef;
-import akka.actor.ActorSystem;
-import akka.testkit.javadsl.TestKit;
+import akka.actor.testkit.typed.javadsl.ActorTestKit;
+import akka.actor.testkit.typed.javadsl.TestProbe;
+import akka.actor.typed.ActorRef;
+import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.metrics.api.MetricRegistered;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
 class MetricsServiceTest {
-	private final String TEST_SYSTEM = this.getClass().getSimpleName();
-	private ActorSystem system;
 
-	@AfterEach
-	void teardown() {
-		TestKit.shutdownActorSystem(system);
-		system.terminate();
-	}
+  private static ActorTestKit testKit =
+      ActorTestKit.create("testKit", ConfigFactory.defaultApplication());
+  private static final String CALL_CONTEXT = "theCallContext";
+  private static final String APP_NAME = "theAppName";
 
-	@BeforeEach
-	void setup() {
-		system = ActorSystem.create(TEST_SYSTEM);
-	}
+  @Test
+  void increaseCounterMessageIsRespondedProperly() {
+    final ActorRef<MetricsServiceMessage> metricsService = testKit.spawn(MetricsService.create());
+    final TestProbe<MetricRegistered> probe = testKit.createTestProbe();
+    metricsService.tell(new IncreaseCounter(CALL_CONTEXT, probe.getRef()));
 
-	@Test()
-	void increaseCounterMessageIsRespondedProperly() {
-		new TestKit(system) {
-			{
-				final ActorRef metricsService = system.actorOf(MetricsService.props());
-				metricsService.tell(
-						new IncreaseCounter("CALL CONTEXT"), getRef());
+    probe.expectMessage(MetricRegistered.COUNTER_INCREASED);
+  }
 
-				expectMsg(MetricRegistered.COUNTER_INCREASED);
-			}
-		};
-	}
+  @Test
+  void callSetupTimerMessageIsRespondedProperly() {
+    final ActorRef<MetricsServiceMessage> metricsService = testKit.spawn(MetricsService.create());
+    final TestProbe<MetricRegistered> probe = testKit.createTestProbe();
 
-	@Test()
-	void callSetupTimerMessageIsRespondedProperly() {
-		new TestKit(system) {
-			{
-				final ActorRef metricsService = system.actorOf(MetricsService.props());
+    metricsService.tell(new StartCallSetupTimer(CALL_CONTEXT, probe.getRef()));
+    probe.expectMessage(MetricRegistered.TIMER_STARTED);
 
-				metricsService.tell(new StartCallSetupTimer("CALL CONTEXT"), getRef());
-				expectMsg(MetricRegistered.TIMER_STARTED);
+    metricsService.tell(new StopCallSetupTimer(CALL_CONTEXT, APP_NAME, probe.getRef()));
+    probe.expectMessage(MetricRegistered.TIMER_STOPPED);
+  }
 
-				metricsService.tell(new StopCallSetupTimer("CALL CONTEXT","THE APP NAME"), getRef());
-				expectMsg(MetricRegistered.TIMER_STOPPED);
-			}
-		};
-	}
+  @Test
+  void redisUpdateTimerMessageIsRespondedProperly() {
+    final ActorRef<MetricsServiceMessage> metricsService = testKit.spawn(MetricsService.create());
+    final TestProbe<MetricRegistered> probe = testKit.createTestProbe();
 
-	@Test()
-	void redisUpdateTimerMessageIsRespondedProperly() {
-		new TestKit(system) {
-			{
-				final ActorRef metricsService = system.actorOf(MetricsService.props());
+    metricsService.tell(new RedisUpdateTimerStart("CALL CONTEXT", probe.getRef()));
+    probe.expectMessage(MetricRegistered.TIMER_STARTED);
 
-				metricsService.tell(new RedisUpdateTimerStart("CALL CONTEXT"), getRef());
-				expectMsg(MetricRegistered.TIMER_STARTED);
+    metricsService.tell(new RedisUpdateTimerStop(CALL_CONTEXT, probe.getRef()));
+    probe.expectMessage(MetricRegistered.TIMER_STOPPED);
+  }
 
-				metricsService.tell(new RedisUpdateTimerStop("CALL CONTEXT"), getRef());
-				expectMsg(MetricRegistered.TIMER_STOPPED);
-			}
-		};
-	}
+  @AfterAll
+  public static void cleanup() {
+    testKit.shutdownTestKit();
+  }
 }

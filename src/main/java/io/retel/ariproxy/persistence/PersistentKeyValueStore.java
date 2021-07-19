@@ -1,7 +1,6 @@
-package io.retel.ariproxy.boundary.callcontext;
+package io.retel.ariproxy.persistence;
 
 import io.retel.ariproxy.health.api.HealthReport;
-import io.retel.ariproxy.persistence.PersistenceStore;
 import io.vavr.Value;
 import java.util.Optional;
 import java.util.UUID;

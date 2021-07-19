@@ -9,7 +9,7 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.api.*;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
-import io.retel.ariproxy.persistence.PersistenceStore;
+import io.retel.ariproxy.persistence.*;
 import io.vavr.control.Try;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,12 +31,7 @@ public class CallContextProvider {
 
   public static Behavior<CallContextProviderMessage> create(
       final ActorRef<MetricsServiceMessage> metricsService) {
-
-    final PerformanceMeteringKeyValueStore store =
-        new PerformanceMeteringKeyValueStore(
-            new CachedKeyValueStore(providePersistenceStore(), metricsService), metricsService);
-
-    return create(store);
+    return create(KeyValueStore.createDefaultStore(metricsService));
   }
 
   public static Behavior<CallContextProviderMessage> create(
@@ -149,23 +144,6 @@ public class CallContextProvider {
 
   private static String withKeyPrefix(final String resourceId) {
     return KEY_PREFIX + ":" + resourceId;
-  }
-
-  private static PersistentKeyValueStore providePersistenceStore() {
-    final Config serviceConfig = ConfigFactory.load().getConfig("service");
-
-    final String persistenceStoreClassName =
-        serviceConfig.hasPath("persistence-store")
-            ? serviceConfig.getString("persistence-store")
-            : "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore";
-
-    final PersistenceStore persistenceStore =
-        Try.of(() -> Class.forName(persistenceStoreClassName))
-            .flatMap(clazz -> Try.of(() -> clazz.getMethod("create")))
-            .flatMap(method -> Try.of(() -> (PersistenceStore) method.invoke(null)))
-            .getOrElseThrow(t -> new RuntimeException("Failed to load any PersistenceStore", t));
-
-    return new PersistentKeyValueStore(persistenceStore);
   }
 
   private static <T> CompletableFuture<T> failedFuture(final Throwable error) {

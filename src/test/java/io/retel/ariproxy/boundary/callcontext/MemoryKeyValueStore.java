@@ -3,6 +3,8 @@ package io.retel.ariproxy.boundary.callcontext;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 
 import io.retel.ariproxy.health.api.HealthReport;
+import io.retel.ariproxy.persistence.KeyValueStore;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;

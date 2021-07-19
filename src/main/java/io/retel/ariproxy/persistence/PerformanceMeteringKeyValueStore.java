@@ -1,4 +1,4 @@
-package io.retel.ariproxy.boundary.callcontext;
+package io.retel.ariproxy.persistence;
 
 import akka.actor.typed.ActorRef;
 import io.retel.ariproxy.health.api.HealthReport;

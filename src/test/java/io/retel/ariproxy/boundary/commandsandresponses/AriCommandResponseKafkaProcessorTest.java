@@ -74,7 +74,7 @@ class AriCommandResponseKafkaProcessorTest {
     AriCommandResponseKafkaProcessor.commandResponseProcessing()
         .on(system)
         .withHandler(requestAndContext -> Http.get(system).singleRequest(requestAndContext._1))
-        .withCallContextProvider(callContextProvider.getRef())
+        .withCallContextProvider(Adapter.toTyped(callContextProvider.getRef()))
         .withMetricsService(Adapter.toTyped(metricsService.getRef()))
         .from(source)
         .to(sink)
@@ -112,7 +112,7 @@ class AriCommandResponseKafkaProcessorTest {
               validateRequest(context._1(), inputString);
               return asteriskResponse;
             })
-        .withCallContextProvider(callContextProvider.getRef())
+        .withCallContextProvider(Adapter.toTyped(callContextProvider.getRef()))
         .withMetricsService(Adapter.toTyped(metricsService.getRef()))
         .from(source)
         .to(sink)

@@ -2,6 +2,7 @@ package io.retel.ariproxy.metrics;
 
 import akka.actor.typed.ActorRef;
 import io.retel.ariproxy.metrics.api.MetricRegistered;
+import java.util.Optional;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -9,7 +10,11 @@ public class RedisUpdateTimerStop implements MetricsServiceMessage {
   private final String context;
   private final ActorRef<MetricRegistered> replyTo;
 
-  public RedisUpdateTimerStop(String context, final ActorRef<MetricRegistered> replyTo) {
+  public RedisUpdateTimerStop(final String context) {
+    this(context, null);
+  }
+
+  public RedisUpdateTimerStop(final String context, final ActorRef<MetricRegistered> replyTo) {
     this.context = context;
     this.replyTo = replyTo;
   }
@@ -18,8 +23,8 @@ public class RedisUpdateTimerStop implements MetricsServiceMessage {
     return context;
   }
 
-  public ActorRef<MetricRegistered> getReplyTo() {
-    return replyTo;
+  public Optional<ActorRef<MetricRegistered>> getReplyTo() {
+    return Optional.ofNullable(replyTo);
   }
 
   @Override

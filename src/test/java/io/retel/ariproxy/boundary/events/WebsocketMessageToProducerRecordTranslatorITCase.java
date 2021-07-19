@@ -64,7 +64,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
         .on(system)
         .withHandler(
             () -> catchAllProbe.getRef().tell("Application replaced", catchAllProbe.getRef()))
-        .withCallContextProvider(catchAllProbe.getRef())
+        .withCallContextProvider(Adapter.toTyped(catchAllProbe.getRef()))
         .withMetricsService(Adapter.toTyped(catchAllProbe.getRef()))
         .from(source)
         .to(sink)
@@ -102,7 +102,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
                 applicationReplacedHandler
                     .getRef()
                     .tell("Application replaced", ActorRef.noSender()))
-        .withCallContextProvider(callcontextProvider.getRef())
+        .withCallContextProvider(Adapter.toTyped(callcontextProvider.getRef()))
         .withMetricsService(Adapter.toTyped(metricsService.getRef()))
         .from(source)
         .to(sink)
@@ -177,7 +177,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
                 applicationReplacedHandler
                     .getRef()
                     .tell("Application replaced", ActorRef.noSender()))
-        .withCallContextProvider(callcontextProvider.getRef())
+        .withCallContextProvider(Adapter.toTyped(callcontextProvider.getRef()))
         .withMetricsService(Adapter.toTyped(metricsService.getRef()))
         .from(source)
         .to(sink)

@@ -10,8 +10,9 @@ import org.junit.jupiter.api.Test;
 
 class MetricsServiceTest {
 
-  private static ActorTestKit testKit =
+  private static final ActorTestKit testKit =
       ActorTestKit.create("testKit", ConfigFactory.defaultApplication());
+
   private static final String CALL_CONTEXT = "theCallContext";
   private static final String APP_NAME = "theAppName";
 

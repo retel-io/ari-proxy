@@ -53,7 +53,7 @@ public class MetricsService {
       final MeterRegistry registry,
       final RedisUpdateTimerStart message) {
     timers.put(message.getContext(), Timer.start(registry));
-    message.getReplyTo().tell(MetricRegistered.TIMER_STARTED);
+    message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.TIMER_STARTED));
 
     return Behaviors.same();
   }
@@ -68,7 +68,7 @@ public class MetricsService {
       timers.remove(message.getContext());
     }
 
-    message.getReplyTo().tell(MetricRegistered.TIMER_STOPPED);
+    message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.TIMER_STOPPED));
 
     return Behaviors.same();
   }
@@ -78,7 +78,7 @@ public class MetricsService {
       final MeterRegistry registry,
       final IncreaseCounter message) {
     counters.computeIfAbsent(message.getName(), registry::counter).increment();
-    message.getReplyTo().tell(MetricRegistered.COUNTER_INCREASED);
+    message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.COUNTER_INCREASED));
 
     return Behaviors.same();
   }

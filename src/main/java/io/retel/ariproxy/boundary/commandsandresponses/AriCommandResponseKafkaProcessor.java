@@ -3,6 +3,7 @@ package io.retel.ariproxy.boundary.commandsandresponses;
 import akka.NotUsed;
 import akka.actor.ActorSystem;
 import akka.actor.typed.ActorRef;
+import akka.actor.typed.javadsl.Adapter;
 import akka.event.Logging;
 import akka.http.javadsl.model.ContentTypes;
 import akka.http.javadsl.model.HttpMethods;
@@ -26,6 +27,7 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
+import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.*;
 import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
@@ -89,7 +91,7 @@ public class AriCommandResponseKafkaProcessor {
   private static void run(
       ActorSystem system,
       CommandResponseHandler commandResponseHandler,
-      akka.actor.ActorRef callContextProvider,
+      ActorRef<CallContextProviderMessage> callContextProvider,
       ActorRef<MetricsServiceMessage> metricsService,
       Source<ConsumerRecord<String, String>, NotUsed> source,
       Sink<ProducerRecord<String, String>, NotUsed> sink) {
@@ -111,6 +113,8 @@ public class AriCommandResponseKafkaProcessor {
     final String restUser = restConfig.getString(USER);
     final String restPassword = restConfig.getString(PASSWORD);
 
+    final akka.actor.ActorRef callContextProviderClassic = Adapter.toClassic(callContextProvider);
+
     source
         .log(">>>   ARI COMMAND", ConsumerRecord::value)
         .withAttributes(LOG_LEVELS)
@@ -118,7 +122,7 @@ public class AriCommandResponseKafkaProcessor {
         .map(
             msgEnvelope -> {
               AriCommandResponseProcessing.registerCallContext(
-                      callContextProvider,
+                      callContextProviderClassic,
                       msgEnvelope.getCallContext(),
                       msgEnvelope.getAriCommand())
                   .onFailure(

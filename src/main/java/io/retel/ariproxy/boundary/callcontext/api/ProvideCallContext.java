@@ -1,23 +1,35 @@
 package io.retel.ariproxy.boundary.callcontext.api;
 
+import akka.actor.typed.ActorRef;
 import io.vavr.control.Option;
 import java.io.Serializable;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-public class ProvideCallContext implements Serializable {
+public class ProvideCallContext implements CallContextProviderMessage, Serializable {
 
   private final String resourceId;
   private final ProviderPolicy policy;
   private final Option<String> maybeCallContextFromChannelVars;
+  private final ActorRef<ProvideCallContextResponse> replyTo;
+
+  @Deprecated
+  public ProvideCallContext(
+      final String resourceId,
+      final Option<String> maybeCallContextFromChannelVars,
+      final ProviderPolicy policy) {
+    this(resourceId, policy, maybeCallContextFromChannelVars, null);
+  }
 
   public ProvideCallContext(
-      String resourceId,
+      final String resourceId,
+      final ProviderPolicy policy,
       final Option<String> maybeCallContextFromChannelVars,
-      ProviderPolicy policy) {
+      final ActorRef<ProvideCallContextResponse> replyTo) {
     this.resourceId = resourceId;
-    this.maybeCallContextFromChannelVars = maybeCallContextFromChannelVars;
     this.policy = policy;
+    this.maybeCallContextFromChannelVars = maybeCallContextFromChannelVars;
+    this.replyTo = replyTo;
   }
 
   public String resourceId() {
@@ -30,6 +42,10 @@ public class ProvideCallContext implements Serializable {
 
   public Option<String> maybeCallContextFromChannelVars() {
     return maybeCallContextFromChannelVars;
+  }
+
+  public ActorRef<ProvideCallContextResponse> replyTo() {
+    return replyTo;
   }
 
   @Override

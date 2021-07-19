@@ -14,6 +14,7 @@ import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
+import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
@@ -50,8 +51,8 @@ public class WebsocketMessageToProducerRecordTranslator {
 
   private static void run(
       ActorSystem system,
-      akka.actor.ActorRef callContextProvider,
-      akka.actor.typed.ActorRef<MetricsServiceMessage> metricsService,
+      ActorRef<CallContextProviderMessage> callContextProvider,
+      ActorRef<MetricsServiceMessage> metricsService,
       Source<Message, NotUsed> source,
       Sink<ProducerRecord<String, String>, NotUsed> sink,
       Runnable applicationReplacedHandler) {
@@ -65,16 +66,19 @@ public class WebsocketMessageToProducerRecordTranslator {
     final String commandsTopic = kafkaConfig.getString(COMMANDS_TOPIC);
     final String eventsAndResponsesTopic = kafkaConfig.getString(EVENTS_AND_RESPONSES_TOPIC);
 
+    final akka.actor.ActorRef callContextProviderClassic = Adapter.toClassic(callContextProvider);
+
     source
         // .throttle(4 * 13, Duration.ofSeconds(1)) // Note: We die right now for calls/s >= 4.8
-        .wireTap(Sink.foreach(msg -> gatherMetrics(msg, metricsService, callContextProvider)))
+        .wireTap(
+            Sink.foreach(msg -> gatherMetrics(msg, metricsService, callContextProviderClassic)))
         .flatMapConcat(
             (msg) ->
                 generateProducerRecordFromEvent(
                     commandsTopic,
                     eventsAndResponsesTopic,
                     msg,
-                    callContextProvider,
+                    callContextProviderClassic,
                     system.log(),
                     applicationReplacedHandler))
         .log(">>>   ARI EVENT", ProducerRecord::value)

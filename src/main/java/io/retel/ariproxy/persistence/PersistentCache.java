@@ -41,7 +41,7 @@ public abstract class PersistentCache extends AbstractLoggingActor {
                             .andThen(
                                 done ->
                                     metricsService.tell(
-                                        new IncreaseCounter(REDIS_BACKED_CACHE_FALLBACK, null),
+                                        new IncreaseCounter(REDIS_BACKED_CACHE_FALLBACK),
                                         self()))));
   }
 
@@ -57,10 +57,7 @@ public abstract class PersistentCache extends AbstractLoggingActor {
     return persistenceStore
         .set(prefixedKey, value)
         .map(v -> new SetDone(prefixedKey, value))
-        .andThen(
-            done ->
-                metricsService.tell(
-                    new RedisUpdateTimerStop(metricsContext, null), self())); // TODO
+        .andThen(done -> metricsService.tell(new RedisUpdateTimerStop(metricsContext), self()));
   }
 
   protected Future<Option<String>> query(String key) {

@@ -143,7 +143,8 @@ public class CallContextProvider {
     return Behaviors.same();
   }
 
-  private static Behavior<CallContextProviderMessage> cleanup(final KeyValueStore<String, String> store) {
+  private static Behavior<CallContextProviderMessage> cleanup(
+      final KeyValueStore<String, String> store) {
     try {
       store.close();
     } catch (Exception e) {

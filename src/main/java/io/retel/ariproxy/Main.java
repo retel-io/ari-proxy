@@ -1,8 +1,11 @@
 package io.retel.ariproxy;
 
+import static java.util.Collections.singletonList;
+
 import akka.NotUsed;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.ActorSystem;
+import akka.actor.typed.javadsl.AskPattern;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.http.javadsl.Http;
 import akka.http.javadsl.model.ws.Message;
@@ -18,6 +21,7 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.CallContextProvider;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
+import io.retel.ariproxy.boundary.callcontext.api.ReportHealth;
 import io.retel.ariproxy.boundary.commandsandresponses.AriCommandResponseKafkaProcessor;
 import io.retel.ariproxy.boundary.events.WebsocketMessageToProducerRecordTranslator;
 import io.retel.ariproxy.boundary.processingpipeline.Run;
@@ -43,6 +47,7 @@ public class Main {
   private static final String NAME = "name";
   private static final String HTTPPORT = "httpport";
   public static final String KAFKA = "kafka";
+  private static final Duration HEALTH_REPORT_TIMEOUT = Duration.ofMillis(100);
 
   static {
     System.setProperty(
@@ -62,11 +67,20 @@ public class Main {
               final ActorRef<CallContextProviderMessage> callContextProvider =
                   ctx.spawn(CallContextProvider.create(metricService), "call-context-provider");
 
+              HealthService.run(
+                  ctx.getSystem(),
+                  singletonList(
+                      () ->
+                          AskPattern.ask(
+                                  callContextProvider,
+                                  ReportHealth::new,
+                                  HEALTH_REPORT_TIMEOUT,
+                                  ctx.getSystem().scheduler())
+                              .toCompletableFuture()),
+                  serviceConfig.getInt(HTTPPORT));
+
               // Classic system init
               final akka.actor.ActorSystem classicSystem = ctx.getSystem().classicSystem();
-              classicSystem.actorOf(
-                  HealthService.props(serviceConfig.getInt(HTTPPORT)), HealthService.ACTOR_NAME);
-
               runAriEventProcessor(
                   serviceConfig,
                   classicSystem,

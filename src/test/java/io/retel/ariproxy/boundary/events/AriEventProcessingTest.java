@@ -13,19 +13,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import akka.NotUsed;
-import akka.actor.ActorRef;
-import akka.actor.ActorSystem;
 import akka.actor.testkit.typed.javadsl.ActorTestKit;
 import akka.actor.testkit.typed.javadsl.TestProbe;
-import akka.actor.typed.javadsl.Adapter;
+import akka.actor.typed.ActorRef;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.http.scaladsl.model.ws.TextMessage.Strict;
 import akka.pattern.StatusReply;
-import akka.stream.ActorMaterializer;
-import akka.stream.ActorMaterializerSettings;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
-import akka.testkit.javadsl.TestKit;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.MemoryKeyValueStore;
 import io.retel.ariproxy.boundary.callcontext.TestableCallContextProvider;
@@ -40,7 +35,9 @@ import io.vavr.collection.Seq;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
-import java.util.function.Function;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -57,51 +54,41 @@ class AriEventProcessingTest {
 
   private static final ActorTestKit testKit =
       ActorTestKit.create("testKit", ConfigFactory.defaultApplication());
-  private static final ActorSystem system = Adapter.toClassic(testKit.system());
 
   private static final String fakeCommandsTopic = "commands";
   private static final String fakeEventsAndResponsesTopic = "events-and-responses";
-  private static final Function<ActorRef, Runnable> genApplicationReplacedHandler =
-      ref -> () -> ref.tell("Shutdown triggered!", ref);
   private static final String CALL_CONTEXT = "CALL_CONTEXT";
 
   @Test()
   @DisplayName("Ensure an UnparsableMessageException is thrown for a bogus message.")
   void generateProducerRecordFromEventHandlesUnparseableMessage() {
-    new TestKit(system) {
-      {
-        assertThrows(
-            RuntimeException.class,
-            () ->
-                AriEventProcessing.generateProducerRecordFromEvent(
-                    fakeCommandsTopic,
-                    fakeEventsAndResponsesTopic,
-                    new Strict(invalidEvent),
-                    Adapter.toTyped(getRef()),
-                    LOGGER,
-                    genApplicationReplacedHandler.apply(getRef()),
-                    testKit.system()));
-      }
-    };
+    assertThrows(
+        RuntimeException.class,
+        () -> {
+          AriEventProcessing.generateProducerRecordFromEvent(
+              fakeCommandsTopic,
+              fakeEventsAndResponsesTopic,
+              new Strict(invalidEvent),
+              testKit.<CallContextProviderMessage>createTestProbe().ref(),
+              LOGGER,
+              () -> LOGGER.error("Shutdown triggered"),
+              testKit.system());
+        });
   }
 
   @Test
   void throwRuntimeExceptionWhenEncounteringAnUnknownEvent() {
-    new TestKit(system) {
-      {
-        assertThrows(
-            RuntimeException.class,
-            () ->
-                AriEventProcessing.generateProducerRecordFromEvent(
-                    fakeCommandsTopic,
-                    fakeEventsAndResponsesTopic,
-                    new Strict(unknownEvent),
-                    Adapter.toTyped(getRef()),
-                    LOGGER,
-                    genApplicationReplacedHandler.apply(getRef()),
-                    testKit.system()));
-      }
-    };
+    assertThrows(
+        RuntimeException.class,
+        () ->
+            AriEventProcessing.generateProducerRecordFromEvent(
+                fakeCommandsTopic,
+                fakeEventsAndResponsesTopic,
+                new Strict(unknownEvent),
+                testKit.<CallContextProviderMessage>createTestProbe().ref(),
+                LOGGER,
+                () -> LOGGER.error("Shutdown triggered"),
+                testKit.system()));
   }
 
   @DisplayName(
@@ -111,7 +98,7 @@ class AriEventProcessingTest {
   void generateProducerRecordFromAllAriMessageTypes(final String ariEvent) {
     final TestProbe<CallContextProviderMessage> callContextProviderProbe =
         testKit.createTestProbe(CallContextProviderMessage.class);
-    final akka.actor.typed.ActorRef<CallContextProviderMessage> callContextProvider =
+    final ActorRef<CallContextProviderMessage> callContextProvider =
         testKit.spawn(
             Behaviors.receive(CallContextProviderMessage.class)
                 .onMessage(
@@ -143,12 +130,7 @@ class AriEventProcessingTest {
             .flatMap(
                 source ->
                     Future.fromCompletableFuture(
-                        source
-                            .runWith(
-                                Sink.last(),
-                                ActorMaterializer.create(
-                                    ActorMaterializerSettings.create(system), system))
-                            .toCompletableFuture()))
+                        source.runWith(Sink.last(), testKit.system()).toCompletableFuture()))
             .await()
             .get();
 
@@ -170,24 +152,28 @@ class AriEventProcessingTest {
   }
 
   @Test
-  void checkApplicationReplacedHandlerIsTriggered() {
-    new TestKit(system) {
-      {
-        final Future<Source<ProducerRecord<String, String>, NotUsed>> wsToKafkaProcessor =
-            Future.of(
-                () ->
-                    AriEventProcessing.generateProducerRecordFromEvent(
-                        fakeCommandsTopic,
-                        fakeEventsAndResponsesTopic,
-                        new Strict(applicationReplacedEvent),
-                        Adapter.toTyped(getRef()),
-                        LOGGER,
-                        genApplicationReplacedHandler.apply(getRef()),
-                        testKit.system()));
-        assertThat(expectMsgClass(String.class), is("Shutdown triggered!"));
-        assertThat(wsToKafkaProcessor.await().get(), is(Source.empty()));
-      }
-    };
+  void checkApplicationReplacedHandlerIsTriggered() throws InterruptedException {
+    final AtomicBoolean didTriggerShutdown = new AtomicBoolean(false);
+    final CountDownLatch waitForShutdownTriggered = new CountDownLatch(1);
+    final Future<Source<ProducerRecord<String, String>, NotUsed>> wsToKafkaProcessor =
+        Future.of(
+            () ->
+                AriEventProcessing.generateProducerRecordFromEvent(
+                    fakeCommandsTopic,
+                    fakeEventsAndResponsesTopic,
+                    new Strict(applicationReplacedEvent),
+                    testKit.<CallContextProviderMessage>createTestProbe().ref(),
+                    LOGGER,
+                    () -> {
+                      LOGGER.error("Shutdown triggered");
+                      didTriggerShutdown.set(true);
+                      waitForShutdownTriggered.countDown();
+                    },
+                    testKit.system()));
+
+    waitForShutdownTriggered.await(1000, TimeUnit.MILLISECONDS);
+    assertTrue(didTriggerShutdown.get(), "shutdown was triggered");
+    assertThat(wsToKafkaProcessor.await().get(), is(Source.empty()));
   }
 
   @Test
@@ -257,19 +243,15 @@ class AriEventProcessingTest {
 
   @Test
   void verifyGetCallContextReturnsAFailedTryIfNoCallContextCanBeProvided() {
-    new TestKit(system) {
-      {
-        assertThat(
-            AriEventProcessing.getCallContext(
-                    "RESOURCE_ID",
-                    Adapter.toTyped(getRef()),
-                    Option.none(),
-                    ProviderPolicy.CREATE_IF_MISSING,
-                    testKit.system())
-                .isFailure(),
-            is(true));
-      }
-    };
+    assertThat(
+        AriEventProcessing.getCallContext(
+                "RESOURCE_ID",
+                testKit.<CallContextProviderMessage>createTestProbe().ref(),
+                Option.none(),
+                ProviderPolicy.CREATE_IF_MISSING,
+                testKit.system())
+            .isFailure(),
+        is(true));
   }
 
   @ParameterizedTest

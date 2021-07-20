@@ -1,9 +1,8 @@
 package io.retel.ariproxy.boundary.commandsandresponses;
 
 import akka.NotUsed;
-import akka.actor.ActorSystem;
 import akka.actor.typed.ActorRef;
-import akka.actor.typed.javadsl.Adapter;
+import akka.actor.typed.ActorSystem;
 import akka.event.Logging;
 import akka.http.javadsl.model.ContentTypes;
 import akka.http.javadsl.model.HttpMethods;
@@ -89,15 +88,15 @@ public class AriCommandResponseKafkaProcessor {
   }
 
   private static void run(
-      ActorSystem system,
-      CommandResponseHandler commandResponseHandler,
-      ActorRef<CallContextProviderMessage> callContextProvider,
-      ActorRef<MetricsServiceMessage> metricsService,
-      Source<ConsumerRecord<String, String>, NotUsed> source,
-      Sink<ProducerRecord<String, String>, NotUsed> sink) {
+      final akka.actor.typed.ActorSystem<?> system,
+      final CommandResponseHandler commandResponseHandler,
+      final ActorRef<CallContextProviderMessage> callContextProvider,
+      final ActorRef<MetricsServiceMessage> metricsService,
+      final Source<ConsumerRecord<String, String>, NotUsed> source,
+      final Sink<ProducerRecord<String, String>, NotUsed> sink) {
     final Function<Throwable, Directive> decider =
-        t -> {
-          system.log().error(t, "Error in some stage; restarting stream ...");
+        error -> {
+          system.log().error("Error in some stage; restarting stream ...", error);
           return (Directive) Supervision.restart();
         };
 
@@ -113,8 +112,6 @@ public class AriCommandResponseKafkaProcessor {
     final String restUser = restConfig.getString(USER);
     final String restPassword = restConfig.getString(PASSWORD);
 
-    final akka.actor.ActorRef callContextProviderClassic = Adapter.toClassic(callContextProvider);
-
     source
         .log(">>>   ARI COMMAND", ConsumerRecord::value)
         .withAttributes(LOG_LEVELS)
@@ -122,9 +119,10 @@ public class AriCommandResponseKafkaProcessor {
         .map(
             msgEnvelope -> {
               AriCommandResponseProcessing.registerCallContext(
-                      callContextProviderClassic,
+                      callContextProvider,
                       msgEnvelope.getCallContext(),
-                      msgEnvelope.getAriCommand())
+                      msgEnvelope.getAriCommand(),
+                      system)
                   .onFailure(
                       error -> {
                         throw new IllegalStateException(error);
@@ -218,8 +216,8 @@ public class AriCommandResponseKafkaProcessor {
 
   private static CompletionStage<Tuple2<AriResponse, CallContextAndCommandRequestContext>>
       toAriResponse(
-          Tuple2<HttpResponse, CallContextAndCommandRequestContext> responseWithContext,
-          ActorSystem system) {
+          final Tuple2<HttpResponse, CallContextAndCommandRequestContext> responseWithContext,
+          final ActorSystem<?> system) {
     final HttpResponse response = responseWithContext._1;
 
     final long contentLength =

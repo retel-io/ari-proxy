@@ -7,6 +7,7 @@ import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
 import akka.actor.typed.PreRestart;
 import akka.actor.typed.javadsl.Behaviors;
+import akka.pattern.StatusReply;
 import io.retel.ariproxy.boundary.callcontext.api.*;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import io.retel.ariproxy.persistence.KeyValueStore;
@@ -77,20 +78,18 @@ public class CallContextProvider {
 
     callContext.whenComplete(
         (cContext, error) -> {
-          final ProvideCallContextResponse response;
+          final StatusReply<CallContextProvided> response;
           if (error != null) {
             if (error instanceof CallContextLookupError) {
-              response = (CallContextLookupError) error;
+              response = StatusReply.error(error);
             } else {
-              response =
-                  new CallContextLookupError(
-                      "Unable to lookup call context: " + error.getMessage());
+              response = StatusReply.error("Unable to lookup call context: " + error.getMessage());
             }
           } else {
             if (cContext.isPresent()) {
-              response = new CallContextProvided(cContext.get());
+              response = StatusReply.success(new CallContextProvided(cContext.get()));
             } else {
-              response = new CallContextLookupError("Unable to lookup call context");
+              response = StatusReply.error("Unable to lookup call context");
             }
           }
 

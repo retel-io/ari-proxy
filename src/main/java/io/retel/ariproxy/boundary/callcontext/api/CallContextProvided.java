@@ -3,7 +3,7 @@ package io.retel.ariproxy.boundary.callcontext.api;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-public class CallContextProvided implements ProvideCallContextResponse {
+public class CallContextProvided {
 
   private final String callContext;
 

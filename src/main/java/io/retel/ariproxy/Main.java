@@ -79,18 +79,16 @@ public class Main {
                               .toCompletableFuture()),
                   serviceConfig.getInt(HTTPPORT));
 
-              // Classic system init
-              final akka.actor.ActorSystem classicSystem = ctx.getSystem().classicSystem();
               runAriEventProcessor(
                   serviceConfig,
-                  classicSystem,
+                  ctx.getSystem(),
                   callContextProvider,
                   metricService,
-                  classicSystem::terminate);
+                  () -> ctx.getSystem().terminate());
 
               runAriCommandResponseProcessor(
                   serviceConfig.getConfig(KAFKA),
-                  classicSystem,
+                  ctx.getSystem(),
                   callContextProvider,
                   metricService);
 
@@ -100,10 +98,10 @@ public class Main {
   }
 
   private static void runAriCommandResponseProcessor(
-      Config kafkaConfig,
-      akka.actor.ActorSystem system,
-      ActorRef<CallContextProviderMessage> callContextProvider,
-      ActorRef<MetricsServiceMessage> metricsService) {
+      final Config kafkaConfig,
+      final ActorSystem<Void> system,
+      final ActorRef<CallContextProviderMessage> callContextProvider,
+      final ActorRef<MetricsServiceMessage> metricsService) {
     final ConsumerSettings<String, String> consumerSettings =
         ConsumerSettings.create(system, new StringDeserializer(), new StringDeserializer())
             .withBootstrapServers(kafkaConfig.getString(BOOTSTRAP_SERVERS))
@@ -140,11 +138,11 @@ public class Main {
   }
 
   private static void runAriEventProcessor(
-      Config serviceConfig,
-      akka.actor.ActorSystem system,
-      ActorRef<CallContextProviderMessage> callContextProvider,
-      ActorRef<MetricsServiceMessage> metricsService,
-      Runnable applicationReplacedHandler) {
+      final Config serviceConfig,
+      final ActorSystem<?> system,
+      final ActorRef<CallContextProviderMessage> callContextProvider,
+      final ActorRef<MetricsServiceMessage> metricsService,
+      final Runnable applicationReplacedHandler) {
     // see:
     // https://doc.akka.io/docs/akka/2.5.8/java/stream/stream-error.html#delayed-restarts-with-a-backoff-stage
     final Flow<Message, Message, NotUsed> restartWebsocketFlow =
@@ -177,7 +175,7 @@ public class Main {
       processingPipeline.run();
       system.log().debug("Successfully started ari event processor.");
     } catch (Exception e) {
-      system.log().error(e, "Failed to start ari event processor: " + e.getMessage());
+      system.log().error("Failed to start ari event processor: ", e);
       System.exit(-1);
     }
   }
@@ -186,7 +184,7 @@ public class Main {
   // see:
   // https://doc.akka.io/docs/akka-http/current/client-side/websocket-support.html#websocketclientflow
   private static Flow<Message, Message, CompletionStage<WebSocketUpgradeResponse>>
-      createWebsocketFlow(akka.actor.ActorSystem system, String websocketUri) {
+      createWebsocketFlow(ActorSystem<?> system, String websocketUri) {
     return Http.get(system).webSocketClientFlow(WebSocketRequest.create(websocketUri));
   }
 }

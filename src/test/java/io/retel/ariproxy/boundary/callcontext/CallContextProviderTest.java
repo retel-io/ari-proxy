@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import akka.actor.testkit.typed.javadsl.ActorTestKit;
 import akka.actor.testkit.typed.javadsl.TestProbe;
 import akka.actor.typed.ActorRef;
+import akka.pattern.StatusReply;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.api.*;
 import io.retel.ariproxy.health.api.HealthReport;
@@ -43,15 +44,16 @@ class CallContextProviderTest {
     final Map<String, String> store = new HashMap<>();
     final ActorRef<CallContextProviderMessage> callContextProvider =
         testKit.spawn(CallContextProvider.create(new MemoryKeyValueStore(store)));
-    final TestProbe<ProvideCallContextResponse> probe =
-        testKit.createTestProbe(ProvideCallContextResponse.class);
+    final TestProbe<StatusReply<CallContextProvided>> probe =
+        createCallContextProviderResponseTestProbe();
 
     callContextProvider.tell(
         new ProvideCallContext(
             RESOURCE_ID, ProviderPolicy.CREATE_IF_MISSING, Option.none(), probe.getRef()));
 
-    final CallContextProvided response = probe.expectMessageClass(CallContextProvided.class);
-    assertDoesNotThrow(() -> UUID.fromString(response.callContext()));
+    final StatusReply<CallContextProvided> response = expectCalContextProviderResponse(probe);
+    assertTrue(response.isSuccess());
+    assertDoesNotThrow(() -> UUID.fromString(response.getValue().callContext()));
     assertTrue(StringUtils.isNotBlank(store.get(RESOURCE_ID)));
   }
 
@@ -60,8 +62,8 @@ class CallContextProviderTest {
     final Map<String, String> store = new HashMap<>();
     final ActorRef<CallContextProviderMessage> callContextProvider =
         testKit.spawn(CallContextProvider.create(new MemoryKeyValueStore(store)));
-    final TestProbe<ProvideCallContextResponse> probe =
-        testKit.createTestProbe(ProvideCallContextResponse.class);
+    final TestProbe<StatusReply<CallContextProvided>> probe =
+        createCallContextProviderResponseTestProbe();
 
     callContextProvider.tell(
         new ProvideCallContext(
@@ -70,8 +72,9 @@ class CallContextProviderTest {
             Option.some(CALL_CONTEXT_FROM_CHANNEL_VARS),
             probe.getRef()));
 
-    final CallContextProvided response = probe.expectMessageClass(CallContextProvided.class);
-    assertEquals(CALL_CONTEXT_FROM_CHANNEL_VARS, response.callContext());
+    final StatusReply<CallContextProvided> response = expectCalContextProviderResponse(probe);
+    assertTrue(response.isSuccess());
+    assertEquals(CALL_CONTEXT_FROM_CHANNEL_VARS, response.getValue().callContext());
     assertEquals(CALL_CONTEXT_FROM_CHANNEL_VARS, store.get(RESOURCE_ID));
   }
 
@@ -81,8 +84,8 @@ class CallContextProviderTest {
     store.put(RESOURCE_ID, CALL_CONTEXT_FROM_DB);
     final ActorRef<CallContextProviderMessage> callContextProvider =
         testKit.spawn(CallContextProvider.create(new MemoryKeyValueStore(store)));
-    final TestProbe<ProvideCallContextResponse> probe =
-        testKit.createTestProbe(ProvideCallContextResponse.class);
+    final TestProbe<StatusReply<CallContextProvided>> probe =
+        createCallContextProviderResponseTestProbe();
 
     callContextProvider.tell(
         new ProvideCallContext(
@@ -91,8 +94,8 @@ class CallContextProviderTest {
             Option.some(CALL_CONTEXT_FROM_CHANNEL_VARS),
             probe.getRef()));
 
-    final CallContextProvided response = probe.expectMessageClass(CallContextProvided.class);
-    assertEquals(CALL_CONTEXT_FROM_CHANNEL_VARS, response.callContext());
+    final StatusReply<CallContextProvided> response = expectCalContextProviderResponse(probe);
+    assertEquals(CALL_CONTEXT_FROM_CHANNEL_VARS, response.getValue().callContext());
     assertEquals(CALL_CONTEXT_FROM_CHANNEL_VARS, store.get(RESOURCE_ID));
   }
 
@@ -102,15 +105,15 @@ class CallContextProviderTest {
     store.put(RESOURCE_ID, CALL_CONTEXT_FROM_DB);
     final ActorRef<CallContextProviderMessage> callContextProvider =
         testKit.spawn(CallContextProvider.create(new MemoryKeyValueStore(store)));
-    final TestProbe<ProvideCallContextResponse> probe =
-        testKit.createTestProbe(ProvideCallContextResponse.class);
+    final TestProbe<StatusReply<CallContextProvided>> probe =
+        createCallContextProviderResponseTestProbe();
 
     callContextProvider.tell(
         new ProvideCallContext(
             RESOURCE_ID, ProviderPolicy.LOOKUP_ONLY, Option.none(), probe.getRef()));
 
-    final CallContextProvided response = probe.expectMessageClass(CallContextProvided.class);
-    assertEquals(CALL_CONTEXT_FROM_DB, response.callContext());
+    final StatusReply<CallContextProvided> response = expectCalContextProviderResponse(probe);
+    assertEquals(CALL_CONTEXT_FROM_DB, response.getValue().callContext());
     assertEquals(CALL_CONTEXT_FROM_DB, store.get(RESOURCE_ID));
   }
 
@@ -118,14 +121,15 @@ class CallContextProviderTest {
   void failureResponseIsReceivedWhenNoCallContextExists() {
     final ActorRef<CallContextProviderMessage> callContextProvider =
         testKit.spawn(CallContextProvider.create(new MemoryKeyValueStore()));
-    final TestProbe<ProvideCallContextResponse> probe =
-        testKit.createTestProbe(ProvideCallContextResponse.class);
+    final TestProbe<StatusReply<CallContextProvided>> probe =
+        createCallContextProviderResponseTestProbe();
 
     callContextProvider.tell(
         new ProvideCallContext(
             RESOURCE_ID, ProviderPolicy.LOOKUP_ONLY, Option.none(), probe.getRef()));
 
-    probe.expectMessageClass(CallContextLookupError.class);
+    final StatusReply<CallContextProvided> reply = expectCalContextProviderResponse(probe);
+    assertTrue(reply.isError());
   }
 
   @Test
@@ -142,5 +146,18 @@ class CallContextProviderTest {
   @AfterAll
   public static void cleanup() {
     testKit.shutdownTestKit();
+  }
+
+  @SuppressWarnings("unchecked")
+  private static TestProbe<StatusReply<CallContextProvided>>
+      createCallContextProviderResponseTestProbe() {
+    return (TestProbe<StatusReply<CallContextProvided>>)
+        (TestProbe<?>) testKit.createTestProbe(StatusReply.class);
+  }
+
+  @SuppressWarnings("unchecked")
+  private StatusReply<CallContextProvided> expectCalContextProviderResponse(
+      final TestProbe<StatusReply<CallContextProvided>> probe) {
+    return (StatusReply<CallContextProvided>) probe.expectMessageClass(StatusReply.class);
   }
 }

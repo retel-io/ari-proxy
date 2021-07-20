@@ -3,9 +3,8 @@ package io.retel.ariproxy.boundary.events;
 import static io.retel.ariproxy.boundary.events.AriEventProcessing.*;
 
 import akka.NotUsed;
-import akka.actor.ActorSystem;
 import akka.actor.typed.ActorRef;
-import akka.actor.typed.javadsl.Adapter;
+import akka.actor.typed.ActorSystem;
 import akka.event.Logging;
 import akka.http.javadsl.model.ws.Message;
 import akka.japi.function.Function;
@@ -50,7 +49,7 @@ public class WebsocketMessageToProducerRecordTranslator {
   }
 
   private static void run(
-      ActorSystem system,
+      ActorSystem<?> system,
       ActorRef<CallContextProviderMessage> callContextProvider,
       ActorRef<MetricsServiceMessage> metricsService,
       Source<Message, NotUsed> source,
@@ -58,7 +57,7 @@ public class WebsocketMessageToProducerRecordTranslator {
       Runnable applicationReplacedHandler) {
     final Function<Throwable, Supervision.Directive> decider =
         t -> {
-          system.log().error(t, t.getMessage());
+          system.log().error("WebsocketMessageToProducerRecordTranslator stream failed", t);
           return (Supervision.Directive) Supervision.resume();
         };
 
@@ -66,21 +65,20 @@ public class WebsocketMessageToProducerRecordTranslator {
     final String commandsTopic = kafkaConfig.getString(COMMANDS_TOPIC);
     final String eventsAndResponsesTopic = kafkaConfig.getString(EVENTS_AND_RESPONSES_TOPIC);
 
-    final akka.actor.ActorRef callContextProviderClassic = Adapter.toClassic(callContextProvider);
-
     source
         // .throttle(4 * 13, Duration.ofSeconds(1)) // Note: We die right now for calls/s >= 4.8
         .wireTap(
-            Sink.foreach(msg -> gatherMetrics(msg, metricsService, callContextProviderClassic)))
+            Sink.foreach(msg -> gatherMetrics(msg, metricsService, callContextProvider, system)))
         .flatMapConcat(
             (msg) ->
                 generateProducerRecordFromEvent(
                     commandsTopic,
                     eventsAndResponsesTopic,
                     msg,
-                    callContextProviderClassic,
+                    callContextProvider,
                     system.log(),
-                    applicationReplacedHandler))
+                    applicationReplacedHandler,
+                    system))
         .log(">>>   ARI EVENT", ProducerRecord::value)
         .withAttributes(LOG_LEVELS)
         .to(sink)
@@ -91,7 +89,8 @@ public class WebsocketMessageToProducerRecordTranslator {
   private static void gatherMetrics(
       Message message,
       ActorRef<MetricsServiceMessage> metricsService,
-      akka.actor.ActorRef callContextProvider) {
+      akka.actor.typed.ActorRef<CallContextProviderMessage> callContextProvider,
+      final ActorSystem<?> system) {
     final Supplier<String> callContextSupplier =
         () ->
             getValueFromMessageByPath(message, "/channel/id")
@@ -102,22 +101,18 @@ public class WebsocketMessageToProducerRecordTranslator {
                             channelId,
                             callContextProvider,
                             getValueFromMessageByPath(message, "/channel/channelvars/CALL_CONTEXT"),
-                            ProviderPolicy.CREATE_IF_MISSING))
+                            ProviderPolicy.CREATE_IF_MISSING,
+                            system))
                 .getOrElseThrow(
                     () -> new RuntimeException(message.asTextMessage().getStrictText()));
 
-    final akka.actor.ActorRef metricsServiceClassic = Adapter.toClassic(metricsService);
     getValueFromMessageByPath(message, "/type")
         .map(type -> determineMetricsGatherer(AriMessageType.fromType(type)))
         .forEach(
             gatherers ->
                 gatherers.forEach(
                     gatherer -> {
-                      // TODO: use typed actor here
-                      metricsServiceClassic.tell(
-                          // Note: This will only be evaluated if required
-                          gatherer.withCallContextSupplier(callContextSupplier),
-                          akka.actor.ActorRef.noSender());
+                      metricsService.tell(gatherer.withCallContextSupplier(callContextSupplier));
                     }));
   }
 }

@@ -1,6 +1,6 @@
 package io.retel.ariproxy.boundary.callcontext.api;
 
-public class CallContextLookupError extends Exception implements ProvideCallContextResponse {
+public class CallContextLookupError extends Exception {
 
   private final String message;
 

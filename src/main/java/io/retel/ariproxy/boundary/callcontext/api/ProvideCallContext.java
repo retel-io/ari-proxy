@@ -1,6 +1,7 @@
 package io.retel.ariproxy.boundary.callcontext.api;
 
 import akka.actor.typed.ActorRef;
+import akka.pattern.StatusReply;
 import io.vavr.control.Option;
 import java.io.Serializable;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
@@ -11,7 +12,7 @@ public class ProvideCallContext implements CallContextProviderMessage, Serializa
   private final String resourceId;
   private final ProviderPolicy policy;
   private final Option<String> maybeCallContextFromChannelVars;
-  private final ActorRef<ProvideCallContextResponse> replyTo;
+  private final ActorRef<StatusReply<CallContextProvided>> replyTo;
 
   @Deprecated
   public ProvideCallContext(
@@ -25,7 +26,7 @@ public class ProvideCallContext implements CallContextProviderMessage, Serializa
       final String resourceId,
       final ProviderPolicy policy,
       final Option<String> maybeCallContextFromChannelVars,
-      final ActorRef<ProvideCallContextResponse> replyTo) {
+      final ActorRef<StatusReply<CallContextProvided>> replyTo) {
     this.resourceId = resourceId;
     this.policy = policy;
     this.maybeCallContextFromChannelVars = maybeCallContextFromChannelVars;
@@ -44,7 +45,7 @@ public class ProvideCallContext implements CallContextProviderMessage, Serializa
     return maybeCallContextFromChannelVars;
   }
 
-  public ActorRef<ProvideCallContextResponse> replyTo() {
+  public ActorRef<StatusReply<CallContextProvided>> replyTo() {
     return replyTo;
   }
 

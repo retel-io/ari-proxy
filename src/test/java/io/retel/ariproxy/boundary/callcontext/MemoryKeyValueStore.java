@@ -1,5 +1,6 @@
 package io.retel.ariproxy.boundary.callcontext;
 
+import static java.util.Collections.singletonMap;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 
 import io.retel.ariproxy.health.api.HealthReport;
@@ -19,6 +20,10 @@ public class MemoryKeyValueStore implements KeyValueStore<String, String> {
 
   public MemoryKeyValueStore(final Map<String, String> store) {
     this.store = store;
+  }
+
+  public MemoryKeyValueStore(final String resourceId, final String callContext) {
+    this(new HashMap<>(singletonMap(resourceId, callContext)));
   }
 
   @Override

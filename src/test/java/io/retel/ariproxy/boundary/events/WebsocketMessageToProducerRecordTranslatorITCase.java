@@ -7,14 +7,22 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import akka.NotUsed;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
+import akka.actor.testkit.typed.javadsl.ActorTestKit;
+import akka.actor.testkit.typed.javadsl.TestProbe;
 import akka.actor.typed.javadsl.Adapter;
+import akka.actor.typed.javadsl.Behaviors;
 import akka.http.javadsl.model.ws.Message;
 import akka.http.scaladsl.model.ws.TextMessage.Strict;
+import akka.pattern.StatusReply;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import akka.testkit.javadsl.TestKit;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.typesafe.config.ConfigFactory;
+import io.retel.ariproxy.boundary.callcontext.MemoryKeyValueStore;
+import io.retel.ariproxy.boundary.callcontext.TestableCallContextProvider;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
+import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
@@ -26,29 +34,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.hamcrest.CoreMatchers;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 
 class WebsocketMessageToProducerRecordTranslatorITCase {
+
+  private static final ActorTestKit testKit =
+      ActorTestKit.create("testKit", ConfigFactory.defaultApplication());
+  private static final ActorSystem system = testKit.system().classicSystem();
 
   private static final CallContextProvided CALL_CONTEXT_PROVIDED =
       new CallContextProvided("CALL_CONTEXT_PROVIDED");
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-  private final String TEST_SYSTEM = this.getClass().getSimpleName();
-  private ActorSystem system;
-
-  @AfterEach
-  void teardown() {
-    TestKit.shutdownActorSystem(system);
-    system.terminate();
-  }
-
-  @BeforeEach
-  void setup() {
-    system = ActorSystem.create(TEST_SYSTEM);
-  }
 
   @Test
   void verifyProcessingPipelineWorksAsExpectedForBogusMessages() {
@@ -61,7 +57,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
             catchAllProbe.getRef(), new ProducerRecord<String, String>("none", "completed"));
 
     WebsocketMessageToProducerRecordTranslator.eventProcessing()
-        .on(system)
+        .on(Adapter.toTyped(system))
         .withHandler(
             () -> catchAllProbe.getRef().tell("Application replaced", catchAllProbe.getRef()))
         .withCallContextProvider(Adapter.toTyped(catchAllProbe.getRef()))
@@ -80,15 +76,15 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
   @DisplayName(
       "A StasisStart without call context shall be converted into a kafka producer record while also recording metrics")
   void verifyProcessingPipelineWorksAsExpectedForStasisStartWithoutCallContext() throws Exception {
-    final TestKit callcontextProvider = new TestKit(system);
+    final String resourceId = "1532965104.0";
+    final TestableCallContextProvider callContextProvider =
+        new TestableCallContextProvider(
+            testKit, new MemoryKeyValueStore(resourceId, CALL_CONTEXT_PROVIDED.callContext()));
     final TestKit metricsService = new TestKit(system);
     final TestKit kafkaProducer = new TestKit(system);
     final TestKit applicationReplacedHandler = new TestKit(system);
 
     final Strict stasisStartEvent = new Strict(StasisEvents.stasisStartEvent);
-
-    final String resourceId = "1532965104.0";
-
     final Source<Message, NotUsed> source = Source.single(stasisStartEvent);
 
     final Sink<ProducerRecord<String, String>, NotUsed> sink =
@@ -96,24 +92,23 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
             kafkaProducer.getRef(), new ProducerRecord<String, String>("none", "completed"));
 
     WebsocketMessageToProducerRecordTranslator.eventProcessing()
-        .on(system)
+        .on(Adapter.toTyped(system))
         .withHandler(
             () ->
                 applicationReplacedHandler
                     .getRef()
                     .tell("Application replaced", ActorRef.noSender()))
-        .withCallContextProvider(Adapter.toTyped(callcontextProvider.getRef()))
+        .withCallContextProvider(callContextProvider.ref())
         .withMetricsService(Adapter.toTyped(metricsService.getRef()))
         .from(source)
         .to(sink)
         .run();
 
     final ProvideCallContext provideCallContextForMetrics =
-        callcontextProvider.expectMsgClass(ProvideCallContext.class);
+        callContextProvider.probe().expectMessageClass(ProvideCallContext.class);
     assertThat(provideCallContextForMetrics.resourceId(), is(resourceId));
     assertThat(provideCallContextForMetrics.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
     assertThat(provideCallContextForMetrics.maybeCallContextFromChannelVars(), is(Option.none()));
-    callcontextProvider.reply(CALL_CONTEXT_PROVIDED);
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> record =
@@ -134,11 +129,10 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     assertThat(callsStartedCounter.getName(), is("CallsStarted"));
 
     final ProvideCallContext provideCallContextForRouting =
-        callcontextProvider.expectMsgClass(ProvideCallContext.class);
+        callContextProvider.probe().expectMessageClass(ProvideCallContext.class);
     assertThat(provideCallContextForRouting.resourceId(), is(resourceId));
     assertThat(provideCallContextForRouting.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
     assertThat(provideCallContextForRouting.maybeCallContextFromChannelVars(), is(Option.none()));
-    callcontextProvider.reply(CALL_CONTEXT_PROVIDED);
 
     final StartCallSetupTimer startCallSetupTimer =
         metricsService.expectMsgClass(StartCallSetupTimer.class);
@@ -155,15 +149,29 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
   @DisplayName(
       "A StasisStart without call context shall be converted into a kafka producer record while also recording metrics")
   void verifyProcessingPipelineWorksAsExpectedForStasisStartWithCallContext() throws Exception {
-    final TestKit callcontextProvider = new TestKit(system);
+    final String resourceId = "1532965104.0";
+    final TestProbe<CallContextProviderMessage> callContextProviderProbe =
+        testKit.createTestProbe(CallContextProviderMessage.class);
+    final akka.actor.typed.ActorRef<CallContextProviderMessage> callContextProvider =
+        testKit.spawn(
+            Behaviors.receive(CallContextProviderMessage.class)
+                .onMessage(
+                    ProvideCallContext.class,
+                    msg -> {
+                      callContextProviderProbe.ref().tell(msg);
+                      msg.replyTo()
+                          .tell(
+                              StatusReply.success(
+                                  new CallContextProvided(CALL_CONTEXT_PROVIDED.callContext())));
+
+                      return Behaviors.same();
+                    })
+                .build());
     final TestKit metricsService = new TestKit(system);
     final TestKit kafkaProducer = new TestKit(system);
     final TestKit applicationReplacedHandler = new TestKit(system);
 
     final Strict stasisStartEvent = new Strict(StasisEvents.stasisStartEventWithCallContext);
-
-    final String resourceId = "1532965104.0";
-
     final Source<Message, NotUsed> source = Source.single(stasisStartEvent);
 
     final Sink<ProducerRecord<String, String>, NotUsed> sink =
@@ -171,26 +179,25 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
             kafkaProducer.getRef(), new ProducerRecord<String, String>("none", "completed"));
 
     WebsocketMessageToProducerRecordTranslator.eventProcessing()
-        .on(system)
+        .on(Adapter.toTyped(system))
         .withHandler(
             () ->
                 applicationReplacedHandler
                     .getRef()
                     .tell("Application replaced", ActorRef.noSender()))
-        .withCallContextProvider(Adapter.toTyped(callcontextProvider.getRef()))
+        .withCallContextProvider(callContextProvider)
         .withMetricsService(Adapter.toTyped(metricsService.getRef()))
         .from(source)
         .to(sink)
         .run();
 
     final ProvideCallContext provideCallContextForMetrics =
-        callcontextProvider.expectMsgClass(ProvideCallContext.class);
+        callContextProviderProbe.expectMessageClass(ProvideCallContext.class);
     assertThat(provideCallContextForMetrics.resourceId(), is(resourceId));
     assertThat(provideCallContextForMetrics.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
     assertThat(
         provideCallContextForMetrics.maybeCallContextFromChannelVars(),
         is(Option.some("aCallContext")));
-    callcontextProvider.reply(CALL_CONTEXT_PROVIDED);
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> record =
@@ -211,13 +218,12 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     assertThat(callsStartedCounter.getName(), is("CallsStarted"));
 
     final ProvideCallContext provideCallContextForRouting =
-        callcontextProvider.expectMsgClass(ProvideCallContext.class);
+        callContextProviderProbe.expectMessageClass(ProvideCallContext.class);
     assertThat(provideCallContextForRouting.resourceId(), is(resourceId));
     assertThat(provideCallContextForRouting.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
     assertThat(
         provideCallContextForRouting.maybeCallContextFromChannelVars(),
         is(Option.some("aCallContext")));
-    callcontextProvider.reply(CALL_CONTEXT_PROVIDED);
 
     final StartCallSetupTimer startCallSetupTimer =
         metricsService.expectMsgClass(StartCallSetupTimer.class);
@@ -235,5 +241,10 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
         WebsocketMessageToProducerRecordTranslatorITCase.class.getClassLoader();
     final File file = new File(classLoader.getResource(fileName).getFile());
     return new String(Files.readAllBytes(file.toPath()));
+  }
+
+  @AfterAll
+  public static void cleanup() {
+    testKit.shutdownTestKit();
   }
 }

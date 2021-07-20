@@ -1,31 +1,32 @@
 package io.retel.ariproxy.boundary.events;
 
 import akka.NotUsed;
-import akka.actor.ActorRef;
-import akka.event.LoggingAdapter;
+import akka.actor.typed.ActorRef;
+import akka.actor.typed.ActorSystem;
+import akka.actor.typed.javadsl.AskPattern;
 import akka.http.javadsl.model.ws.Message;
 import akka.stream.javadsl.Source;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
-import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
-import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
-import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
-import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
+import io.retel.ariproxy.boundary.callcontext.api.*;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageEnvelope;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriResource;
 import io.retel.ariproxy.metrics.IncreaseCounter;
+import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import io.retel.ariproxy.metrics.StartCallSetupTimer;
 import io.vavr.collection.List;
 import io.vavr.collection.Seq;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
+import java.time.Duration;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.slf4j.Logger;
 
 public class AriEventProcessing {
 
@@ -34,7 +35,7 @@ public class AriEventProcessing {
   private static final ObjectWriter writer = mapper.writerFor(AriMessageEnvelope.class);
   // Note: This timeout is pretty high right now as the initial redis interaction takes quite some
   // time...
-  private static final int PROVIDE_CALLCONTEXT_TIMEOUT = 1000;
+  private static final Duration PROVIDE_CALLCONTEXT_TIMEOUT = Duration.ofMillis(1000);
 
   public static Seq<MetricsGatherer> determineMetricsGatherer(AriMessageType type) {
 
@@ -59,12 +60,13 @@ public class AriEventProcessing {
   }
 
   public static Source<ProducerRecord<String, String>, NotUsed> generateProducerRecordFromEvent(
-      String kafkaCommandsTopic,
-      String kafkaEventsAndResponsesTopic,
-      Message message,
-      ActorRef callContextProvider,
-      LoggingAdapter log,
-      Runnable applicationReplacedHandler) {
+      final String kafkaCommandsTopic,
+      final String kafkaEventsAndResponsesTopic,
+      final Message message,
+      final ActorRef<CallContextProviderMessage> callContextProvider,
+      final Logger log,
+      final Runnable applicationReplacedHandler,
+      final ActorSystem<?> system) {
 
     final JsonNode messageBody =
         Try.of(() -> reader.readTree(message.asTextMessage().getStrictText()))
@@ -97,7 +99,8 @@ public class AriEventProcessing {
                               maybeCallContextFromChannelVars,
                               AriMessageType.STASIS_START.equals(ariMessageType)
                                   ? ProviderPolicy.CREATE_IF_MISSING
-                                  : ProviderPolicy.LOOKUP_ONLY);
+                                  : ProviderPolicy.LOOKUP_ONLY,
+                              system);
                       return maybeCallContext.flatMap(
                           callContext ->
                               createProducerRecord(
@@ -120,7 +123,7 @@ public class AriEventProcessing {
       final String kafkaEventsAndResponsesTopic,
       final AriMessageType messageType,
       final String resourceId,
-      final LoggingAdapter log,
+      final Logger log,
       final String callContext,
       final JsonNode messageBody) {
 
@@ -143,16 +146,27 @@ public class AriEventProcessing {
   }
 
   public static Try<String> getCallContext(
-      String resourceId,
-      ActorRef callContextProvider,
+      final String resourceId,
+      final ActorRef<CallContextProviderMessage> callContextProvider,
       final Option<String> maybeCallContextFromChannelVars,
-      ProviderPolicy providerPolicy) {
-    return PatternsAdapter.<CallContextProvided>ask(
-            callContextProvider,
-            new ProvideCallContext(resourceId, maybeCallContextFromChannelVars, providerPolicy),
-            PROVIDE_CALLCONTEXT_TIMEOUT)
-        .map(CallContextProvided::callContext)
-        .toTry();
+      final ProviderPolicy providerPolicy,
+      final ActorSystem<?> system) {
+
+    return Try.of(
+        () -> {
+          final CallContextProvided response =
+              AskPattern.<CallContextProviderMessage, CallContextProvided>askWithStatus(
+                      callContextProvider,
+                      replyTo ->
+                          new ProvideCallContext(
+                              resourceId, providerPolicy, maybeCallContextFromChannelVars, replyTo),
+                      PROVIDE_CALLCONTEXT_TIMEOUT,
+                      system.scheduler())
+                  .toCompletableFuture()
+                  .get();
+
+          return response.callContext();
+        });
   }
 
   public static Option<String> getValueFromMessageByPath(Message message, String path) {
@@ -166,6 +180,5 @@ public class AriEventProcessing {
 
 @FunctionalInterface
 interface MetricsGatherer {
-
-  Object withCallContextSupplier(Supplier<String> callContextSupplier);
+  MetricsServiceMessage withCallContextSupplier(Supplier<String> callContextSupplier);
 }

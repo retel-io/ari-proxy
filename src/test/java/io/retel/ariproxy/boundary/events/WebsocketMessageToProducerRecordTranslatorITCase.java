@@ -5,10 +5,9 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 import akka.NotUsed;
-import akka.actor.ActorRef;
-import akka.actor.ActorSystem;
 import akka.actor.testkit.typed.javadsl.ActorTestKit;
 import akka.actor.testkit.typed.javadsl.TestProbe;
+import akka.actor.typed.ActorRef;
 import akka.actor.typed.javadsl.Adapter;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.http.javadsl.model.ws.Message;
@@ -16,7 +15,6 @@ import akka.http.scaladsl.model.ws.TextMessage.Strict;
 import akka.pattern.StatusReply;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
-import akka.testkit.javadsl.TestKit;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.MemoryKeyValueStore;
@@ -27,6 +25,7 @@ import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.metrics.IncreaseCounter;
+import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import io.retel.ariproxy.metrics.StartCallSetupTimer;
 import io.vavr.control.Option;
 import java.io.File;
@@ -40,7 +39,6 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
 
   private static final ActorTestKit testKit =
       ActorTestKit.create("testKit", ConfigFactory.defaultApplication());
-  private static final ActorSystem system = testKit.system().classicSystem();
 
   private static final CallContextProvided CALL_CONTEXT_PROVIDED =
       new CallContextProvided("CALL_CONTEXT_PROVIDED");
@@ -48,28 +46,28 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
 
   @Test
   void verifyProcessingPipelineWorksAsExpectedForBogusMessages() {
-
-    final TestKit catchAllProbe = new TestKit(system);
-
     final Source<Message, NotUsed> source = Source.single(new Strict("invalid message from ws"));
+    final TestProbe<Object> kafkaProducerProbe = testKit.createTestProbe();
     final Sink<ProducerRecord<String, String>, NotUsed> sink =
         Sink.actorRef(
-            catchAllProbe.getRef(), new ProducerRecord<String, String>("none", "completed"));
+            Adapter.toClassic(kafkaProducerProbe.ref()),
+            new ProducerRecord<String, String>("none", "completed"));
+    final TestProbe<String> shutdownRequestedProbe = testKit.createTestProbe();
 
     WebsocketMessageToProducerRecordTranslator.eventProcessing()
-        .on(Adapter.toTyped(system))
-        .withHandler(
-            () -> catchAllProbe.getRef().tell("Application replaced", catchAllProbe.getRef()))
-        .withCallContextProvider(Adapter.toTyped(catchAllProbe.getRef()))
-        .withMetricsService(Adapter.toTyped(catchAllProbe.getRef()))
+        .on(testKit.system())
+        .withHandler(() -> shutdownRequestedProbe.getRef().tell("Application replaced"))
+        .withCallContextProvider(testKit.<CallContextProviderMessage>createTestProbe().ref())
+        .withMetricsService(testKit.<MetricsServiceMessage>createTestProbe().ref())
         .from(source)
         .to(sink)
         .run();
 
     final ProducerRecord<String, String> completeMsg =
-        catchAllProbe.expectMsgClass(ProducerRecord.class);
+        kafkaProducerProbe.expectMessageClass(ProducerRecord.class);
     assertThat(completeMsg.topic(), is("none"));
     assertThat(completeMsg.value(), is("completed"));
+    shutdownRequestedProbe.expectNoMessage();
   }
 
   @Test
@@ -80,26 +78,23 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     final TestableCallContextProvider callContextProvider =
         new TestableCallContextProvider(
             testKit, new MemoryKeyValueStore(resourceId, CALL_CONTEXT_PROVIDED.callContext()));
-    final TestKit metricsService = new TestKit(system);
-    final TestKit kafkaProducer = new TestKit(system);
-    final TestKit applicationReplacedHandler = new TestKit(system);
+    final TestProbe<Object> kafkaProducerProbe = testKit.createTestProbe();
+    final TestProbe<MetricsServiceMessage> metricsServiceProbe = testKit.createTestProbe();
+    final TestProbe<String> shutdownRequestedProbe = testKit.createTestProbe();
 
     final Strict stasisStartEvent = new Strict(StasisEvents.stasisStartEvent);
     final Source<Message, NotUsed> source = Source.single(stasisStartEvent);
 
     final Sink<ProducerRecord<String, String>, NotUsed> sink =
         Sink.actorRef(
-            kafkaProducer.getRef(), new ProducerRecord<String, String>("none", "completed"));
+            Adapter.toClassic(kafkaProducerProbe.getRef()),
+            new ProducerRecord<String, String>("none", "completed"));
 
     WebsocketMessageToProducerRecordTranslator.eventProcessing()
-        .on(Adapter.toTyped(system))
-        .withHandler(
-            () ->
-                applicationReplacedHandler
-                    .getRef()
-                    .tell("Application replaced", ActorRef.noSender()))
+        .on(testKit.system())
+        .withHandler(() -> shutdownRequestedProbe.getRef().tell("Application replaced"))
         .withCallContextProvider(callContextProvider.ref())
-        .withMetricsService(Adapter.toTyped(metricsService.getRef()))
+        .withMetricsService(metricsServiceProbe.ref())
         .from(source)
         .to(sink)
         .run();
@@ -112,7 +107,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> record =
-        kafkaProducer.expectMsgClass(ProducerRecord.class);
+        kafkaProducerProbe.expectMessageClass(ProducerRecord.class);
     assertThat(record.topic(), is("eventsAndResponsesTopic"));
     assertThat(record.key(), is(CALL_CONTEXT_PROVIDED.callContext()));
     assertThat(
@@ -121,11 +116,12 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
             OBJECT_MAPPER.readTree(
                 loadJsonAsString("messages/events/stasisStartEventWithoutCallContext.json"))));
 
-    final IncreaseCounter eventTypeCounter = metricsService.expectMsgClass(IncreaseCounter.class);
+    final IncreaseCounter eventTypeCounter =
+        metricsServiceProbe.expectMessageClass(IncreaseCounter.class);
     assertThat(eventTypeCounter.getName(), CoreMatchers.is(AriMessageType.STASIS_START.name()));
 
     final IncreaseCounter callsStartedCounter =
-        metricsService.expectMsgClass(IncreaseCounter.class);
+        metricsServiceProbe.expectMessageClass(IncreaseCounter.class);
     assertThat(callsStartedCounter.getName(), is("CallsStarted"));
 
     final ProvideCallContext provideCallContextForRouting =
@@ -135,12 +131,12 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     assertThat(provideCallContextForRouting.maybeCallContextFromChannelVars(), is(Option.none()));
 
     final StartCallSetupTimer startCallSetupTimer =
-        metricsService.expectMsgClass(StartCallSetupTimer.class);
+        metricsServiceProbe.expectMessageClass(StartCallSetupTimer.class);
     assertThat(startCallSetupTimer.getCallContext(), is(CALL_CONTEXT_PROVIDED.callContext()));
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> completedRecord =
-        kafkaProducer.expectMsgClass(ProducerRecord.class);
+        kafkaProducerProbe.expectMessageClass(ProducerRecord.class);
     assertThat(completedRecord.topic(), is("none"));
     assertThat(completedRecord.value(), is("completed"));
   }
@@ -152,7 +148,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     final String resourceId = "1532965104.0";
     final TestProbe<CallContextProviderMessage> callContextProviderProbe =
         testKit.createTestProbe(CallContextProviderMessage.class);
-    final akka.actor.typed.ActorRef<CallContextProviderMessage> callContextProvider =
+    final ActorRef<CallContextProviderMessage> callContextProvider =
         testKit.spawn(
             Behaviors.receive(CallContextProviderMessage.class)
                 .onMessage(
@@ -167,26 +163,23 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
                       return Behaviors.same();
                     })
                 .build());
-    final TestKit metricsService = new TestKit(system);
-    final TestKit kafkaProducer = new TestKit(system);
-    final TestKit applicationReplacedHandler = new TestKit(system);
+    final TestProbe<Object> kafkaProducerProbe = testKit.createTestProbe();
+    final TestProbe<MetricsServiceMessage> metricsServiceProbe = testKit.createTestProbe();
+    final TestProbe<String> shutdownRequestedProbe = testKit.createTestProbe();
 
     final Strict stasisStartEvent = new Strict(StasisEvents.stasisStartEventWithCallContext);
     final Source<Message, NotUsed> source = Source.single(stasisStartEvent);
 
     final Sink<ProducerRecord<String, String>, NotUsed> sink =
         Sink.actorRef(
-            kafkaProducer.getRef(), new ProducerRecord<String, String>("none", "completed"));
+            Adapter.toClassic(kafkaProducerProbe.getRef()),
+            new ProducerRecord<String, String>("none", "completed"));
 
     WebsocketMessageToProducerRecordTranslator.eventProcessing()
-        .on(Adapter.toTyped(system))
-        .withHandler(
-            () ->
-                applicationReplacedHandler
-                    .getRef()
-                    .tell("Application replaced", ActorRef.noSender()))
+        .on(testKit.system())
+        .withHandler(() -> shutdownRequestedProbe.getRef().tell("Application replaced"))
         .withCallContextProvider(callContextProvider)
-        .withMetricsService(Adapter.toTyped(metricsService.getRef()))
+        .withMetricsService(metricsServiceProbe.ref())
         .from(source)
         .to(sink)
         .run();
@@ -201,7 +194,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> record =
-        kafkaProducer.expectMsgClass(ProducerRecord.class);
+        kafkaProducerProbe.expectMessageClass(ProducerRecord.class);
     assertThat(record.topic(), is("eventsAndResponsesTopic"));
     assertThat(record.key(), is(CALL_CONTEXT_PROVIDED.callContext()));
     assertThat(
@@ -210,11 +203,12 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
             OBJECT_MAPPER.readTree(
                 loadJsonAsString("messages/events/stasisStartEventWithCallContext.json"))));
 
-    final IncreaseCounter eventTypeCounter = metricsService.expectMsgClass(IncreaseCounter.class);
+    final IncreaseCounter eventTypeCounter =
+        metricsServiceProbe.expectMessageClass(IncreaseCounter.class);
     assertThat(eventTypeCounter.getName(), CoreMatchers.is(AriMessageType.STASIS_START.name()));
 
     final IncreaseCounter callsStartedCounter =
-        metricsService.expectMsgClass(IncreaseCounter.class);
+        metricsServiceProbe.expectMessageClass(IncreaseCounter.class);
     assertThat(callsStartedCounter.getName(), is("CallsStarted"));
 
     final ProvideCallContext provideCallContextForRouting =
@@ -226,12 +220,12 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
         is(Option.some("aCallContext")));
 
     final StartCallSetupTimer startCallSetupTimer =
-        metricsService.expectMsgClass(StartCallSetupTimer.class);
+        metricsServiceProbe.expectMessageClass(StartCallSetupTimer.class);
     assertThat(startCallSetupTimer.getCallContext(), is(CALL_CONTEXT_PROVIDED.callContext()));
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> completedRecord =
-        kafkaProducer.expectMsgClass(ProducerRecord.class);
+        kafkaProducerProbe.expectMessageClass(ProducerRecord.class);
     assertThat(completedRecord.topic(), is("none"));
     assertThat(completedRecord.value(), is("completed"));
   }

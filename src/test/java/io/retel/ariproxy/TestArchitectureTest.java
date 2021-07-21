@@ -3,7 +3,6 @@ package io.retel.ariproxy;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.*;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 
-import akka.actor.ActorPath;
 import com.tngtech.archunit.core.importer.ImportOption.DoNotIncludeJars;
 import com.tngtech.archunit.core.importer.ImportOption.OnlyIncludeTests;
 import com.tngtech.archunit.junit.AnalyzeClasses;
@@ -22,6 +21,5 @@ public class TestArchitectureTest {
           .onlyDependOnClassesThat(
               resideOutsideOfPackage("akka.actor..")
                   .or(resideInAPackage("akka.actor.typed.."))
-                  .or(resideInAPackage("akka.actor.testkit.typed.."))
-                  .or(type(ActorPath.class)));
+                  .or(resideInAPackage("akka.actor.testkit.typed..")));
 }

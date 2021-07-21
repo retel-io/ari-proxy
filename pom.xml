@@ -70,11 +70,6 @@
     </dependency>
     <dependency>
       <groupId>com.typesafe.akka</groupId>
-      <artifactId>akka-actor_${version.scala.compat}</artifactId>
-      <version>${version.akka}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.typesafe.akka</groupId>
       <artifactId>akka-actor-typed_${version.scala.compat}</artifactId>
       <version>${version.akka}</version>
     </dependency>
@@ -135,12 +130,6 @@
     </dependency>
 
     <!-- test dependencies -->
-    <dependency>
-      <groupId>com.typesafe.akka</groupId>
-      <artifactId>akka-testkit_${version.scala.compat}</artifactId>
-      <version>${version.akka}</version>
-      <scope>test</scope>
-    </dependency>
     <dependency>
       <groupId>com.typesafe.akka</groupId>
       <artifactId>akka-actor-testkit-typed_${version.scala.compat}</artifactId>

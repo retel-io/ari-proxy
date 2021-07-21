@@ -74,17 +74,18 @@ public class HealthService {
     return CompletableFuture.supplyAsync(
         () ->
             healthSuppliers.parallelStream()
-                .map(
-                    supplier -> {
-                      try {
-                        return supplier.get().get();
-                      } catch (InterruptedException | ExecutionException e) {
-                        LOGGER.warn("Unable to determine health status", e);
-                        return HealthReport.error(
-                            "Unable to determine health status: " + e.getMessage());
-                      }
-                    })
+                .map(HealthService::fetchHealthReport)
                 .reduce(HealthReport.empty(), HealthReport::merge));
+  }
+
+  private static HealthReport fetchHealthReport(
+      final Supplier<CompletableFuture<HealthReport>> supplier) {
+    try {
+      return supplier.get().get();
+    } catch (InterruptedException | ExecutionException e) {
+      LOGGER.warn("Unable to determine health status", e);
+      return HealthReport.error("Unable to determine health status: " + e.getMessage());
+    }
   }
 
   private static HttpResponse healthReportToHttpResponse(final HealthReport r) {

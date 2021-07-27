@@ -73,7 +73,8 @@ public class HealthService {
       final Collection<Supplier<CompletableFuture<HealthReport>>> healthSuppliers) {
     return CompletableFuture.supplyAsync(
         () ->
-            healthSuppliers.parallelStream()
+            healthSuppliers
+                .parallelStream()
                 .map(HealthService::fetchHealthReport)
                 .reduce(HealthReport.empty(), HealthReport::merge));
   }

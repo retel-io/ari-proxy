@@ -10,6 +10,7 @@ import io.retel.ariproxy.boundary.callcontext.api.CallContextRegistered;
 import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
+import io.retel.ariproxy.health.api.NewHealthRecipient;
 import io.retel.ariproxy.health.api.ProvideHealthReport;
 import io.retel.ariproxy.health.api.ProvideMonitoring;
 import io.retel.ariproxy.persistence.PersistentCache;
@@ -35,8 +36,12 @@ public class CallContextProvider extends PersistentCache {
 
   @Override
   public void preStart() throws Exception {
-    getContext().getSystem().eventStream().publish(new ProvideMonitoring(ACTOR_NAME, self()));
+    registerMonitoring();
     super.preStart();
+  }
+
+  private void registerMonitoring() {
+    getContext().getSystem().eventStream().publish(new ProvideMonitoring(ACTOR_NAME, self()));
   }
 
   public Receive createReceive() {
@@ -44,6 +49,7 @@ public class CallContextProvider extends PersistentCache {
         .match(RegisterCallContext.class, this::registerCallContextHandler)
         .match(ProvideCallContext.class, this::provideCallContextHandler)
         .match(ProvideHealthReport.class, this::provideHealthReportHandler)
+        .match(NewHealthRecipient.class, ignored -> this.registerMonitoring())
         .build();
   }
 

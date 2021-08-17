@@ -55,16 +55,14 @@ public class Main {
 
     system.registerOnTermination(() -> System.exit(0));
 
-    final ActorRef actorRef =
-        system.actorOf(
-            HealthService.props(serviceConfig.getInt(HTTPPORT)), HealthService.ACTOR_NAME);
+    system.actorOf(HealthService.props(serviceConfig.getInt(HTTPPORT)), HealthService.ACTOR_NAME);
+
+    system.actorOf(
+        KafkaConnectionCheck.props(serviceConfig.getConfig(KAFKA)),
+        KafkaConnectionCheck.ACTOR_NAME);
 
     final ActorRef metricsService =
         system.actorOf(MetricsService.props(), MetricsService.ACTOR_NAME);
-    final ActorRef kafkaConnectionCheck =
-        system.actorOf(
-            KafkaConnectionCheck.props(serviceConfig.getConfig(KAFKA)),
-            KafkaConnectionCheck.ACTOR_NAME);
     final ActorRef callContextProvider =
         system.actorOf(CallContextProvider.props(metricsService), CallContextProvider.ACTOR_NAME);
 

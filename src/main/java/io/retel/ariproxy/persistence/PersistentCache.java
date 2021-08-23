@@ -24,81 +24,112 @@ import org.apache.commons.lang3.StringUtils;
 
 public abstract class PersistentCache extends AbstractLoggingActor {
 
-	private static final String REDIS_BACKED_CACHE_FALLBACK = "RedisBackedCacheFallback";
-	private ActorRef metricsService;
-	private PersistenceStore persistenceStore = null;
+  private static final String REDIS_BACKED_CACHE_FALLBACK = "RedisBackedCacheFallback";
+  private ActorRef metricsService;
+  private PersistenceStore persistenceStore = null;
 
-	private final Function<String, Future<Option<String>>> f = key -> persistenceStore.get(key)
-					.andThen(done -> metricsService.tell(new IncreaseCounter(REDIS_BACKED_CACHE_FALLBACK), self()));
+  private final Function<String, Future<Option<String>>> f =
+      key ->
+          persistenceStore
+              .get(key)
+              .andThen(
+                  done ->
+                      metricsService.tell(
+                          new IncreaseCounter(REDIS_BACKED_CACHE_FALLBACK), self()));
 
-	private LoadingCache<String, Future<Option<String>>> cache = CacheBuilder.newBuilder()
-			.expireAfterWrite(6, TimeUnit.HOURS)
-			.build(CacheLoader.from(f::apply));
+  private final LoadingCache<String, Future<Option<String>>> cache =
+      CacheBuilder.newBuilder()
+          .expireAfterWrite(6, TimeUnit.HOURS)
+          .build(CacheLoader.from(f::apply));
 
-	private PersistentCache() {}
+  private PersistentCache() {}
 
-	protected PersistentCache(final ActorRef metricsService) {
-		this.metricsService = metricsService;
-	}
+  protected PersistentCache(final ActorRef metricsService) {
+    this.metricsService = metricsService;
+  }
 
-	abstract protected String keyPrefix();
+  protected abstract String keyPrefix();
 
-	protected Future<SetDone> update(String key, String value) {
-		final String prefixedKey = keyPrefix() + ":" + key;
+  protected Future<SetDone> update(String key, String value) {
+    final String prefixedKey = keyPrefix() + ":" + key;
 
-		final String metricsContext = UUID.randomUUID().toString();
-		metricsService.tell(new RedisUpdateTimerStart(metricsContext), self());
+    final String metricsContext = UUID.randomUUID().toString();
+    metricsService.tell(new RedisUpdateTimerStart(metricsContext), self());
 
-		cache.put(prefixedKey, Future.successful(Some(value)));
-		return persistenceStore.set(prefixedKey, value).map(v -> new SetDone(prefixedKey, value))
-				.andThen(done -> metricsService.tell(new RedisUpdateTimerStop(metricsContext), self()));
-	}
+    cache.put(prefixedKey, Future.successful(Some(value)));
+    return persistenceStore
+        .set(prefixedKey, value)
+        .map(v -> new SetDone(prefixedKey, value))
+        .andThen(done -> metricsService.tell(new RedisUpdateTimerStop(metricsContext), self()));
+  }
 
-	protected Future<Option<String>> query(String key) {
-		final String prefixedKey = keyPrefix() + ":" + key;
-		return Future.of(() -> cache.get(prefixedKey)).flatMap(x -> x);
-	}
+  protected Future<Option<String>> query(String key) {
+    final String prefixedKey = keyPrefix() + ":" + key;
+    return Future.of(() -> cache.get(prefixedKey)).flatMap(x -> x);
+  }
 
-	@Override
-	public void preStart() throws Exception {
-		super.preStart();
-		persistenceStore = providePersistenceStore();
-		metricsService = Option.of(metricsService).getOrElse(() -> context().actorOf(MetricsService.props(), "metrics-service"));
-	}
+  @Override
+  public void preStart() throws Exception {
+    super.preStart();
+    persistenceStore = providePersistenceStore();
+    metricsService =
+        Option.of(metricsService)
+            .getOrElse(() -> context().actorOf(MetricsService.props(), "metrics-service"));
+  }
 
-	@Override
-	public void postStop() throws Exception {
-		super.postStop();
-		persistenceStore.shutdown();
-	}
+  @Override
+  public void postStop() throws Exception {
+    super.postStop();
+    persistenceStore.shutdown();
+  }
 
-	protected Future<HealthReport> provideHealthReport() {
-		return provideHealthReport("HEALTHCHECK_" + self().path().toSerializationFormat());
-	}
+  protected Future<HealthReport> provideHealthReport() {
+    return provideHealthReport("HEALTHCHECK_" + self().path().toSerializationFormat());
+  }
 
-	protected Future<HealthReport> provideHealthReport(final String key) {
-		final String testValue = StringUtils.reverse(key);
+  protected Future<HealthReport> provideHealthReport(final String key) {
+    final String testValue = StringUtils.reverse(key);
 
-		return persistenceStore.set(key, testValue).flatMap(v -> persistenceStore.get(key)).transformValue(tryOfValue ->
-				tryOfValue
-						.map(maybeValue -> maybeValue.map(v -> testValue.equals(v)
-								? Try.success(HealthReport.ok())
-								: Try.success(HealthReport.error(String.format("RedisCheck: %s does not match expected %s", v, testValue)))
-						)
-						.getOrElse(() -> Try.success(HealthReport.error("RedisCheck: empty result on get()"))))
-						.getOrElseGet(t -> Try.success(HealthReport.error("RedisCheck: " + t.getMessage()))));
-	}
+    return persistenceStore
+        .set(key, testValue)
+        .flatMap(v -> persistenceStore.get(key))
+        .transformValue(
+            tryOfValue ->
+                tryOfValue
+                    .map(
+                        maybeValue ->
+                            maybeValue
+                                .map(
+                                    v ->
+                                        testValue.equals(v)
+                                            ? Try.success(HealthReport.ok())
+                                            : Try.success(
+                                                HealthReport.error(
+                                                    String.format(
+                                                        "PersistenceCheck: %s does not match expected %s",
+                                                        v, testValue))))
+                                .getOrElse(
+                                    () ->
+                                        Try.success(
+                                            HealthReport.error(
+                                                "PersistenceCheck: empty result on get()"))))
+                    .getOrElseGet(
+                        t ->
+                            Try.success(
+                                HealthReport.error("PersistenceCheck: " + t.getMessage()))));
+  }
 
-	private PersistenceStore providePersistenceStore() {
-		final Config serviceConfig = ConfigFactory.load().getConfig("service");
+  private PersistenceStore providePersistenceStore() {
+    final Config serviceConfig = ConfigFactory.load().getConfig("service");
 
-		final String persistenceStoreClassName = serviceConfig.hasPath("persistence-store")
-				? serviceConfig.getString("persistence-store")
-				: "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore";
+    final String persistenceStoreClassName =
+        serviceConfig.hasPath("persistence-store")
+            ? serviceConfig.getString("persistence-store")
+            : "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore";
 
-		return Try.of(() -> Class.forName(persistenceStoreClassName))
-				.flatMap(clazz -> Try.of(() -> clazz.getMethod("create")))
-				.flatMap(method -> Try.of(() -> (PersistenceStore)method.invoke(null)))
-				.getOrElseThrow(t -> new RuntimeException("Failed to load any PersistenceStore", t));
-	}
+    return Try.of(() -> Class.forName(persistenceStoreClassName))
+        .flatMap(clazz -> Try.of(() -> clazz.getMethod("create")))
+        .flatMap(method -> Try.of(() -> (PersistenceStore) method.invoke(null)))
+        .getOrElseThrow(t -> new RuntimeException("Failed to load any PersistenceStore", t));
+  }
 }

@@ -26,10 +26,7 @@ import akka.stream.javadsl.Flow;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
-import io.retel.ariproxy.health.api.HealthReport;
-import io.retel.ariproxy.health.api.HealthResponse;
-import io.retel.ariproxy.health.api.ProvideHealthReport;
-import io.retel.ariproxy.health.api.ProvideMonitoring;
+import io.retel.ariproxy.health.api.*;
 import io.vavr.Tuple2;
 import io.vavr.collection.HashMap;
 import io.vavr.concurrent.Future;
@@ -39,101 +36,105 @@ import java.util.function.Function;
 
 public class HealthService extends AbstractLoggingActor {
 
-	public static final String ACTOR_NAME = "HealthService";
+  public static final String ACTOR_NAME = "HealthService";
 
-	private static final ObjectWriter writer = new ObjectMapper().writer();
-	private static final long TIMEOUT_MILLIS = 100;
-	private static final String OK_MESSAGE = "feeling good";
+  private static final ObjectWriter writer = new ObjectMapper().writer();
+  private static final long TIMEOUT_MILLIS = 100;
+  private static final String OK_MESSAGE = "feeling good";
 
-	private final int httpPort;
-	private CompletionStage<ServerBinding> binding;
-	private HashMap<ActorRef, String> subscriptions = HashMap.empty();
+  private final int httpPort;
+  private CompletionStage<ServerBinding> binding;
+  private HashMap<ActorRef, String> subscriptions = HashMap.empty();
 
-	public static Props props(final int httpPort) {
-		return Props.create(HealthService.class, httpPort);
-	}
+  public static Props props(final int httpPort) {
+    return Props.create(HealthService.class, httpPort);
+  }
 
-	private HealthService(final int httpPort) {
-		this.httpPort = httpPort;
-	}
+  private HealthService(final int httpPort) {
+    this.httpPort = httpPort;
+  }
 
-	@Override
-	public Receive createReceive() {
-		return ReceiveBuilder.create()
-				.match(ProvideMonitoring.class, this::handleProvideMonitoring)
-				.build();
-	}
+  @Override
+  public Receive createReceive() {
+    return ReceiveBuilder.create()
+        .match(ProvideMonitoring.class, this::handleProvideMonitoring)
+        .matchAny(a -> log().warning("received unknown message {}", a))
+        .build();
+  }
 
-	private void handleProvideMonitoring(ProvideMonitoring provideMonitoring) {
-		log().debug("handleProvideMonitoring(): " + provideMonitoring);
-		subscriptions = subscriptions.put(provideMonitoring.getSubscriberRef(), provideMonitoring.getSubscriberName());
-	}
+  private void handleProvideMonitoring(ProvideMonitoring provideMonitoring) {
+    subscriptions =
+        subscriptions.put(
+            provideMonitoring.getSubscriberRef(), provideMonitoring.getSubscriberName());
+  }
 
-	@Override
-	public void preStart() throws Exception {
-		this.binding = startHttpServer();
-		context().system().eventStream().subscribe(self(), ProvideMonitoring.class);
+  @Override
+  public void preStart() throws Exception {
+    context().system().eventStream().subscribe(self(), ProvideMonitoring.class);
+    this.binding = startHttpServer();
 
-		Future.fromCompletableFuture(binding.toCompletableFuture()).onFailure(t -> System.exit(-1));
+    context().system().eventStream().publish(NewHealthRecipient.getInstance());
 
-		super.preStart();
-	}
+    Future.fromCompletableFuture(binding.toCompletableFuture()).onFailure(t -> System.exit(-1));
 
-	@Override
-	public void postStop() throws Exception {
-		context().system().eventStream().unsubscribe(self(), ProvideMonitoring.class);
-		binding.thenCompose(ServerBinding::unbind);
-		super.postStop();
-	}
+    super.preStart();
+  }
 
-	private CompletionStage<ServerBinding> startHttpServer() {
-		final ActorSystem system = getContext().getSystem();
-		final Http http = Http.get(system);
-		final ActorMaterializer materializer = ActorMaterializer.create(system);
+  @Override
+  public void postStop() throws Exception {
+    context().system().eventStream().unsubscribe(self(), ProvideMonitoring.class);
+    binding.thenCompose(ServerBinding::unbind);
+    super.postStop();
+  }
 
-		final Flow<HttpRequest, HttpResponse, NotUsed> routeFlow = createRoute().flow(system, materializer);
+  private CompletionStage<ServerBinding> startHttpServer() {
+    final ActorSystem system = getContext().getSystem();
+    final Http http = Http.get(system);
+    final ActorMaterializer materializer = ActorMaterializer.create(system);
 
-		final String address = "0.0.0.0";
-		final CompletionStage<ServerBinding> binding = http.bindAndHandle(
-				routeFlow,
-				ConnectHttp.toHost(address, httpPort),
-				materializer
-		);
+    final Flow<HttpRequest, HttpResponse, NotUsed> routeFlow =
+        createRoute().flow(system, materializer);
 
-		log().info("HTTP server online at http://{}:{}/...", address, httpPort);
+    final String address = "0.0.0.0";
+    final CompletionStage<ServerBinding> binding =
+        http.bindAndHandle(routeFlow, ConnectHttp.toHost(address, httpPort), materializer);
 
-		return binding;
-	}
+    log().info("HTTP server online at http://{}:{}/...", address, httpPort);
 
-	private Route createRoute() {
-		return Directives.route(
-				path("health", () -> get(() -> handleHealthBaseRoute())),
-				path(segment("health").slash("smoke"), () -> get(() -> handleHealthSmokeRoute()))
-		);
-	}
+    return binding;
+  }
 
-	private RouteAdapter handleHealthSmokeRoute() {
-		return complete(HttpEntities.create(OK_MESSAGE));
-	}
+  private Route createRoute() {
+    return Directives.route(
+        path("health", () -> get(() -> handleHealthBaseRoute())),
+        path(segment("health").slash("smoke"), () -> get(() -> handleHealthSmokeRoute())));
+  }
 
-	private RouteAdapter handleHealthBaseRoute() {
-		final HealthReport report = subscriptions
-				.toJavaParallelStream()
-				.map(retrieveHealthReport)
-				.reduce(HealthReport.empty(), (acc, current) -> acc.merge(current));
+  private RouteAdapter handleHealthSmokeRoute() {
+    return complete(HttpEntities.create(OK_MESSAGE));
+  }
 
-		return complete(HttpEntities.create(
-				ContentTypes.APPLICATION_JSON,
-				Try.of(() -> writer.writeValueAsString(HealthResponse.fromErrors(report.errors().toJavaList()))).getOrElseThrow(t -> new RuntimeException(t))
-		));
-	}
+  private RouteAdapter handleHealthBaseRoute() {
+    final HealthReport report =
+        subscriptions
+            .toJavaParallelStream()
+            .map(retrieveHealthReport)
+            .reduce(HealthReport.empty(), (acc, current) -> acc.merge(current));
 
-	private static final Function<Tuple2<ActorRef, String>, HealthReport> retrieveHealthReport = subscription ->
-			PatternsAdapter.<HealthReport>ask(
-					subscription._1,
-					new ProvideHealthReport(),
-					TIMEOUT_MILLIS
-			)
-					.await()
-					.getOrElse(HealthReport.error("failed to get report for " + subscription._2));
+    return complete(
+        HttpEntities.create(
+            ContentTypes.APPLICATION_JSON,
+            Try.of(
+                    () ->
+                        writer.writeValueAsString(
+                            HealthResponse.fromErrors(report.errors().toJavaList())))
+                .getOrElseThrow(t -> new RuntimeException(t))));
+  }
+
+  private static final Function<Tuple2<ActorRef, String>, HealthReport> retrieveHealthReport =
+      subscription ->
+          PatternsAdapter.<HealthReport>ask(
+                  subscription._1, new ProvideHealthReport(), TIMEOUT_MILLIS)
+              .await()
+              .getOrElse(HealthReport.error("failed to get report for " + subscription._2));
 }

@@ -40,6 +40,8 @@
     <version.jackson>2.12.4</version.jackson>
     <version.google-guava>30.1.1-jre</version.google-guava>
     <version.lettuce>6.1.4.RELEASE</version.lettuce>
+    <version.kafka-test-junit5>3.2.2</version.kafka-test-junit5>
+    <version.kafka-test-server>2.7.0</version.kafka-test-server>
   </properties>
 
   <dependencies>
@@ -182,6 +184,18 @@
       <groupId>org.cassandraunit</groupId>
       <artifactId>cassandra-unit</artifactId>
       <version>${version.cassandraunit}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.salesforce.kafka.test</groupId>
+      <artifactId>kafka-junit5</artifactId>
+      <version>${version.kafka-test-junit5}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>kafka_${version.scala.compat}</artifactId>
+      <version>${version.kafka-test-server}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

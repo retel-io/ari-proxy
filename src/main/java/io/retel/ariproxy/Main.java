@@ -20,6 +20,7 @@ import io.retel.ariproxy.boundary.commandsandresponses.AriCommandResponseKafkaPr
 import io.retel.ariproxy.boundary.events.WebsocketMessageToProducerRecordTranslator;
 import io.retel.ariproxy.boundary.processingpipeline.Run;
 import io.retel.ariproxy.health.HealthService;
+import io.retel.ariproxy.health.KafkaConnectionCheck;
 import io.retel.ariproxy.metrics.MetricsService;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -55,6 +56,10 @@ public class Main {
     system.registerOnTermination(() -> System.exit(0));
 
     system.actorOf(HealthService.props(serviceConfig.getInt(HTTPPORT)), HealthService.ACTOR_NAME);
+
+    system.actorOf(
+        KafkaConnectionCheck.props(serviceConfig.getConfig(KAFKA)),
+        KafkaConnectionCheck.ACTOR_NAME);
 
     final ActorRef metricsService =
         system.actorOf(MetricsService.props(), MetricsService.ACTOR_NAME);

@@ -88,7 +88,7 @@ public class MetricsService {
       final MeterRegistry registry,
       final StartCallSetupTimer message) {
     timers.put(message.getCallContext(), Timer.start(registry));
-    message.getReplyTo().tell(MetricRegistered.TIMER_STARTED);
+    message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.TIMER_STARTED));
 
     return Behaviors.same();
   }

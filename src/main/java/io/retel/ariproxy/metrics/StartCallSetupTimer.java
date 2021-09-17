@@ -2,6 +2,7 @@ package io.retel.ariproxy.metrics;
 
 import akka.actor.typed.ActorRef;
 import io.retel.ariproxy.metrics.api.MetricRegistered;
+import java.util.Optional;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -9,9 +10,8 @@ public class StartCallSetupTimer implements MetricsServiceMessage {
   private final String callContext;
   private final ActorRef<MetricRegistered> replyTo;
 
-  @Deprecated
   public StartCallSetupTimer(String callContext) {
-    this(callContext, null); // TODO
+    this(callContext, null);
   }
 
   public StartCallSetupTimer(final String callContext, final ActorRef<MetricRegistered> replyTo) {
@@ -23,8 +23,8 @@ public class StartCallSetupTimer implements MetricsServiceMessage {
     return callContext;
   }
 
-  public ActorRef<MetricRegistered> getReplyTo() {
-    return replyTo;
+  public Optional<ActorRef<MetricRegistered>> getReplyTo() {
+    return Optional.ofNullable(replyTo);
   }
 
   @Override

@@ -1,91 +1,117 @@
 package io.retel.ariproxy.metrics;
 
-import akka.actor.AbstractLoggingActor;
-import akka.actor.Props;
-import akka.japi.pf.ReceiveBuilder;
-import io.retel.ariproxy.metrics.api.MetricRegistered;
+import akka.actor.typed.Behavior;
+import akka.actor.typed.PostStop;
+import akka.actor.typed.PreRestart;
+import akka.actor.typed.javadsl.Behaviors;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import io.micrometer.core.instrument.Timer.Sample;
 import io.micrometer.jmx.JmxConfig;
 import io.micrometer.jmx.JmxMeterRegistry;
-import io.vavr.control.Option;
+import io.retel.ariproxy.metrics.api.MetricRegistered;
 import java.util.HashMap;
 import java.util.Map;
 
-public class MetricsService extends AbstractLoggingActor {
+public class MetricsService {
 
-	public static final String ACTOR_NAME = "metrics-service";
+  private static final String METRIC_NAME_REDIS_UPDATE_DELAY = "RedisUpdateDelay";
+  private static final String METRIC_NAME_CALL_SETUP_DELAY = "CallSetupDelay";
 
-	private static final String REDIS_UPDATE_DELAY = "RedisUpdateDelay";
+  private MetricsService() {
+    throw new IllegalStateException("Utility class");
+  }
 
-	private Map<String, Sample> timers = new HashMap<>();
-	private Map<String, Counter> counters = new HashMap<>();
-	private MeterRegistry registry;
+  public static Behavior<MetricsServiceMessage> create() {
+    return Behaviors.setup(
+        ctx -> {
+          final MeterRegistry registry = new JmxMeterRegistry(JmxConfig.DEFAULT, Clock.SYSTEM);
+          final Map<String, Timer.Sample> timers = new HashMap<>();
+          final Map<String, Counter> counters = new HashMap<>();
 
-	public static Props props() {
-		return Props.create(MetricsService.class);
-	}
+          return Behaviors.receive(MetricsServiceMessage.class)
+              .onMessage(
+                  RedisUpdateTimerStart.class, msg -> handleRedisUpdateStart(timers, registry, msg))
+              .onMessage(
+                  RedisUpdateTimerStop.class, msg -> handleRedisUpdateStop(timers, registry, msg))
+              .onMessage(
+                  IncreaseCounter.class, msg -> handleIncreaseCounter(counters, registry, msg))
+              .onMessage(
+                  StartCallSetupTimer.class,
+                  msg -> handleStartCallSetupTimer(timers, registry, msg))
+              .onMessage(
+                  StopCallSetupTimer.class, msg -> handleStopCallSetupTimer(timers, registry, msg))
+              .onSignal(PostStop.class, signal -> cleanup(registry))
+              .onSignal(PreRestart.class, signal -> cleanup(registry))
+              .build();
+        });
+  }
 
-	private MetricsService() {
-	}
+  private static Behavior<MetricsServiceMessage> handleRedisUpdateStart(
+      final Map<String, Timer.Sample> timers,
+      final MeterRegistry registry,
+      final RedisUpdateTimerStart message) {
+    timers.put(message.getContext(), Timer.start(registry));
+    message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.TIMER_STARTED));
 
-	@Override
-	public Receive createReceive() {
-		return ReceiveBuilder.create()
-				.match(RedisUpdateTimerStart.class, this::handleRedisUpdateStart)
-				.match(RedisUpdateTimerStop.class, this::handleRedisUpdateStop)
-				.match(StartCallSetupTimer.class, this::handleStart)
-				.match(StopCallSetupTimer.class, this::handleStop)
-				.match(IncreaseCounter.class, this::handleIncreaseCounter)
-				.matchAny(msg -> log().warning("Unexpected message received {}", msg))
-				.build();
-	}
+    return Behaviors.same();
+  }
 
-	@Override
-	public void preStart() throws Exception {
-		super.preStart();
-		registry = new JmxMeterRegistry(JmxConfig.DEFAULT, Clock.SYSTEM);
-	}
+  private static Behavior<MetricsServiceMessage> handleRedisUpdateStop(
+      final Map<String, Timer.Sample> timers,
+      final MeterRegistry registry,
+      final RedisUpdateTimerStop message) {
+    final Timer.Sample timer = timers.get(message.getContext());
+    if (timer != null) {
+      timer.stop(registry.timer(METRIC_NAME_REDIS_UPDATE_DELAY));
+      timers.remove(message.getContext());
+    }
 
-	@Override
-	public void postStop() throws Exception {
-		registry.close();
-		super.postStop();
-	}
+    message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.TIMER_STOPPED));
 
-	private void handleRedisUpdateStart(RedisUpdateTimerStart start) {
-		timers.put(start.getContext(), Timer.start(registry));
-		sender().tell(MetricRegistered.TIMER_STARTED, self());
-	}
+    return Behaviors.same();
+  }
 
-	private void handleRedisUpdateStop(RedisUpdateTimerStop stop) {
-		Option
-				.of(timers.get(stop.getContext()))
-				.peek(sample -> {
-					sample.stop(registry.timer(REDIS_UPDATE_DELAY));
-					timers.remove(stop.getContext());
-				}).toTry().onSuccess((metric) -> sender().tell(MetricRegistered.TIMER_STOPPED, self()));
-	}
+  private static Behavior<MetricsServiceMessage> handleIncreaseCounter(
+      final Map<String, Counter> counters,
+      final MeterRegistry registry,
+      final IncreaseCounter message) {
+    counters.computeIfAbsent(message.getName(), registry::counter).increment();
+    message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.COUNTER_INCREASED));
 
-	private void handleIncreaseCounter(IncreaseCounter increaseCounter) {
-		counters.computeIfAbsent(increaseCounter.getName(), key -> registry.counter(key)).increment();
-		sender().tell(MetricRegistered.COUNTER_INCREASED, self());
-	}
+    return Behaviors.same();
+  }
 
-	private void handleStart(StartCallSetupTimer start) {
-		timers.put(start.getCallContext(), Timer.start(registry));
-		sender().tell(MetricRegistered.TIMER_STARTED, self());
-	}
+  private static Behavior<MetricsServiceMessage> handleStartCallSetupTimer(
+      final Map<String, Timer.Sample> timers,
+      final MeterRegistry registry,
+      final StartCallSetupTimer message) {
+    timers.put(message.getCallContext(), Timer.start(registry));
+    message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.TIMER_STARTED));
 
-	private void handleStop(StopCallSetupTimer stop) {
-		Option
-				.of(timers.get(stop.getCallcontext()))
-				.peek(sample -> {
-					sample.stop(registry.timer("CallSetupDelay", "stasisApp", stop.getApplication()));
-					timers.remove(stop.getCallcontext());
-				}).toTry().onSuccess((metric) -> sender().tell(MetricRegistered.TIMER_STOPPED, self()));
-	}
+    return Behaviors.same();
+  }
+
+  private static Behavior<MetricsServiceMessage> handleStopCallSetupTimer(
+      final Map<String, Timer.Sample> timers,
+      final MeterRegistry registry,
+      final StopCallSetupTimer message) {
+    final Timer.Sample timer = timers.get(message.getCallcontext());
+    if (timer != null) {
+      timer.stop(
+          registry.timer(METRIC_NAME_CALL_SETUP_DELAY, "stasisApp", message.getApplication()));
+      timers.remove(message.getCallcontext());
+    }
+
+    message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.TIMER_STOPPED));
+
+    return Behaviors.same();
+  }
+
+  private static Behavior<MetricsServiceMessage> cleanup(final MeterRegistry registry) {
+    registry.close();
+
+    return Behaviors.same();
+  }
 }

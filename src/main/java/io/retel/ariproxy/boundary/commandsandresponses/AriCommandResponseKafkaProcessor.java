@@ -1,8 +1,8 @@
 package io.retel.ariproxy.boundary.commandsandresponses;
 
 import akka.NotUsed;
-import akka.actor.ActorRef;
-import akka.actor.ActorSystem;
+import akka.actor.typed.ActorRef;
+import akka.actor.typed.ActorSystem;
 import akka.event.Logging;
 import akka.http.javadsl.model.ContentTypes;
 import akka.http.javadsl.model.HttpMethods;
@@ -26,8 +26,10 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
+import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.*;
 import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
+import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
@@ -86,15 +88,15 @@ public class AriCommandResponseKafkaProcessor {
   }
 
   private static void run(
-      ActorSystem system,
-      CommandResponseHandler commandResponseHandler,
-      ActorRef callContextProvider,
-      ActorRef metricsService,
-      Source<ConsumerRecord<String, String>, NotUsed> source,
-      Sink<ProducerRecord<String, String>, NotUsed> sink) {
+      final akka.actor.typed.ActorSystem<?> system,
+      final CommandResponseHandler commandResponseHandler,
+      final ActorRef<CallContextProviderMessage> callContextProvider,
+      final ActorRef<MetricsServiceMessage> metricsService,
+      final Source<ConsumerRecord<String, String>, NotUsed> source,
+      final Sink<ProducerRecord<String, String>, NotUsed> sink) {
     final Function<Throwable, Directive> decider =
-        t -> {
-          system.log().error(t, "Error in some stage; restarting stream ...");
+        error -> {
+          system.log().error("Error in some stage; restarting stream ...", error);
           return (Directive) Supervision.restart();
         };
 
@@ -119,7 +121,8 @@ public class AriCommandResponseKafkaProcessor {
               AriCommandResponseProcessing.registerCallContext(
                       callContextProvider,
                       msgEnvelope.getCallContext(),
-                      msgEnvelope.getAriCommand())
+                      msgEnvelope.getAriCommand(),
+                      system)
                   .onFailure(
                       error -> {
                         throw new IllegalStateException(error);
@@ -178,11 +181,10 @@ public class AriCommandResponseKafkaProcessor {
   }
 
   private static Procedure<Tuple2<HttpResponse, CallContextAndCommandRequestContext>> gatherMetrics(
-      ActorRef metricsService, String applicationName) {
+      ActorRef<MetricsServiceMessage> metricsService, String applicationName) {
     return rawHttpResponseAndContext ->
         metricsService.tell(
-            new StopCallSetupTimer(rawHttpResponseAndContext._2.getCallContext(), applicationName),
-            ActorRef.noSender());
+            new StopCallSetupTimer(rawHttpResponseAndContext._2.getCallContext(), applicationName));
   }
 
   private static AriCommandEnvelope unmarshallAriCommandEnvelope(
@@ -214,8 +216,8 @@ public class AriCommandResponseKafkaProcessor {
 
   private static CompletionStage<Tuple2<AriResponse, CallContextAndCommandRequestContext>>
       toAriResponse(
-          Tuple2<HttpResponse, CallContextAndCommandRequestContext> responseWithContext,
-          ActorSystem system) {
+          final Tuple2<HttpResponse, CallContextAndCommandRequestContext> responseWithContext,
+          final ActorSystem<?> system) {
     final HttpResponse response = responseWithContext._1;
 
     final long contentLength =

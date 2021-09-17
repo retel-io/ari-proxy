@@ -3,24 +3,24 @@ package io.retel.ariproxy.health;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 
-import akka.actor.ActorRef;
-import akka.actor.ActorSystem;
-import akka.actor.Props;
-import akka.testkit.javadsl.TestKit;
+import akka.actor.testkit.typed.javadsl.ActorTestKit;
+import akka.actor.testkit.typed.javadsl.TestProbe;
 import com.salesforce.kafka.test.junit5.SharedKafkaTestResource;
 import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigValueFactory;
 import com.typesafe.config.impl.ConfigImpl;
+import io.retel.ariproxy.health.KafkaConnectionCheck.ReportKafkaConnectionHealth;
 import io.retel.ariproxy.health.api.HealthReport;
-import io.retel.ariproxy.health.api.ProvideHealthReport;
-import io.retel.ariproxy.persistence.*;
-import java.time.Duration;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 class KafkaConnectionCheckTest {
+
+  private static final ActorTestKit testKit =
+      ActorTestKit.create("testKit", ConfigFactory.defaultApplication());
 
   @RegisterExtension
   public static final SharedKafkaTestResource sharedKafkaTestResource =
@@ -29,18 +29,13 @@ class KafkaConnectionCheckTest {
   public static final String COMMANDS_TOPIC = "commands-topic";
   public static final String EVENTS_AND_RESPONSES_TOPIC = "events-and-responses-topic";
 
-  private final String TEST_SYSTEM = this.getClass().getSimpleName();
-  private ActorSystem system;
-
-  @AfterEach
-  void teardown() {
-    TestKit.shutdownActorSystem(system);
-    system.terminate();
+  @AfterAll
+  public static void cleanup() {
+    testKit.shutdownTestKit();
   }
 
   @BeforeEach
   void setup() {
-    system = ActorSystem.create(TEST_SYSTEM);
     sharedKafkaTestResource.getKafkaTestUtils().createTopic(COMMANDS_TOPIC, 1, (short) 1);
     sharedKafkaTestResource
         .getKafkaTestUtils()
@@ -49,7 +44,6 @@ class KafkaConnectionCheckTest {
 
   @Test
   void provideOkHealthReport() {
-
     final Config testConfig =
         ConfigImpl.emptyConfig("KafkaConnectionCheckTest")
             .withValue(
@@ -63,21 +57,17 @@ class KafkaConnectionCheckTest {
             .withValue(
                 KafkaConnectionCheck.EVENTS_AND_RESPONSES_TOPIC,
                 ConfigValueFactory.fromAnyRef(EVENTS_AND_RESPONSES_TOPIC));
+    final TestProbe<HealthReport> healthReportProbe = testKit.createTestProbe();
+    final akka.actor.typed.ActorRef<ReportKafkaConnectionHealth> connectionCheck =
+        testKit.spawn(KafkaConnectionCheck.create(testConfig));
 
-    final TestKit probe = new TestKit(system);
-    final ActorRef connectionCheck =
-        system.actorOf(Props.create(KafkaConnectionCheck.class, testConfig));
+    connectionCheck.tell(new ReportKafkaConnectionHealth(healthReportProbe.ref()));
 
-    probe.send(connectionCheck, ProvideHealthReport.getInstance());
-
-    final HealthReport report = probe.expectMsgClass(Duration.ofMillis(200), HealthReport.class);
-
-    assertThat(report.errors().size(), is(0));
+    healthReportProbe.expectMessage(HealthReport.ok());
   }
 
   @Test
   void provideNotOkHealthReport() {
-
     final Config testConfig =
         ConfigImpl.emptyConfig("KafkaConnectionCheckTest")
             .withValue(
@@ -93,14 +83,13 @@ class KafkaConnectionCheckTest {
                 KafkaConnectionCheck.EVENTS_AND_RESPONSES_TOPIC,
                 ConfigValueFactory.fromAnyRef(EVENTS_AND_RESPONSES_TOPIC));
 
-    final TestKit probe = new TestKit(system);
-    final ActorRef connectionCheck =
-        system.actorOf(Props.create(KafkaConnectionCheck.class, testConfig));
+    final TestProbe<HealthReport> healthReportProbe = testKit.createTestProbe();
+    final akka.actor.typed.ActorRef<ReportKafkaConnectionHealth> connectionCheck =
+        testKit.spawn(KafkaConnectionCheck.create(testConfig));
 
-    probe.send(connectionCheck, ProvideHealthReport.getInstance());
+    connectionCheck.tell(new ReportKafkaConnectionHealth(healthReportProbe.ref()));
 
-    final HealthReport report = probe.expectMsgClass(Duration.ofMillis(200), HealthReport.class);
-
+    final HealthReport report = healthReportProbe.expectMessageClass(HealthReport.class);
     assertThat(report.errors().size(), is(1));
   }
 }

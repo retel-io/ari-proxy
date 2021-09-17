@@ -1,8 +1,10 @@
 package io.retel.ariproxy;
 
 import akka.NotUsed;
-import akka.actor.ActorRef;
-import akka.actor.ActorSystem;
+import akka.actor.typed.ActorRef;
+import akka.actor.typed.ActorSystem;
+import akka.actor.typed.javadsl.AskPattern;
+import akka.actor.typed.javadsl.Behaviors;
 import akka.http.javadsl.Http;
 import akka.http.javadsl.model.ws.Message;
 import akka.http.javadsl.model.ws.WebSocketRequest;
@@ -16,14 +18,19 @@ import akka.stream.javadsl.*;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.CallContextProvider;
+import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
+import io.retel.ariproxy.boundary.callcontext.api.ReportHealth;
 import io.retel.ariproxy.boundary.commandsandresponses.AriCommandResponseKafkaProcessor;
 import io.retel.ariproxy.boundary.events.WebsocketMessageToProducerRecordTranslator;
 import io.retel.ariproxy.boundary.processingpipeline.Run;
 import io.retel.ariproxy.health.HealthService;
 import io.retel.ariproxy.health.KafkaConnectionCheck;
+import io.retel.ariproxy.health.KafkaConnectionCheck.ReportKafkaConnectionHealth;
 import io.retel.ariproxy.metrics.MetricsService;
+import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.concurrent.CompletionStage;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -41,6 +48,7 @@ public class Main {
   private static final String NAME = "name";
   private static final String HTTPPORT = "httpport";
   public static final String KAFKA = "kafka";
+  private static final Duration HEALTH_REPORT_TIMEOUT = Duration.ofMillis(100);
 
   static {
     System.setProperty(
@@ -51,33 +59,62 @@ public class Main {
 
     final Config serviceConfig = ConfigFactory.load().getConfig(SERVICE);
 
-    final ActorSystem system = ActorSystem.create(serviceConfig.getString(NAME));
+    ActorSystem.create(
+        Behaviors.setup(
+            ctx -> {
+              final ActorRef<MetricsServiceMessage> metricService =
+                  ctx.spawn(MetricsService.create(), "metrics-service");
 
-    system.registerOnTermination(() -> System.exit(0));
+              final ActorRef<CallContextProviderMessage> callContextProvider =
+                  ctx.spawn(CallContextProvider.create(metricService), "call-context-provider");
 
-    system.actorOf(HealthService.props(serviceConfig.getInt(HTTPPORT)), HealthService.ACTOR_NAME);
+              final ActorRef<ReportKafkaConnectionHealth> kafkaConnectionCheck =
+                  ctx.spawn(
+                      KafkaConnectionCheck.create(serviceConfig.getConfig(KAFKA)),
+                      "kafka-connection-check");
 
-    system.actorOf(
-        KafkaConnectionCheck.props(serviceConfig.getConfig(KAFKA)),
-        KafkaConnectionCheck.ACTOR_NAME);
+              HealthService.run(
+                  ctx.getSystem(),
+                  Arrays.asList(
+                      () ->
+                          AskPattern.ask(
+                                  callContextProvider,
+                                  ReportHealth::new,
+                                  HEALTH_REPORT_TIMEOUT,
+                                  ctx.getSystem().scheduler())
+                              .toCompletableFuture(),
+                      () ->
+                          AskPattern.ask(
+                                  kafkaConnectionCheck,
+                                  ReportKafkaConnectionHealth::new,
+                                  HEALTH_REPORT_TIMEOUT,
+                                  ctx.getSystem().scheduler())
+                              .toCompletableFuture()),
+                  serviceConfig.getInt(HTTPPORT));
 
-    final ActorRef metricsService =
-        system.actorOf(MetricsService.props(), MetricsService.ACTOR_NAME);
-    final ActorRef callContextProvider =
-        system.actorOf(CallContextProvider.props(metricsService), CallContextProvider.ACTOR_NAME);
+              runAriEventProcessor(
+                  serviceConfig,
+                  ctx.getSystem(),
+                  callContextProvider,
+                  metricService,
+                  () -> ctx.getSystem().terminate());
 
-    runAriEventProcessor(
-        serviceConfig, system, callContextProvider, metricsService, system::terminate);
+              runAriCommandResponseProcessor(
+                  serviceConfig.getConfig(KAFKA),
+                  ctx.getSystem(),
+                  callContextProvider,
+                  metricService);
 
-    runAriCommandResponseProcessor(
-        serviceConfig.getConfig(KAFKA), system, callContextProvider, metricsService);
+              return Behaviors.ignore();
+            }),
+        serviceConfig.getString(NAME));
   }
 
   private static void runAriCommandResponseProcessor(
-      Config kafkaConfig,
-      ActorSystem system,
-      ActorRef callContextProvider,
-      ActorRef metricsService) {
+      final Config kafkaConfig,
+      final ActorSystem<Void> system,
+      final ActorRef<CallContextProviderMessage> callContextProvider,
+      final ActorRef<MetricsServiceMessage> metricsService) {
     final ConsumerSettings<String, String> consumerSettings =
         ConsumerSettings.create(system, new StringDeserializer(), new StringDeserializer())
             .withBootstrapServers(kafkaConfig.getString(BOOTSTRAP_SERVERS))
@@ -114,11 +151,11 @@ public class Main {
   }
 
   private static void runAriEventProcessor(
-      Config serviceConfig,
-      ActorSystem system,
-      ActorRef callContextProvider,
-      ActorRef metricsService,
-      Runnable applicationReplacedHandler) {
+      final Config serviceConfig,
+      final ActorSystem<?> system,
+      final ActorRef<CallContextProviderMessage> callContextProvider,
+      final ActorRef<MetricsServiceMessage> metricsService,
+      final Runnable applicationReplacedHandler) {
     // see:
     // https://doc.akka.io/docs/akka/2.5.8/java/stream/stream-error.html#delayed-restarts-with-a-backoff-stage
     final Flow<Message, Message, NotUsed> restartWebsocketFlow =
@@ -151,7 +188,7 @@ public class Main {
       processingPipeline.run();
       system.log().debug("Successfully started ari event processor.");
     } catch (Exception e) {
-      system.log().error(e, "Failed to start ari event processor: " + e.getMessage());
+      system.log().error("Failed to start ari event processor: ", e);
       System.exit(-1);
     }
   }
@@ -160,7 +197,7 @@ public class Main {
   // see:
   // https://doc.akka.io/docs/akka-http/current/client-side/websocket-support.html#websocketclientflow
   private static Flow<Message, Message, CompletionStage<WebSocketUpgradeResponse>>
-      createWebsocketFlow(ActorSystem system, String websocketUri) {
+      createWebsocketFlow(ActorSystem<?> system, String websocketUri) {
     return Http.get(system).webSocketClientFlow(WebSocketRequest.create(websocketUri));
   }
 }

@@ -13,15 +13,19 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import akka.NotUsed;
-import akka.actor.ActorRef;
-import akka.actor.ActorSystem;
+import akka.actor.testkit.typed.javadsl.ActorTestKit;
+import akka.actor.testkit.typed.javadsl.TestProbe;
+import akka.actor.typed.ActorRef;
+import akka.actor.typed.javadsl.Behaviors;
 import akka.http.scaladsl.model.ws.TextMessage.Strict;
-import akka.stream.ActorMaterializer;
-import akka.stream.ActorMaterializerSettings;
+import akka.pattern.StatusReply;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
-import akka.testkit.javadsl.TestKit;
+import com.typesafe.config.ConfigFactory;
+import io.retel.ariproxy.boundary.callcontext.MemoryKeyValueStore;
+import io.retel.ariproxy.boundary.callcontext.TestableCallContextProvider;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
+import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
@@ -31,7 +35,9 @@ import io.vavr.collection.Seq;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
-import java.util.function.Function;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -39,103 +45,97 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.EnumSource.Mode;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class AriEventProcessingTest {
 
-  private final String TEST_SYSTEM = this.getClass().getSimpleName();
-  private ActorSystem system;
+  private static final Logger LOGGER = LoggerFactory.getLogger(AriEventProcessingTest.class);
+
+  private static final ActorTestKit testKit =
+      ActorTestKit.create("testKit", ConfigFactory.defaultApplication());
+
   private static final String fakeCommandsTopic = "commands";
   private static final String fakeEventsAndResponsesTopic = "events-and-responses";
-  private static final Function<ActorRef, Runnable> genApplicationReplacedHandler =
-      ref -> () -> ref.tell("Shutdown triggered!", ref);
-
-  @AfterEach
-  void teardown() {
-    TestKit.shutdownActorSystem(system);
-    system.terminate();
-  }
-
-  @BeforeEach
-  void setup() {
-    system = ActorSystem.create(TEST_SYSTEM);
-  }
+  private static final String CALL_CONTEXT = "CALL_CONTEXT";
 
   @Test()
   @DisplayName("Ensure an UnparsableMessageException is thrown for a bogus message.")
   void generateProducerRecordFromEventHandlesUnparseableMessage() {
-    new TestKit(system) {
-      {
-        assertThrows(
-            RuntimeException.class,
-            () ->
-                AriEventProcessing.generateProducerRecordFromEvent(
-                    fakeCommandsTopic,
-                    fakeEventsAndResponsesTopic,
-                    new Strict(invalidEvent),
-                    getRef(),
-                    system.log(),
-                    genApplicationReplacedHandler.apply(getRef())));
-      }
-    };
+    assertThrows(
+        RuntimeException.class,
+        () -> {
+          AriEventProcessing.generateProducerRecordFromEvent(
+              fakeCommandsTopic,
+              fakeEventsAndResponsesTopic,
+              new Strict(invalidEvent),
+              testKit.<CallContextProviderMessage>createTestProbe().ref(),
+              LOGGER,
+              () -> LOGGER.error("Shutdown triggered"),
+              testKit.system());
+        });
   }
 
   @Test
   void throwRuntimeExceptionWhenEncounteringAnUnknownEvent() {
-    new TestKit(system) {
-      {
-        assertThrows(
-            RuntimeException.class,
-            () ->
-                AriEventProcessing.generateProducerRecordFromEvent(
-                    fakeCommandsTopic,
-                    fakeEventsAndResponsesTopic,
-                    new Strict(unknownEvent),
-                    getRef(),
-                    system.log(),
-                    genApplicationReplacedHandler.apply(getRef())));
-      }
-    };
+    assertThrows(
+        RuntimeException.class,
+        () ->
+            AriEventProcessing.generateProducerRecordFromEvent(
+                fakeCommandsTopic,
+                fakeEventsAndResponsesTopic,
+                new Strict(unknownEvent),
+                testKit.<CallContextProviderMessage>createTestProbe().ref(),
+                LOGGER,
+                () -> LOGGER.error("Shutdown triggered"),
+                testKit.system()));
   }
 
   @DisplayName(
       "Verify processing of both channel and playback events results in the expected kafka producer record")
   @ParameterizedTest
   @ValueSource(strings = {stasisStartEvent, playbackFinishedEvent, recordingFinishedEvent})
-  void generateProducerRecordFromAllAriMessageTypes(String ariEvent) {
-    new TestKit(system) {
-      {
-        final Future<Source<ProducerRecord<String, String>, NotUsed>> wsToKafkaProcessor =
-            Future.of(
-                () ->
-                    AriEventProcessing.generateProducerRecordFromEvent(
-                        fakeCommandsTopic,
-                        fakeEventsAndResponsesTopic,
-                        new Strict(ariEvent),
-                        getRef(),
-                        system.log(),
-                        genApplicationReplacedHandler.apply(getRef())));
+  void generateProducerRecordFromAllAriMessageTypes(final String ariEvent) {
+    final TestProbe<CallContextProviderMessage> callContextProviderProbe =
+        testKit.createTestProbe(CallContextProviderMessage.class);
+    final ActorRef<CallContextProviderMessage> callContextProvider =
+        testKit.spawn(
+            Behaviors.receive(CallContextProviderMessage.class)
+                .onMessage(
+                    ProvideCallContext.class,
+                    msg -> {
+                      callContextProviderProbe.ref().tell(msg);
+                      msg.replyTo()
+                          .tell(StatusReply.success(new CallContextProvided(CALL_CONTEXT)));
 
-        expectMsgClass(ProvideCallContext.class);
-        reply(new CallContextProvided("CALL_CONTEXT"));
+                      return Behaviors.same();
+                    })
+                .build());
 
-        final ProducerRecord<String, String> record =
-            wsToKafkaProcessor
-                .flatMap(
-                    source ->
-                        Future.fromCompletableFuture(
-                            source
-                                .runWith(
-                                    Sink.last(),
-                                    ActorMaterializer.create(
-                                        ActorMaterializerSettings.create(system), system))
-                                .toCompletableFuture()))
-                .await()
-                .get();
+    final Future<Source<ProducerRecord<String, String>, NotUsed>> wsToKafkaProcessor =
+        Future.of(
+            () ->
+                AriEventProcessing.generateProducerRecordFromEvent(
+                    fakeCommandsTopic,
+                    fakeEventsAndResponsesTopic,
+                    new Strict(ariEvent),
+                    callContextProvider,
+                    LOGGER,
+                    () -> LOGGER.error("Shutdown triggered"),
+                    testKit.system()));
 
-        assertThat(record.key(), is("CALL_CONTEXT"));
-        assertThat(record.topic(), is(fakeEventsAndResponsesTopic));
-      }
-    };
+    callContextProviderProbe.expectMessageClass(ProvideCallContext.class);
+    final ProducerRecord<String, String> record =
+        wsToKafkaProcessor
+            .flatMap(
+                source ->
+                    Future.fromCompletableFuture(
+                        source.runWith(Sink.last(), testKit.system()).toCompletableFuture()))
+            .await()
+            .get();
+
+    assertThat(record.key(), is(CALL_CONTEXT));
+    assertThat(record.topic(), is(fakeEventsAndResponsesTopic));
   }
 
   @ParameterizedTest
@@ -147,28 +147,33 @@ class AriEventProcessingTest {
     final Seq<MetricsGatherer> decision = AriEventProcessing.determineMetricsGatherer(type);
 
     assertThat(
-        ((IncreaseCounter) decision.get(0).withCallContextSupplier(() -> "CALL_CONTEXT")).getName(),
+        ((IncreaseCounter) decision.get(0).withCallContextSupplier(() -> CALL_CONTEXT)).getName(),
         is(type.name()));
   }
 
   @Test
-  void checkApplicationReplacedHandlerIsTriggered() {
-    new TestKit(system) {
-      {
-        final Future<Source<ProducerRecord<String, String>, NotUsed>> wsToKafkaProcessor =
-            Future.of(
-                () ->
-                    AriEventProcessing.generateProducerRecordFromEvent(
-                        fakeCommandsTopic,
-                        fakeEventsAndResponsesTopic,
-                        new Strict(applicationReplacedEvent),
-                        getRef(),
-                        system.log(),
-                        genApplicationReplacedHandler.apply(getRef())));
-        assertThat(expectMsgClass(String.class), is("Shutdown triggered!"));
-        assertThat(wsToKafkaProcessor.await().get(), is(Source.empty()));
-      }
-    };
+  void checkApplicationReplacedHandlerIsTriggered() throws InterruptedException {
+    final AtomicBoolean didTriggerShutdown = new AtomicBoolean(false);
+    final CountDownLatch waitForShutdownTriggered = new CountDownLatch(1);
+    final Future<Source<ProducerRecord<String, String>, NotUsed>> wsToKafkaProcessor =
+        Future.of(
+            () ->
+                AriEventProcessing.generateProducerRecordFromEvent(
+                    fakeCommandsTopic,
+                    fakeEventsAndResponsesTopic,
+                    new Strict(applicationReplacedEvent),
+                    testKit.<CallContextProviderMessage>createTestProbe().ref(),
+                    LOGGER,
+                    () -> {
+                      LOGGER.error("Shutdown triggered");
+                      didTriggerShutdown.set(true);
+                      waitForShutdownTriggered.countDown();
+                    },
+                    testKit.system()));
+
+    waitForShutdownTriggered.await(1000, TimeUnit.MILLISECONDS);
+    assertTrue(didTriggerShutdown.get(), "shutdown was triggered");
+    assertThat(wsToKafkaProcessor.await().get(), is(Source.empty()));
   }
 
   @Test
@@ -178,13 +183,13 @@ class AriEventProcessingTest {
 
     metricsGatherers.forEach(
         metricsGatherer -> {
-          final Object metricsReq = metricsGatherer.withCallContextSupplier(() -> "CALL_CONTEXT");
+          final Object metricsReq = metricsGatherer.withCallContextSupplier(() -> CALL_CONTEXT);
           System.out.println(metricsReq);
         });
 
     final Seq<Object> metricsRequests =
         metricsGatherers.map(
-            metricsGatherer -> metricsGatherer.withCallContextSupplier(() -> "CALL_CONTEXT"));
+            metricsGatherer -> metricsGatherer.withCallContextSupplier(() -> CALL_CONTEXT));
 
     assertThat(len(metricsGatherers), is(3));
 
@@ -194,7 +199,7 @@ class AriEventProcessingTest {
 
     assertThat(eventTypeCounter.getName(), is(AriMessageType.STASIS_START.name()));
     assertThat(callsStartedCounter.getName(), is("CallsStarted"));
-    assertThat(callSetupTimer.getCallContext(), is("CALL_CONTEXT"));
+    assertThat(callSetupTimer.getCallContext(), is(CALL_CONTEXT));
   }
 
   @Test
@@ -204,7 +209,7 @@ class AriEventProcessingTest {
 
     final Seq<Object> metricsRequests =
         metricsGatherers.map(
-            metricsGatherer -> metricsGatherer.withCallContextSupplier(() -> "CALL_CONTEXT"));
+            metricsGatherer -> metricsGatherer.withCallContextSupplier(() -> CALL_CONTEXT));
 
     assertThat(len(metricsGatherers), is(2));
 
@@ -217,36 +222,36 @@ class AriEventProcessingTest {
 
   @Test
   void verifyGetCallContextWorksAsExpected() {
-    new TestKit(system) {
-      {
-        final Future<Try<String>> callContext =
-            Future.of(
-                () ->
-                    AriEventProcessing.getCallContext(
-                        "RESOURCE_ID", getRef(), Option.none(), ProviderPolicy.CREATE_IF_MISSING));
+    final TestableCallContextProvider callContextProvider =
+        new TestableCallContextProvider(
+            testKit, new MemoryKeyValueStore("RESOURCE_ID123", CALL_CONTEXT));
+    final Try<String> callContext =
+        AriEventProcessing.getCallContext(
+            "RESOURCE_ID123",
+            callContextProvider.ref(),
+            Option.none(),
+            ProviderPolicy.CREATE_IF_MISSING,
+            testKit.system());
 
-        final ProvideCallContext provideCallContext = expectMsgClass(ProvideCallContext.class);
+    final ProvideCallContext provideCallContext =
+        callContextProvider.probe().expectMessageClass(ProvideCallContext.class);
+    assertThat(provideCallContext.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
+    assertThat(provideCallContext.resourceId(), is("RESOURCE_ID123"));
 
-        assertThat(provideCallContext.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
-        assertThat(provideCallContext.resourceId(), is("RESOURCE_ID"));
-        reply(new CallContextProvided("CALL_CONTEXT"));
-
-        assertThat(callContext.await().get().get(), is("CALL_CONTEXT"));
-      }
-    };
+    assertThat(callContext.get(), is(CALL_CONTEXT));
   }
 
   @Test
   void verifyGetCallContextReturnsAFailedTryIfNoCallContextCanBeProvided() {
-    new TestKit(system) {
-      {
-        assertThat(
-            AriEventProcessing.getCallContext(
-                    "RESOURCE_ID", getRef(), Option.none(), ProviderPolicy.CREATE_IF_MISSING)
-                .isFailure(),
-            is(true));
-      }
-    };
+    assertThat(
+        AriEventProcessing.getCallContext(
+                "RESOURCE_ID",
+                testKit.<CallContextProviderMessage>createTestProbe().ref(),
+                Option.none(),
+                ProviderPolicy.CREATE_IF_MISSING,
+                testKit.system())
+            .isFailure(),
+        is(true));
   }
 
   @ParameterizedTest
@@ -273,5 +278,10 @@ class AriEventProcessingTest {
 
   private static int len(Seq<?> seq) {
     return seq.foldLeft(0, (acc, item) -> acc + 1);
+  }
+
+  @AfterAll
+  public static void cleanup() {
+    testKit.shutdownTestKit();
   }
 }

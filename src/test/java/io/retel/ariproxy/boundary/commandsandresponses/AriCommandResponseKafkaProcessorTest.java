@@ -6,7 +6,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import akka.NotUsed;
-import akka.actor.ActorSystem;
+import akka.actor.testkit.typed.javadsl.ActorTestKit;
+import akka.actor.testkit.typed.javadsl.TestProbe;
+import akka.actor.typed.javadsl.Adapter;
 import akka.http.javadsl.Http;
 import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.HttpResponse;
@@ -14,54 +16,42 @@ import akka.http.javadsl.model.StatusCodes;
 import akka.stream.StreamTcpException;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
-import akka.testkit.javadsl.TestKit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.MissingNode;
-import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
+import com.typesafe.config.ConfigFactory;
+import io.retel.ariproxy.boundary.callcontext.TestableCallContextProvider;
 import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
+import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import scala.concurrent.duration.Duration;
 
 class AriCommandResponseKafkaProcessorTest {
 
+  private static final ActorTestKit testKit =
+      ActorTestKit.create("testKit", ConfigFactory.defaultApplication());
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-  private final String TEST_SYSTEM = this.getClass().getSimpleName();
-  private ActorSystem system;
-
-  @AfterEach
-  void teardown() {
-    TestKit.shutdownActorSystem(system);
-    system.terminate();
-  }
-
-  @BeforeEach
-  void setup() {
-    system = ActorSystem.create(TEST_SYSTEM);
-  }
 
   @Test()
   void properlyHandleInvalidCommandMessage() {
-    final TestKit kafkaProducer = new TestKit(system);
-    final TestKit metricsService = new TestKit(system);
-    final TestKit callContextProvider = new TestKit(system);
+    final TestProbe<ProducerRecord> kafkaProducer = testKit.createTestProbe();
+    final TestProbe<MetricsServiceMessage> metricsService = testKit.createTestProbe();
+    final TestableCallContextProvider callContextProvider =
+        new TestableCallContextProvider(testKit);
 
     final ConsumerRecord<String, String> consumerRecord =
         new ConsumerRecord<>("topic", 0, 0, "key", "NOT JSON");
@@ -71,15 +61,16 @@ class AriCommandResponseKafkaProcessorTest {
             .mapMaterializedValue(q -> NotUsed.getInstance());
 
     AriCommandResponseKafkaProcessor.commandResponseProcessing()
-        .on(system)
-        .withHandler(requestAndContext -> Http.get(system).singleRequest(requestAndContext._1))
-        .withCallContextProvider(callContextProvider.getRef())
+        .on(testKit.system())
+        .withHandler(
+            requestAndContext -> Http.get(testKit.system()).singleRequest(requestAndContext._1))
+        .withCallContextProvider(callContextProvider.ref())
         .withMetricsService(metricsService.getRef())
         .from(source)
         .to(sink)
         .run();
 
-    kafkaProducer.expectNoMsg(Duration.apply(250, TimeUnit.MILLISECONDS));
+    kafkaProducer.expectNoMessage();
   }
 
   @ParameterizedTest
@@ -90,10 +81,10 @@ class AriCommandResponseKafkaProcessorTest {
       final String expectedResponseJsonFilename,
       final String resourceIdExpectedToRegisterInCallContext)
       throws Exception {
-
-    final TestKit kafkaProducer = new TestKit(system);
-    final TestKit metricsService = new TestKit(system);
-    final TestKit callContextProvider = new TestKit(system);
+    final TestProbe<ProducerRecord> kafkaProducer = testKit.createTestProbe();
+    final TestProbe<MetricsServiceMessage> metricsService = testKit.createTestProbe();
+    final TestableCallContextProvider callContextProvider =
+        new TestableCallContextProvider(testKit);
 
     final String inputString = loadJsonAsString(commandJsonFilename);
     final ConsumerRecord<String, String> consumerRecord =
@@ -102,16 +93,17 @@ class AriCommandResponseKafkaProcessorTest {
     final Source<ConsumerRecord<String, String>, NotUsed> source = Source.single(consumerRecord);
     final Sink<ProducerRecord<String, String>, NotUsed> sink =
         Sink.actorRef(
-            kafkaProducer.getRef(), new ProducerRecord<String, String>("topic", "endMessage"));
+            Adapter.toClassic(kafkaProducer.getRef()),
+            new ProducerRecord<String, String>("topic", "endMessage"));
 
     AriCommandResponseKafkaProcessor.commandResponseProcessing()
-        .on(system)
+        .on(testKit.system())
         .withHandler(
             context -> {
               validateRequest(context._1(), inputString);
               return asteriskResponse;
             })
-        .withCallContextProvider(callContextProvider.getRef())
+        .withCallContextProvider(callContextProvider.ref())
         .withMetricsService(metricsService.getRef())
         .from(source)
         .to(sink)
@@ -119,20 +111,19 @@ class AriCommandResponseKafkaProcessorTest {
 
     if (resourceIdExpectedToRegisterInCallContext != null) {
       final RegisterCallContext registerCallContext =
-          callContextProvider.expectMsgClass(RegisterCallContext.class);
+          callContextProvider.probe().expectMessageClass(RegisterCallContext.class);
       assertThat(registerCallContext.callContext(), is("CALL_CONTEXT"));
       assertThat(registerCallContext.resourceId(), is(resourceIdExpectedToRegisterInCallContext));
-      callContextProvider.reply(new CallContextProvided("CALL CONTEXT"));
     }
 
     final StopCallSetupTimer stopCallSetupTimer =
-        metricsService.expectMsgClass(StopCallSetupTimer.class);
+        metricsService.expectMessageClass(StopCallSetupTimer.class);
     assertThat(stopCallSetupTimer.getCallcontext(), is("CALL_CONTEXT"));
     assertThat(stopCallSetupTimer.getApplication(), is("test-app"));
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> responseRecord =
-        kafkaProducer.expectMsgClass(ProducerRecord.class);
+        kafkaProducer.expectMessageClass(ProducerRecord.class);
     assertThat(responseRecord.topic(), is("eventsAndResponsesTopic"));
     assertThat(responseRecord.key(), is("CALL_CONTEXT"));
     assertEquals(
@@ -141,7 +132,7 @@ class AriCommandResponseKafkaProcessorTest {
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> endMsg =
-        kafkaProducer.expectMsgClass(ProducerRecord.class);
+        kafkaProducer.expectMessageClass(ProducerRecord.class);
     assertThat(endMsg.topic(), is("topic"));
     assertThat(endMsg.value(), is("endMessage"));
   }
@@ -152,7 +143,7 @@ class AriCommandResponseKafkaProcessorTest {
           OBJECT_MAPPER.readTree(
               actualHttpRequest
                   .entity()
-                  .toStrict(1000L, system)
+                  .toStrict(1000L, testKit.system())
                   .toCompletableFuture()
                   .get()
                   .getData()
@@ -230,5 +221,10 @@ class AriCommandResponseKafkaProcessorTest {
     } catch (IOException e) {
       throw new IllegalStateException("Unable to load file " + fileName, e);
     }
+  }
+
+  @AfterAll
+  public static void cleanup() {
+    testKit.shutdownTestKit();
   }
 }

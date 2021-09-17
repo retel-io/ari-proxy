@@ -1,135 +1,173 @@
 package io.retel.ariproxy.boundary.callcontext;
 
-import akka.actor.ActorRef;
-import akka.actor.Props;
-import akka.japi.pf.ReceiveBuilder;
-import io.retel.ariproxy.akkajavainterop.PatternsAdapter;
-import io.retel.ariproxy.boundary.callcontext.api.CallContextLookupError;
-import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
-import io.retel.ariproxy.boundary.callcontext.api.CallContextRegistered;
-import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
-import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
-import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
-import io.retel.ariproxy.health.api.NewHealthRecipient;
-import io.retel.ariproxy.health.api.ProvideHealthReport;
-import io.retel.ariproxy.health.api.ProvideMonitoring;
-import io.retel.ariproxy.persistence.PersistentCache;
-import io.vavr.concurrent.Future;
+import static java.util.concurrent.CompletableFuture.completedFuture;
+
+import akka.actor.typed.ActorRef;
+import akka.actor.typed.Behavior;
+import akka.actor.typed.PostStop;
+import akka.actor.typed.PreRestart;
+import akka.actor.typed.javadsl.Behaviors;
+import akka.pattern.StatusReply;
+import io.retel.ariproxy.boundary.callcontext.api.*;
+import io.retel.ariproxy.metrics.MetricsServiceMessage;
+import io.retel.ariproxy.persistence.KeyValueStore;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class CallContextProvider extends PersistentCache {
+public class CallContextProvider {
 
-  public static final String ACTOR_NAME = "call-context-provider";
+  private static final Logger LOGGER = LoggerFactory.getLogger(CallContextProvider.class);
 
-  public static Props props(final ActorRef metricsService) {
-    return Props.create(CallContextProvider.class, metricsService);
+  private static final String KEY_PREFIX = "ari-proxy:call-context-provider";
+
+  private CallContextProvider() {
+    throw new IllegalStateException("Utility class");
   }
 
-  private CallContextProvider(final ActorRef metricsService) {
-    super(metricsService);
+  public static Behavior<CallContextProviderMessage> create(
+      final ActorRef<MetricsServiceMessage> metricsService) {
+    return create(KeyValueStore.createDefaultStore(metricsService));
   }
 
-  @Override
-  protected String keyPrefix() {
-    return "ari-proxy:call-context-provider";
+  public static Behavior<CallContextProviderMessage> create(
+      final KeyValueStore<String, String> store) {
+    return Behaviors.setup(
+        context ->
+            Behaviors.receive(CallContextProviderMessage.class)
+                .onMessage(RegisterCallContext.class, msg -> registerCallContextHandler(store, msg))
+                .onMessage(ProvideCallContext.class, msg -> provideCallContextHandler(store, msg))
+                .onMessage(ReportHealth.class, msg -> handleReportHealth(store, msg))
+                .onSignal(PostStop.class, signal -> cleanup(store))
+                .onSignal(PreRestart.class, signal -> cleanup(store))
+                .build());
   }
 
-  @Override
-  public void preStart() throws Exception {
-    registerMonitoring();
-    super.preStart();
+  private static Behavior<CallContextProviderMessage> registerCallContextHandler(
+      final KeyValueStore<String, String> store, final RegisterCallContext msg) {
+    final String resourceId = msg.resourceId();
+    final String callContext = msg.callContext();
+    LOGGER.debug("Registering resourceId '{}' => callContext '{}'…", resourceId, callContext);
+
+    store
+        .put(withKeyPrefix(resourceId), callContext)
+        .thenRunAsync(
+            () -> {
+              LOGGER.debug(
+                  "Successfully registered resourceId '{}' => callContext '{}'",
+                  resourceId,
+                  callContext);
+              msg.replyTo().tell(new CallContextRegistered(resourceId, callContext));
+            });
+
+    return Behaviors.same();
   }
 
-  private void registerMonitoring() {
-    getContext().getSystem().eventStream().publish(new ProvideMonitoring(ACTOR_NAME, self()));
+  private static Behavior<CallContextProviderMessage> provideCallContextHandler(
+      final KeyValueStore<String, String> store, final ProvideCallContext msg) {
+    LOGGER.debug("Looking up callContext for resourceId '{}'…", msg.resourceId());
+
+    final CompletableFuture<Optional<String>> callContext =
+        ProviderPolicy.CREATE_IF_MISSING.equals(msg.policy())
+            ? provideCallContextForCreateIfMissingPolicy(store, msg)
+            : provideCallContextForLookupOnlyPolicy(store, msg);
+
+    callContext.whenComplete(
+        (cContext, error) -> {
+          final StatusReply<CallContextProvided> response;
+          if (error != null) {
+            if (error instanceof CallContextLookupError) {
+              response = StatusReply.error(error);
+            } else {
+              response = StatusReply.error("Unable to lookup call context: " + error.getMessage());
+            }
+          } else {
+            if (cContext.isPresent()) {
+              response = StatusReply.success(new CallContextProvided(cContext.get()));
+            } else {
+              response = StatusReply.error("Unable to lookup call context");
+            }
+          }
+
+          msg.replyTo().tell(response);
+        });
+
+    return Behaviors.same();
   }
 
-  public Receive createReceive() {
-    return ReceiveBuilder.create()
-        .match(RegisterCallContext.class, this::registerCallContextHandler)
-        .match(ProvideCallContext.class, this::provideCallContextHandler)
-        .match(ProvideHealthReport.class, this::provideHealthReportHandler)
-        .match(NewHealthRecipient.class, ignored -> this.registerMonitoring())
-        .build();
+  private static CompletableFuture<Optional<String>> provideCallContextForLookupOnlyPolicy(
+      final KeyValueStore<String, String> store, final ProvideCallContext msg) {
+    return exceptionallyCompose(
+            store.get(msg.resourceId()),
+            error ->
+                failedFuture(
+                    new CallContextLookupError(
+                        String.format(
+                            "Failed to lookup call context for resource id %s...",
+                            msg.resourceId()))))
+        .toCompletableFuture();
   }
 
-  private void registerCallContextHandler(RegisterCallContext cmd) {
-    log().debug("Got command: {}", cmd);
+  private static CompletableFuture<Optional<String>> provideCallContextForCreateIfMissingPolicy(
+      final KeyValueStore<String, String> store, final ProvideCallContext msg) {
+    if (msg.maybeCallContextFromChannelVars().isDefined()) {
+      final String callContext =
+          new CallContextProvided(msg.maybeCallContextFromChannelVars().get()).callContext();
+      return store.put(msg.resourceId(), callContext).thenApply(done -> Optional.of(callContext));
+    }
 
-    final String resourceId = cmd.resourceId();
-    final String callContext = cmd.callContext();
+    return store
+        .get(msg.resourceId())
+        .thenCompose(
+            maybeCallContextFromStore -> {
+              if (maybeCallContextFromStore.isPresent()) {
+                return completedFuture(maybeCallContextFromStore);
+              }
 
-    final ActorRef sender = sender();
-
-    update(resourceId, callContext)
-        .andThen(
-            setDone -> {
-              log()
-                  .debug("Registered resourceId '{}' => callContext '{}'", resourceId, callContext);
-              sender.tell(new CallContextRegistered(resourceId, callContext), self());
+              final String generatedCallContext = UUID.randomUUID().toString();
+              return store
+                  .put(msg.resourceId(), generatedCallContext)
+                  .thenApply(done -> Optional.of(generatedCallContext));
             });
   }
 
-  private void provideCallContextHandler(final ProvideCallContext cmd) {
-    log().debug("Got command: {}", cmd);
+  private static Behavior<CallContextProviderMessage> handleReportHealth(
+      final KeyValueStore<String, String> store, final ReportHealth msg) {
+    store.checkHealth().thenAccept(healthReport -> msg.replyTo().tell(healthReport));
 
-    final ActorRef sender = sender();
-
-    final Future<CallContextProvided> callContext =
-        ProviderPolicy.CREATE_IF_MISSING.equals(cmd.policy())
-            ? provideCallContextForCreateIfMissingPolicy(cmd)
-            : provideCallContextForLookupOnlyPolicy(cmd);
-
-    PatternsAdapter.pipeTo(callContext, sender, context().dispatcher());
+    return Behaviors.same();
   }
 
-  private Future<CallContextProvided> provideCallContextForLookupOnlyPolicy(
-      final ProvideCallContext cmd) {
-    return query(cmd.resourceId())
-        .flatMap(
-            maybeCallContextFromDB ->
-                maybeCallContextFromDB
-                    .map(
-                        callContextFromDB ->
-                            Future.successful(new CallContextProvided(callContextFromDB)))
-                    .getOrElse(
-                        () ->
-                            Future.failed(
-                                new CallContextLookupError(
-                                    String.format(
-                                        "Failed to lookup call context for resource id %s...",
-                                        cmd.resourceId())))))
-        .await();
-  }
-
-  private Future<CallContextProvided> provideCallContextForCreateIfMissingPolicy(
-      final ProvideCallContext cmd) {
-    if (cmd.maybeCallContextFromChannelVars().isDefined()) {
-      final CallContextProvided callContextFromChannelVars =
-          new CallContextProvided(cmd.maybeCallContextFromChannelVars().get());
-      update(cmd.resourceId(), callContextFromChannelVars.callContext())
-          .map(setDone -> new CallContextProvided(setDone.getValue()));
-
-      return Future.successful(callContextFromChannelVars);
+  private static Behavior<CallContextProviderMessage> cleanup(
+      final KeyValueStore<String, String> store) {
+    try {
+      store.close();
+    } catch (Exception e) {
+      LOGGER.warn("Unable to close store", e);
     }
 
-    final Future<CallContextProvided> callContext =
-        query(cmd.resourceId())
-            .map(
-                maybeCallContextFromDB ->
-                    new CallContextProvided(
-                        maybeCallContextFromDB.getOrElse(
-                            () -> {
-                              final String generatedCallContext = UUID.randomUUID().toString();
-                              update(cmd.resourceId(), generatedCallContext)
-                                  .map(setDone -> new CallContextProvided(setDone.getValue()));
-                              return generatedCallContext;
-                            })));
-
-    return callContext;
+    return Behaviors.same();
   }
 
-  private void provideHealthReportHandler(ProvideHealthReport cmd) {
-    PatternsAdapter.pipeTo(provideHealthReport(), sender(), context().dispatcher());
+  private static String withKeyPrefix(final String resourceId) {
+    return KEY_PREFIX + ":" + resourceId;
+  }
+
+  private static <T> CompletableFuture<T> failedFuture(final Throwable error) {
+    CompletableFuture<T> future = new CompletableFuture<>();
+    future.completeExceptionally(error);
+    return future;
+  }
+
+  private static <T> CompletionStage<T> exceptionallyCompose(
+      final CompletionStage<T> stage, final Function<Throwable, ? extends CompletionStage<T>> fn) {
+    return stage
+        .<CompletionStage<T>>thenApply(CompletableFuture::completedFuture)
+        .exceptionally(fn)
+        .thenCompose(Function.identity());
   }
 }

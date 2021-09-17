@@ -1,7 +1,5 @@
 package io.retel.ariproxy;
 
-import static java.util.Collections.singletonList;
-
 import akka.NotUsed;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.ActorSystem;
@@ -26,10 +24,13 @@ import io.retel.ariproxy.boundary.commandsandresponses.AriCommandResponseKafkaPr
 import io.retel.ariproxy.boundary.events.WebsocketMessageToProducerRecordTranslator;
 import io.retel.ariproxy.boundary.processingpipeline.Run;
 import io.retel.ariproxy.health.HealthService;
+import io.retel.ariproxy.health.KafkaConnectionCheck;
+import io.retel.ariproxy.health.KafkaConnectionCheck.ReportKafkaConnectionHealth;
 import io.retel.ariproxy.metrics.MetricsService;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.concurrent.CompletionStage;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -67,13 +68,25 @@ public class Main {
               final ActorRef<CallContextProviderMessage> callContextProvider =
                   ctx.spawn(CallContextProvider.create(metricService), "call-context-provider");
 
+              final ActorRef<ReportKafkaConnectionHealth> kafkaConnectionCheck =
+                  ctx.spawn(
+                      KafkaConnectionCheck.create(serviceConfig.getConfig(KAFKA)),
+                      "kafka-connection-check");
+
               HealthService.run(
                   ctx.getSystem(),
-                  singletonList(
+                  Arrays.asList(
                       () ->
                           AskPattern.ask(
                                   callContextProvider,
                                   ReportHealth::new,
+                                  HEALTH_REPORT_TIMEOUT,
+                                  ctx.getSystem().scheduler())
+                              .toCompletableFuture(),
+                      () ->
+                          AskPattern.ask(
+                                  kafkaConnectionCheck,
+                                  ReportKafkaConnectionHealth::new,
                                   HEALTH_REPORT_TIMEOUT,
                                   ctx.getSystem().scheduler())
                               .toCompletableFuture()),

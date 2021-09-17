@@ -22,7 +22,6 @@ import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.callcontext.api.ReportHealth;
 import io.retel.ariproxy.boundary.commandsandresponses.AriCommandResponseKafkaProcessor;
 import io.retel.ariproxy.boundary.events.WebsocketMessageToProducerRecordTranslator;
-import io.retel.ariproxy.boundary.processingpipeline.Run;
 import io.retel.ariproxy.health.HealthService;
 import io.retel.ariproxy.health.KafkaConnectionCheck;
 import io.retel.ariproxy.health.KafkaConnectionCheck.ReportKafkaConnectionHealth;
@@ -140,14 +139,14 @@ public class Main {
     final Sink<ProducerRecord<String, String>, NotUsed> sink =
         Producer.plainSink(producerSettings).mapMaterializedValue(done -> NotUsed.getInstance());
 
-    AriCommandResponseKafkaProcessor.commandResponseProcessing()
-        .on(system)
-        .withHandler(requestAndContext -> Http.get(system).singleRequest(requestAndContext._1))
-        .withCallContextProvider(callContextProvider)
-        .withMetricsService(metricsService)
-        .from(source)
-        .to(sink)
-        .run();
+    AriCommandResponseKafkaProcessor.commandResponseProcessing(
+            system,
+            requestAndContext -> Http.get(system).singleRequest(requestAndContext._1),
+            callContextProvider,
+            metricsService,
+            source,
+            sink)
+        .run(system);
   }
 
   private static void runAriEventProcessor(
@@ -175,17 +174,12 @@ public class Main {
     final Sink<ProducerRecord<String, String>, NotUsed> sink =
         Producer.plainSink(producerSettings).mapMaterializedValue(done -> NotUsed.getInstance());
 
-    final Run processingPipeline =
-        WebsocketMessageToProducerRecordTranslator.eventProcessing()
-            .on(system)
-            .withHandler(applicationReplacedHandler)
-            .withCallContextProvider(callContextProvider)
-            .withMetricsService(metricsService)
-            .from(source)
-            .to(sink);
+    final RunnableGraph<NotUsed> processingPipeline =
+        WebsocketMessageToProducerRecordTranslator.eventProcessing(
+            system, callContextProvider, metricsService, source, sink, applicationReplacedHandler);
 
     try {
-      processingPipeline.run();
+      processingPipeline.run(system);
       system.log().debug("Successfully started ari event processor.");
     } catch (Exception e) {
       system.log().error("Failed to start ari event processor: ", e);

@@ -60,15 +60,14 @@ class AriCommandResponseKafkaProcessorTest {
         Sink.<ProducerRecord<String, String>>ignore()
             .mapMaterializedValue(q -> NotUsed.getInstance());
 
-    AriCommandResponseKafkaProcessor.commandResponseProcessing()
-        .on(testKit.system())
-        .withHandler(
-            requestAndContext -> Http.get(testKit.system()).singleRequest(requestAndContext._1))
-        .withCallContextProvider(callContextProvider.ref())
-        .withMetricsService(metricsService.getRef())
-        .from(source)
-        .to(sink)
-        .run();
+    AriCommandResponseKafkaProcessor.commandResponseProcessing(
+            testKit.system(),
+            requestAndContext -> Http.get(testKit.system()).singleRequest(requestAndContext._1),
+            callContextProvider.ref(),
+            metricsService.ref(),
+            source,
+            sink)
+        .run(testKit.system());
 
     kafkaProducer.expectNoMessage();
   }
@@ -96,18 +95,17 @@ class AriCommandResponseKafkaProcessorTest {
             Adapter.toClassic(kafkaProducer.getRef()),
             new ProducerRecord<String, String>("topic", "endMessage"));
 
-    AriCommandResponseKafkaProcessor.commandResponseProcessing()
-        .on(testKit.system())
-        .withHandler(
-            context -> {
-              validateRequest(context._1(), inputString);
+    AriCommandResponseKafkaProcessor.commandResponseProcessing(
+            testKit.system(),
+            requestAndContext -> {
+              validateRequest(requestAndContext._1(), inputString);
               return asteriskResponse;
-            })
-        .withCallContextProvider(callContextProvider.ref())
-        .withMetricsService(metricsService.getRef())
-        .from(source)
-        .to(sink)
-        .run();
+            },
+            callContextProvider.ref(),
+            metricsService.ref(),
+            source,
+            sink)
+        .run(testKit.system());
 
     if (resourceIdExpectedToRegisterInCallContext != null) {
       final RegisterCallContext registerCallContext =
@@ -135,6 +133,8 @@ class AriCommandResponseKafkaProcessorTest {
         kafkaProducer.expectMessageClass(ProducerRecord.class);
     assertThat(endMsg.topic(), is("topic"));
     assertThat(endMsg.value(), is("endMessage"));
+
+    kafkaProducer.expectNoMessage();
   }
 
   private void validateRequest(final HttpRequest actualHttpRequest, final String inputString) {

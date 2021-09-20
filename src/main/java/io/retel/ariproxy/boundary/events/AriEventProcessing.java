@@ -92,9 +92,10 @@ public class AriEventProcessing {
             resourceIdTry ->
                 resourceIdTry.flatMap(
                     resourceId -> {
-                      final ProviderPolicy providerPolicy = AriMessageType.STASIS_START.equals(ariMessageType)
-                          ? ProviderPolicy.CREATE_IF_MISSING
-                          : ProviderPolicy.LOOKUP_ONLY;
+                      final ProviderPolicy providerPolicy =
+                          AriMessageType.STASIS_START.equals(ariMessageType)
+                              ? ProviderPolicy.CREATE_IF_MISSING
+                              : ProviderPolicy.LOOKUP_ONLY;
                       final Try<String> maybeCallContext =
                           getCallContext(
                               resourceId,

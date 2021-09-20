@@ -19,7 +19,7 @@ public class CachedKeyValueStore implements KeyValueStore<String, String> {
   private static final Logger LOGGER = LoggerFactory.getLogger(CachedKeyValueStore.class);
 
   private final KeyValueStore<String, String> store;
-  private final LoadingCache<String, String> cache;
+  private final LoadingCache<String, Optional<String>> cache;
 
   public CachedKeyValueStore(
       final KeyValueStore<String, String> store,
@@ -32,27 +32,27 @@ public class CachedKeyValueStore implements KeyValueStore<String, String> {
                 CacheLoader.from(
                     (String key) -> {
                       try {
-                        final String result = store.get(key).get().orElse(null);
+                        final Optional<String> result = store.get(key).get();
                         metricsService.tell(new IncreaseCounter("RedisBackedCacheFallback"));
 
                         return result;
                       } catch (InterruptedException | ExecutionException e) {
                         LOGGER.warn("Unable to retrieve value for key {} from store", key, e);
-                        return null;
+                        return Optional.empty();
                       }
                     }));
   }
 
   @Override
   public CompletableFuture<Void> put(final String key, final String value) {
-    cache.put(key, value);
+    cache.put(key, Optional.of(value));
     return store.put(key, value);
   }
 
   @Override
   public CompletableFuture<Optional<String>> get(final String key) {
     try {
-      return CompletableFuture.completedFuture(Optional.ofNullable(cache.get(key)));
+      return CompletableFuture.completedFuture(cache.get(key));
     } catch (ExecutionException e) {
       LOGGER.error("Unable to get value for key {} from cache", key, e);
       return CompletableFuture.completedFuture(Optional.empty());

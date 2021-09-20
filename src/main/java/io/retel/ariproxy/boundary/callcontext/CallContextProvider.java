@@ -83,13 +83,13 @@ public class CallContextProvider {
             if (error instanceof CallContextLookupError) {
               response = StatusReply.error(error);
             } else {
-              response = StatusReply.error("Unable to lookup call context: " + error.getMessage());
+              response = StatusReply.error(String.format("Unable to lookup call context for resource %s: %s", msg.resourceId(), error.getMessage()));
             }
           } else {
             if (cContext.isPresent()) {
               response = StatusReply.success(new CallContextProvided(cContext.get()));
             } else {
-              response = StatusReply.error("Unable to lookup call context");
+              response = StatusReply.error(String.format("Unable to lookup call context for resource %s", msg.resourceId()));
             }
           }
 

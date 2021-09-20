@@ -108,8 +108,9 @@ public class CallContextProvider {
 
   private static CompletableFuture<Optional<String>> provideCallContextForLookupOnlyPolicy(
       final KeyValueStore<String, String> store, final ProvideCallContext msg) {
+    final String prefixedResourceId = withKeyPrefix(msg.resourceId());
     return exceptionallyCompose(
-            store.get(msg.resourceId()),
+            store.get(prefixedResourceId),
             error ->
                 failedFuture(
                     new CallContextLookupError(
@@ -121,14 +122,16 @@ public class CallContextProvider {
 
   private static CompletableFuture<Optional<String>> provideCallContextForCreateIfMissingPolicy(
       final KeyValueStore<String, String> store, final ProvideCallContext msg) {
+    final String prefixedResourceId = withKeyPrefix(msg.resourceId());
+
     if (msg.maybeCallContextFromChannelVars().isDefined()) {
       final String callContext =
           new CallContextProvided(msg.maybeCallContextFromChannelVars().get()).callContext();
-      return store.put(msg.resourceId(), callContext).thenApply(done -> Optional.of(callContext));
+      return store.put(prefixedResourceId, callContext).thenApply(done -> Optional.of(callContext));
     }
 
     return store
-        .get(msg.resourceId())
+        .get(prefixedResourceId)
         .thenCompose(
             maybeCallContextFromStore -> {
               if (maybeCallContextFromStore.isPresent()) {
@@ -137,7 +140,7 @@ public class CallContextProvider {
 
               final String generatedCallContext = UUID.randomUUID().toString();
               return store
-                  .put(msg.resourceId(), generatedCallContext)
+                  .put(prefixedResourceId, generatedCallContext)
                   .thenApply(done -> Optional.of(generatedCallContext));
             });
   }

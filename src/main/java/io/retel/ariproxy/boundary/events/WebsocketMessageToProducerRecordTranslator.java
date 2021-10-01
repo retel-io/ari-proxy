@@ -9,6 +9,7 @@ import akka.event.Logging;
 import akka.http.javadsl.model.ws.Message;
 import akka.japi.function.Function;
 import akka.stream.*;
+import akka.stream.javadsl.RunnableGraph;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import com.typesafe.config.Config;
@@ -16,7 +17,6 @@ import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
-import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import java.util.function.Supplier;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -31,30 +31,13 @@ public class WebsocketMessageToProducerRecordTranslator {
   private static final Attributes LOG_LEVELS =
       Attributes.createLogLevels(Logging.InfoLevel(), Logging.InfoLevel(), Logging.ErrorLevel());
 
-  public static ProcessingPipeline<Message, Runnable> eventProcessing() {
-    return system ->
-        applicationReplacedHandler ->
-            callContextProvider ->
-                metricsService ->
-                    source ->
-                        sink ->
-                            () ->
-                                run(
-                                    system,
-                                    callContextProvider,
-                                    metricsService,
-                                    source,
-                                    sink,
-                                    applicationReplacedHandler);
-  }
-
-  private static void run(
-      ActorSystem<?> system,
-      ActorRef<CallContextProviderMessage> callContextProvider,
-      ActorRef<MetricsServiceMessage> metricsService,
-      Source<Message, NotUsed> source,
-      Sink<ProducerRecord<String, String>, NotUsed> sink,
-      Runnable applicationReplacedHandler) {
+  public static RunnableGraph<NotUsed> eventProcessing(
+      final ActorSystem<?> system,
+      final ActorRef<CallContextProviderMessage> callContextProvider,
+      final ActorRef<MetricsServiceMessage> metricsService,
+      final Source<Message, NotUsed> source,
+      final Sink<ProducerRecord<String, String>, NotUsed> sink,
+      final Runnable applicationReplacedHandler) {
     final Function<Throwable, Supervision.Directive> decider =
         t -> {
           system.log().error("WebsocketMessageToProducerRecordTranslator stream failed", t);
@@ -65,7 +48,7 @@ public class WebsocketMessageToProducerRecordTranslator {
     final String commandsTopic = kafkaConfig.getString(COMMANDS_TOPIC);
     final String eventsAndResponsesTopic = kafkaConfig.getString(EVENTS_AND_RESPONSES_TOPIC);
 
-    source
+    return source
         // .throttle(4 * 13, Duration.ofSeconds(1)) // Note: We die right now for calls/s >= 4.8
         .wireTap(
             Sink.foreach(msg -> gatherMetrics(msg, metricsService, callContextProvider, system)))
@@ -82,8 +65,7 @@ public class WebsocketMessageToProducerRecordTranslator {
         .log(">>>   ARI EVENT", ProducerRecord::value)
         .withAttributes(LOG_LEVELS)
         .to(sink)
-        .withAttributes(ActorAttributes.withSupervisionStrategy(decider))
-        .run(system);
+        .withAttributes(ActorAttributes.withSupervisionStrategy(decider));
   }
 
   private static void gatherMetrics(

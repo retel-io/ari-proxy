@@ -15,7 +15,6 @@ import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageEnvel
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriResource;
 import io.retel.ariproxy.metrics.IncreaseCounter;
-import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import io.retel.ariproxy.metrics.StartCallSetupTimer;
 import io.vavr.collection.List;
 import io.vavr.collection.Seq;
@@ -23,7 +22,6 @@ import io.vavr.control.Option;
 import io.vavr.control.Try;
 import java.time.Duration;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
@@ -178,9 +176,4 @@ public class AriEventProcessing {
         .filter(StringUtils::isNotBlank)
         .toOption();
   }
-}
-
-@FunctionalInterface
-interface MetricsGatherer {
-  MetricsServiceMessage withCallContextSupplier(Supplier<String> callContextSupplier);
 }

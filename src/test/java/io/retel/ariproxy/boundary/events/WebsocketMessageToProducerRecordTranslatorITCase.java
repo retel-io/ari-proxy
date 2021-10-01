@@ -54,20 +54,24 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
             new ProducerRecord<String, String>("none", "completed"));
     final TestProbe<String> shutdownRequestedProbe = testKit.createTestProbe();
 
-    WebsocketMessageToProducerRecordTranslator.eventProcessing()
-        .on(testKit.system())
-        .withHandler(() -> shutdownRequestedProbe.getRef().tell("Application replaced"))
-        .withCallContextProvider(testKit.<CallContextProviderMessage>createTestProbe().ref())
-        .withMetricsService(testKit.<MetricsServiceMessage>createTestProbe().ref())
-        .from(source)
-        .to(sink)
-        .run();
+    WebsocketMessageToProducerRecordTranslator.eventProcessing(
+            testKit.system(),
+            testKit.<CallContextProviderMessage>createTestProbe().ref(),
+            testKit.<MetricsServiceMessage>createTestProbe().ref(),
+            source,
+            sink,
+            () -> shutdownRequestedProbe.getRef().tell("Application replaced"))
+        .run(testKit.system());
 
+    @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> completeMsg =
-        kafkaProducerProbe.expectMessageClass(ProducerRecord.class);
+        (ProducerRecord<String, String>)
+            (ProducerRecord<?, ?>) kafkaProducerProbe.expectMessageClass(ProducerRecord.class);
     assertThat(completeMsg.topic(), is("none"));
     assertThat(completeMsg.value(), is("completed"));
+
     shutdownRequestedProbe.expectNoMessage();
+    kafkaProducerProbe.expectNoMessage();
   }
 
   @Test
@@ -90,14 +94,14 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
             Adapter.toClassic(kafkaProducerProbe.getRef()),
             new ProducerRecord<String, String>("none", "completed"));
 
-    WebsocketMessageToProducerRecordTranslator.eventProcessing()
-        .on(testKit.system())
-        .withHandler(() -> shutdownRequestedProbe.getRef().tell("Application replaced"))
-        .withCallContextProvider(callContextProvider.ref())
-        .withMetricsService(metricsServiceProbe.ref())
-        .from(source)
-        .to(sink)
-        .run();
+    WebsocketMessageToProducerRecordTranslator.eventProcessing(
+            testKit.system(),
+            callContextProvider.ref(),
+            metricsServiceProbe.ref(),
+            source,
+            sink,
+            () -> shutdownRequestedProbe.getRef().tell("Application replaced"))
+        .run(testKit.system());
 
     final ProvideCallContext provideCallContextForMetrics =
         callContextProvider.probe().expectMessageClass(ProvideCallContext.class);
@@ -139,6 +143,9 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
         kafkaProducerProbe.expectMessageClass(ProducerRecord.class);
     assertThat(completedRecord.topic(), is("none"));
     assertThat(completedRecord.value(), is("completed"));
+
+    kafkaProducerProbe.expectNoMessage();
+    shutdownRequestedProbe.expectNoMessage();
   }
 
   @Test
@@ -175,14 +182,14 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
             Adapter.toClassic(kafkaProducerProbe.getRef()),
             new ProducerRecord<String, String>("none", "completed"));
 
-    WebsocketMessageToProducerRecordTranslator.eventProcessing()
-        .on(testKit.system())
-        .withHandler(() -> shutdownRequestedProbe.getRef().tell("Application replaced"))
-        .withCallContextProvider(callContextProvider)
-        .withMetricsService(metricsServiceProbe.ref())
-        .from(source)
-        .to(sink)
-        .run();
+    WebsocketMessageToProducerRecordTranslator.eventProcessing(
+            testKit.system(),
+            callContextProvider,
+            metricsServiceProbe.ref(),
+            source,
+            sink,
+            () -> shutdownRequestedProbe.getRef().tell("Application replaced"))
+        .run(testKit.system());
 
     final ProvideCallContext provideCallContextForMetrics =
         callContextProviderProbe.expectMessageClass(ProvideCallContext.class);

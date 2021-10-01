@@ -11,9 +11,12 @@ import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.headers.HttpCredentials;
 import akka.japi.function.Function;
 import akka.japi.function.Procedure;
-import akka.stream.*;
+import akka.stream.ActorAttributes;
+import akka.stream.Attributes;
+import akka.stream.Supervision;
 import akka.stream.Supervision.Directive;
 import akka.stream.javadsl.Keep;
+import akka.stream.javadsl.RunnableGraph;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -28,7 +31,6 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.*;
-import io.retel.ariproxy.boundary.processingpipeline.ProcessingPipeline;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
@@ -69,26 +71,8 @@ public class AriCommandResponseKafkaProcessor {
   private static final ObjectWriter genericWriter = mapper.writer();
   private static final ObjectReader genericReader = mapper.reader();
 
-  public static ProcessingPipeline<ConsumerRecord<String, String>, CommandResponseHandler>
-      commandResponseProcessing() {
-    return system ->
-        commandResponseHandler ->
-            callContextProvider ->
-                metricsService ->
-                    source ->
-                        sink ->
-                            () ->
-                                run(
-                                    system,
-                                    commandResponseHandler,
-                                    callContextProvider,
-                                    metricsService,
-                                    source,
-                                    sink);
-  }
-
-  private static void run(
-      final akka.actor.typed.ActorSystem<?> system,
+  public static RunnableGraph<NotUsed> commandResponseProcessing(
+      final ActorSystem<?> system,
       final CommandResponseHandler commandResponseHandler,
       final ActorRef<CallContextProviderMessage> callContextProvider,
       final ActorRef<MetricsServiceMessage> metricsService,
@@ -112,52 +96,54 @@ public class AriCommandResponseKafkaProcessor {
     final String restUser = restConfig.getString(USER);
     final String restPassword = restConfig.getString(PASSWORD);
 
-    source
-        .log(">>>   ARI COMMAND", ConsumerRecord::value)
-        .withAttributes(LOG_LEVELS)
-        .map(AriCommandResponseKafkaProcessor::unmarshallAriCommandEnvelope)
-        .map(
-            msgEnvelope -> {
-              AriCommandResponseProcessing.registerCallContext(
-                      callContextProvider,
+    final RunnableGraph<NotUsed> notUsedRunnableGraph =
+        source
+            .log(">>>   ARI COMMAND", ConsumerRecord::value)
+            .withAttributes(LOG_LEVELS)
+            .map(AriCommandResponseKafkaProcessor::unmarshallAriCommandEnvelope)
+            .map(
+                msgEnvelope -> {
+                  AriCommandResponseProcessing.registerCallContext(
+                          callContextProvider,
+                          msgEnvelope.getCallContext(),
+                          msgEnvelope.getAriCommand(),
+                          system)
+                      .onFailure(
+                          error -> {
+                            throw new IllegalStateException(error);
+                          });
+                  return new CallContextAndCommandRequestContext(
                       msgEnvelope.getCallContext(),
-                      msgEnvelope.getAriCommand(),
-                      system)
-                  .onFailure(
-                      error -> {
-                        throw new IllegalStateException(error);
-                      });
-              return new CallContextAndCommandRequestContext(
-                  msgEnvelope.getCallContext(),
-                  msgEnvelope.getCommandId(),
-                  msgEnvelope.getAriCommand());
-            })
-        .map(
-            context ->
-                Tuple.of(
-                    toHttpRequest(context.getAriCommand(), restUri, restUser, restPassword),
-                    context))
-        .mapAsync(
-            1,
-            requestAndContext ->
-                commandResponseHandler
-                    .apply(requestAndContext)
-                    .handle(
-                        (response, error) -> {
-                          return Tuple.of(
-                              handleErrorInHTTPResponse(response, error), requestAndContext._2);
-                        }))
-        .wireTap(Sink.foreach(gatherMetrics(metricsService, stasisApp)))
-        .mapAsync(1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, system))
-        .map(
-            ariResponseAndContext ->
-                envelopeAriResponseToProducerRecord(
-                    commandsTopic, eventsAndResponsesTopic, ariResponseAndContext))
-        .log(">>>   ARI RESPONSE", ProducerRecord::value)
-        .withAttributes(LOG_LEVELS)
-        .toMat(sink, Keep.none())
-        .withAttributes(ActorAttributes.withSupervisionStrategy(decider))
-        .run(system);
+                      msgEnvelope.getCommandId(),
+                      msgEnvelope.getAriCommand());
+                })
+            .map(
+                context ->
+                    Tuple.of(
+                        toHttpRequest(context.getAriCommand(), restUri, restUser, restPassword),
+                        context))
+            .mapAsync(
+                1,
+                requestAndContext ->
+                    commandResponseHandler
+                        .apply(requestAndContext)
+                        .handle(
+                            (response, error) -> {
+                              return Tuple.of(
+                                  handleErrorInHTTPResponse(response, error), requestAndContext._2);
+                            }))
+            .wireTap(Sink.foreach(gatherMetrics(metricsService, stasisApp)))
+            .mapAsync(
+                1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, system))
+            .map(
+                ariResponseAndContext ->
+                    envelopeAriResponseToProducerRecord(
+                        commandsTopic, eventsAndResponsesTopic, ariResponseAndContext))
+            .log(">>>   ARI RESPONSE", ProducerRecord::value)
+            .withAttributes(LOG_LEVELS)
+            .toMat(sink, Keep.none())
+            .withAttributes(ActorAttributes.withSupervisionStrategy(decider));
+    return notUsedRunnableGraph;
   }
 
   private static HttpResponse handleErrorInHTTPResponse(HttpResponse response, Throwable error) {

@@ -87,7 +87,7 @@ Note: JMX data may be exposed via HTTP using the [jolokia jvm agent](http://jolo
 
 ## Compatibility
 We aim for compatibility with the latest stable release of
-- [Java OpenJDK 8](http://openjdk.java.net/projects/jdk8)
+- [Java OpenJDK 17](https://openjdk.java.net/projects/jdk/17/)
 - [Asterisk](https://wiki.asterisk.org/wiki/display/AST/Asterisk+Versions)
 - the utilized [Akka Modules](https://akka.io/docs/)
 

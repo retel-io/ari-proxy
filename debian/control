@@ -1,12 +1,12 @@
 Source: ari-proxy
 Section: telephony
 Priority: optional
-Build-Depends: java8-sdk-headless, debhelper, maven (>=3.3.9), dh-systemd, curl
+Build-Depends: java17-sdk-headless, debhelper, maven (>=3.3.9), dh-systemd, curl
 Maintainer: re-tel <re-tel@sipgate.de>
 Uploaders: re-tel <re-tel@sipgate.de>
 Standards-Version: 3.9.4
 
 Package: ari-proxy
 Architecture: all
-Depends: java8-runtime-headless, adduser, bash
+Depends: java17-runtime-headless, adduser, bash
 Description: asterisk rest interface proxy developed by sipgate

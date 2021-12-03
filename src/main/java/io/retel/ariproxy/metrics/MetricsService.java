@@ -4,10 +4,7 @@ import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
 import akka.actor.typed.PreRestart;
 import akka.actor.typed.javadsl.Behaviors;
-import io.micrometer.core.instrument.Clock;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.jmx.JmxConfig;
 import io.micrometer.jmx.JmxMeterRegistry;
@@ -16,6 +13,8 @@ import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.retel.ariproxy.metrics.api.MetricRegistered;
 import io.retel.ariproxy.metrics.api.PrometheusMetricsReport;
 import io.retel.ariproxy.metrics.api.ReportPrometheusMetrics;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,21 +39,28 @@ public class MetricsService {
           registry.add(jmxMeterRegistry);
           registry.add(prometheusMeterRegistry);
 
-          final Map<String, Timer.Sample> timers = new HashMap<>();
+          Timer.builder(METRIC_NAME_PERSISTENCE_UPDATE_DELAY)
+              .publishPercentileHistogram(true)
+              .maximumExpectedValue(Duration.ofSeconds(3))
+              .register(registry);
+          Timer.builder(METRIC_NAME_CALL_SETUP_DELAY)
+              .publishPercentileHistogram(true)
+              .maximumExpectedValue(Duration.ofSeconds(3))
+              .register(registry);
+
+          final Map<String, Instant> timers = new HashMap<>();
           final Map<String, Counter> counters = new HashMap<>();
 
           return Behaviors.receive(MetricsServiceMessage.class)
               .onMessage(
                   PresistenceUpdateTimerStart.class,
-                  msg -> handlePersistenceUpdateStart(timers, registry, msg))
+                  msg -> handlePersistenceUpdateStart(timers, msg))
               .onMessage(
                   PersistenceUpdateTimerStop.class,
                   msg -> handlePersistenceUpdateStop(timers, registry, msg))
               .onMessage(
                   IncreaseCounter.class, msg -> handleIncreaseCounter(counters, registry, msg))
-              .onMessage(
-                  StartCallSetupTimer.class,
-                  msg -> handleStartCallSetupTimer(timers, registry, msg))
+              .onMessage(StartCallSetupTimer.class, msg -> handleStartCallSetupTimer(timers, msg))
               .onMessage(
                   StopCallSetupTimer.class, msg -> handleStopCallSetupTimer(timers, registry, msg))
               .onMessage(
@@ -73,22 +79,23 @@ public class MetricsService {
   }
 
   private static Behavior<MetricsServiceMessage> handlePersistenceUpdateStart(
-      final Map<String, Timer.Sample> timers,
-      final MeterRegistry registry,
-      final PresistenceUpdateTimerStart message) {
-    timers.put(message.getContext(), Timer.start(registry));
+      final Map<String, Instant> timers, final PresistenceUpdateTimerStart message) {
+
+    timers.put(message.getContext(), Instant.now());
     message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.TIMER_STARTED));
 
     return Behaviors.same();
   }
 
   private static Behavior<MetricsServiceMessage> handlePersistenceUpdateStop(
-      final Map<String, Timer.Sample> timers,
+      final Map<String, Instant> timers,
       final MeterRegistry registry,
       final PersistenceUpdateTimerStop message) {
-    final Timer.Sample timer = timers.get(message.getContext());
+    final Instant timer = timers.get(message.getContext());
     if (timer != null) {
-      timer.stop(registry.timer(METRIC_NAME_PERSISTENCE_UPDATE_DELAY));
+      registry
+          .timer(METRIC_NAME_PERSISTENCE_UPDATE_DELAY)
+          .record(Duration.between(timer, Instant.now()));
       timers.remove(message.getContext());
     }
 
@@ -108,23 +115,20 @@ public class MetricsService {
   }
 
   private static Behavior<MetricsServiceMessage> handleStartCallSetupTimer(
-      final Map<String, Timer.Sample> timers,
-      final MeterRegistry registry,
-      final StartCallSetupTimer message) {
-    timers.put(message.getCallContext(), Timer.start(registry));
+      final Map<String, Instant> timers, final StartCallSetupTimer message) {
+    timers.put(message.getCallContext(), Instant.now());
     message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.TIMER_STARTED));
 
     return Behaviors.same();
   }
 
   private static Behavior<MetricsServiceMessage> handleStopCallSetupTimer(
-      final Map<String, Timer.Sample> timers,
+      final Map<String, Instant> timers,
       final MeterRegistry registry,
       final StopCallSetupTimer message) {
-    final Timer.Sample timer = timers.get(message.getCallcontext());
+    final Instant timer = timers.get(message.getCallcontext());
     if (timer != null) {
-      timer.stop(
-          registry.timer(METRIC_NAME_CALL_SETUP_DELAY, "stasisApp", message.getApplication()));
+      registry.timer(METRIC_NAME_CALL_SETUP_DELAY).record(Duration.between(timer, Instant.now()));
       timers.remove(message.getCallcontext());
     }
 

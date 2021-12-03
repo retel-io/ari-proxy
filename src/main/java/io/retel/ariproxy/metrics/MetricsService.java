@@ -10,6 +10,7 @@ import io.micrometer.jmx.JmxConfig;
 import io.micrometer.jmx.JmxMeterRegistry;
 import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
+import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.metrics.api.MetricRegistered;
 import io.retel.ariproxy.metrics.api.PrometheusMetricsReport;
 import io.retel.ariproxy.metrics.api.ReportPrometheusMetrics;
@@ -20,8 +21,8 @@ import java.util.Map;
 
 public class MetricsService {
 
-  private static final String METRIC_NAME_PERSISTENCE_UPDATE_DELAY = "PersistenceUpdateDelay";
-  private static final String METRIC_NAME_CALL_SETUP_DELAY = "CallSetupDelay";
+  private static final String METRIC_NAME_PERSISTENCE_UPDATE_DELAY = "ariproxy.persistence.WriteTime";
+  private static final String METRIC_NAME_CALL_SETUP_DELAY = "ariproxy.calls.SetupDelay";
 
   private MetricsService() {
     throw new IllegalStateException("Utility class");
@@ -50,6 +51,7 @@ public class MetricsService {
 
           final Map<String, Instant> timers = new HashMap<>();
           final Map<String, Counter> counters = new HashMap<>();
+          final Map<AriMessageType, Counter> eventCounters = new HashMap<>();
 
           return Behaviors.receive(MetricsServiceMessage.class)
               .onMessage(
@@ -60,6 +62,8 @@ public class MetricsService {
                   msg -> handlePersistenceUpdateStop(timers, registry, msg))
               .onMessage(
                   IncreaseCounter.class, msg -> handleIncreaseCounter(counters, registry, msg))
+              .onMessage(
+                  IncreaseAriEventCounter.class, msg -> handleAriIncreaseCounter(eventCounters, registry, msg))
               .onMessage(StartCallSetupTimer.class, msg -> handleStartCallSetupTimer(timers, msg))
               .onMessage(
                   StopCallSetupTimer.class, msg -> handleStopCallSetupTimer(timers, registry, msg))
@@ -109,6 +113,16 @@ public class MetricsService {
       final MeterRegistry registry,
       final IncreaseCounter message) {
     counters.computeIfAbsent(message.getName(), registry::counter).increment();
+    message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.COUNTER_INCREASED));
+
+    return Behaviors.same();
+  }
+
+  private static Behavior<MetricsServiceMessage> handleAriIncreaseCounter(
+          final Map<AriMessageType, Counter> counters,
+          final MeterRegistry registry,
+          final IncreaseAriEventCounter message) {
+    counters.computeIfAbsent(message.getEventType(), eventType -> Counter.builder("ariproxy.events").tag("eventType", eventType.name()).register(registry)).increment();
     message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.COUNTER_INCREASED));
 
     return Behaviors.same();

@@ -29,7 +29,7 @@ import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
-import io.retel.ariproxy.metrics.IncreaseCounter;
+import io.retel.ariproxy.metrics.IncreaseAriEventCounter;
 import io.retel.ariproxy.metrics.StartCallSetupTimer;
 import io.vavr.collection.Seq;
 import io.vavr.concurrent.Future;
@@ -42,8 +42,6 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.EnumSource.Mode;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -138,19 +136,6 @@ class AriEventProcessingTest {
     assertThat(record.topic(), is(fakeEventsAndResponsesTopic));
   }
 
-  @ParameterizedTest
-  @EnumSource(
-      value = AriMessageType.class,
-      mode = Mode.EXCLUDE,
-      names = {"STASIS_START", "STASIS_END"})
-  void verifyNoMetricsAreGatheredForTheSpecifiedEventTypes(AriMessageType type) {
-    final Seq<MetricsGatherer> decision = AriEventProcessing.determineMetricsGatherer(type);
-
-    assertThat(
-        ((IncreaseCounter) decision.get(0).withCallContextSupplier(() -> CALL_CONTEXT)).getName(),
-        is(type.name()));
-  }
-
   @Test
   void checkApplicationReplacedHandlerIsTriggered() throws InterruptedException {
     final AtomicBoolean didTriggerShutdown = new AtomicBoolean(false);
@@ -191,14 +176,13 @@ class AriEventProcessingTest {
         metricsGatherers.map(
             metricsGatherer -> metricsGatherer.withCallContextSupplier(() -> CALL_CONTEXT));
 
-    assertThat(len(metricsGatherers), is(3));
+    assertThat(len(metricsGatherers), is(2));
 
-    final IncreaseCounter eventTypeCounter = (IncreaseCounter) metricsRequests.get(0);
-    final IncreaseCounter callsStartedCounter = (IncreaseCounter) metricsRequests.get(1);
-    final StartCallSetupTimer callSetupTimer = (StartCallSetupTimer) metricsRequests.get(2);
+    final IncreaseAriEventCounter eventTypeCounter =
+        (IncreaseAriEventCounter) metricsRequests.get(0);
+    final StartCallSetupTimer callSetupTimer = (StartCallSetupTimer) metricsRequests.get(1);
 
-    assertThat(eventTypeCounter.getName(), is(AriMessageType.STASIS_START.name()));
-    assertThat(callsStartedCounter.getName(), is("CallsStarted"));
+    assertThat(eventTypeCounter.getEventType(), is(AriMessageType.STASIS_START));
     assertThat(callSetupTimer.getCallContext(), is(CALL_CONTEXT));
   }
 
@@ -211,13 +195,12 @@ class AriEventProcessingTest {
         metricsGatherers.map(
             metricsGatherer -> metricsGatherer.withCallContextSupplier(() -> CALL_CONTEXT));
 
-    assertThat(len(metricsGatherers), is(2));
+    assertThat(len(metricsGatherers), is(1));
 
-    final IncreaseCounter eventTypeCounter = (IncreaseCounter) metricsRequests.get(0);
-    final IncreaseCounter callsEndedCounter = (IncreaseCounter) metricsRequests.get(1);
+    final IncreaseAriEventCounter eventTypeCounter =
+        (IncreaseAriEventCounter) metricsRequests.get(0);
 
-    assertThat(eventTypeCounter.getName(), is(AriMessageType.STASIS_END.name()));
-    assertThat(callsEndedCounter.getName(), is("CallsEnded"));
+    assertThat(eventTypeCounter.getEventType(), is(AriMessageType.STASIS_END));
   }
 
   @Test

@@ -20,11 +20,14 @@ public class CachedKeyValueStore implements KeyValueStore<String, String> {
 
   private final KeyValueStore<String, String> store;
   private final LoadingCache<String, Optional<String>> cache;
+  private final ActorRef<MetricsServiceMessage> metricsService;
 
   public CachedKeyValueStore(
       final KeyValueStore<String, String> store,
       final ActorRef<MetricsServiceMessage> metricsService) {
     this.store = store;
+    this.metricsService = metricsService;
+
     cache =
         CacheBuilder.newBuilder()
             .expireAfterWrite(6, TimeUnit.HOURS)
@@ -33,11 +36,13 @@ public class CachedKeyValueStore implements KeyValueStore<String, String> {
                     (String key) -> {
                       try {
                         final Optional<String> result = store.get(key).get();
-                        metricsService.tell(new IncreaseCounter("CacheMisses"));
+                        this.metricsService.tell(new IncreaseCounter("ariproxy.cache.Misses"));
 
                         return result;
                       } catch (InterruptedException | ExecutionException e) {
                         LOGGER.warn("Unable to retrieve value for key {} from store", key, e);
+                        this.metricsService.tell(
+                            new IncreaseCounter("ariproxy.errors.PersistenceStoreReadErrors"));
                         return Optional.empty();
                       }
                     }));
@@ -52,9 +57,11 @@ public class CachedKeyValueStore implements KeyValueStore<String, String> {
   @Override
   public CompletableFuture<Optional<String>> get(final String key) {
     try {
+      this.metricsService.tell(new IncreaseCounter("ariproxy.cache.AccessAttempts"));
       return CompletableFuture.completedFuture(cache.get(key));
     } catch (ExecutionException e) {
       LOGGER.error("Unable to get value for key {} from cache", key, e);
+      this.metricsService.tell(new IncreaseCounter("ariproxy.errors.CacheErrors"));
       return CompletableFuture.completedFuture(Optional.empty());
     }
   }

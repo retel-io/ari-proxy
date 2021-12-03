@@ -14,6 +14,7 @@ import io.retel.ariproxy.boundary.callcontext.api.*;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageEnvelope;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriResource;
+import io.retel.ariproxy.metrics.IncreaseAriEventCounter;
 import io.retel.ariproxy.metrics.IncreaseCounter;
 import io.retel.ariproxy.metrics.StartCallSetupTimer;
 import io.vavr.collection.List;
@@ -38,21 +39,13 @@ public class AriEventProcessing {
   public static Seq<MetricsGatherer> determineMetricsGatherer(AriMessageType type) {
 
     List<MetricsGatherer> metricsGatherers =
-        List.of(callContextSupplier -> new IncreaseCounter(type.name()));
+        List.of(callContextSupplier -> new IncreaseAriEventCounter(type));
 
-    switch (type) {
-      case STASIS_START:
-        metricsGatherers =
-            metricsGatherers.appendAll(
-                List.of(
-                    callContextSupplier -> new IncreaseCounter("CallsStarted"),
-                    callContextSupplier -> new StartCallSetupTimer(callContextSupplier.get())));
-        break;
-      case STASIS_END:
-        metricsGatherers =
-            metricsGatherers.append(callContextSupplier -> new IncreaseCounter("CallsEnded"));
-        break;
-    }
+      if (type == AriMessageType.STASIS_START) {
+          metricsGatherers =
+                  metricsGatherers.append(
+                          callContextSupplier -> new StartCallSetupTimer(callContextSupplier.get()));
+      }
 
     return metricsGatherers;
   }

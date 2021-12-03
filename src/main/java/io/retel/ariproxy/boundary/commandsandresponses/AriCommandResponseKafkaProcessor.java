@@ -31,6 +31,7 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.*;
+import io.retel.ariproxy.metrics.IncreaseCounter;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
@@ -81,6 +82,8 @@ public class AriCommandResponseKafkaProcessor {
     final Function<Throwable, Directive> decider =
         error -> {
           system.log().error("Error in some stage; restarting stream ...", error);
+          metricsService.tell(
+              new IncreaseCounter("ariproxy.errors.CommandResponseProcessorRestarts"));
           return (Directive) Supervision.restart();
         };
 

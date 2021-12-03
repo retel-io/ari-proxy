@@ -1,7 +1,7 @@
 Source: ari-proxy
 Section: telephony
 Priority: optional
-Build-Depends: java17-sdk-headless, debhelper, maven (>=3.3.9), dh-systemd, curl
+Build-Depends: java17-sdk-headless, debhelper, dh-systemd
 Maintainer: re-tel <re-tel@sipgate.de>
 Uploaders: re-tel <re-tel@sipgate.de>
 Standards-Version: 3.9.4

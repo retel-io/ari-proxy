@@ -1,10 +1,15 @@
 package io.retel.ariproxy.metrics;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import akka.actor.testkit.typed.javadsl.ActorTestKit;
 import akka.actor.testkit.typed.javadsl.TestProbe;
 import akka.actor.typed.ActorRef;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.metrics.api.MetricRegistered;
+import io.retel.ariproxy.metrics.api.PrometheusMetricsReport;
+import io.retel.ariproxy.metrics.api.ReportPrometheusMetrics;
+import java.util.List;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +31,23 @@ class MetricsServiceTest {
   }
 
   @Test
+  void getPrometheusMetricsResponsesProperly() {
+    final ActorRef<MetricsServiceMessage> metricsService = testKit.spawn(MetricsService.create());
+    final TestProbe<MetricRegistered> counterProbe = testKit.createTestProbe();
+    final TestProbe<PrometheusMetricsReport> probe = testKit.createTestProbe();
+
+    metricsService.tell(new ReportPrometheusMetrics(probe.getRef()));
+    probe.expectMessage(new PrometheusMetricsReport(""));
+
+    metricsService.tell(new IncreaseCounter(CALL_CONTEXT, counterProbe.getRef()));
+    counterProbe.expectMessage(MetricRegistered.COUNTER_INCREASED);
+
+    metricsService.tell(new ReportPrometheusMetrics(probe.getRef()));
+    final List<PrometheusMetricsReport> reports = probe.receiveSeveralMessages(1);
+    assertTrue(reports.get(0).getPrometheusString().contains("theCallContext_total 1.0"));
+  }
+
+  @Test
   void callSetupTimerMessageIsRespondedProperly() {
     final ActorRef<MetricsServiceMessage> metricsService = testKit.spawn(MetricsService.create());
     final TestProbe<MetricRegistered> probe = testKit.createTestProbe();
@@ -38,14 +60,14 @@ class MetricsServiceTest {
   }
 
   @Test
-  void redisUpdateTimerMessageIsRespondedProperly() {
+  void persistenceUpdateTimerMessageIsRespondedProperly() {
     final ActorRef<MetricsServiceMessage> metricsService = testKit.spawn(MetricsService.create());
     final TestProbe<MetricRegistered> probe = testKit.createTestProbe();
 
-    metricsService.tell(new RedisUpdateTimerStart("CALL CONTEXT", probe.getRef()));
+    metricsService.tell(new PresistenceUpdateTimerStart("CALL CONTEXT", probe.getRef()));
     probe.expectMessage(MetricRegistered.TIMER_STARTED);
 
-    metricsService.tell(new RedisUpdateTimerStop(CALL_CONTEXT, probe.getRef()));
+    metricsService.tell(new PersistenceUpdateTimerStop(CALL_CONTEXT, probe.getRef()));
     probe.expectMessage(MetricRegistered.TIMER_STOPPED);
   }
 

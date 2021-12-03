@@ -33,7 +33,7 @@ public class CachedKeyValueStore implements KeyValueStore<String, String> {
                     (String key) -> {
                       try {
                         final Optional<String> result = store.get(key).get();
-                        metricsService.tell(new IncreaseCounter("RedisBackedCacheFallback"));
+                        metricsService.tell(new IncreaseCounter("CacheMisses"));
 
                         return result;
                       } catch (InterruptedException | ExecutionException e) {

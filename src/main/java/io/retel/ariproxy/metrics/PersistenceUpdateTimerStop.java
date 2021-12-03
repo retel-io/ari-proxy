@@ -6,15 +6,16 @@ import java.util.Optional;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-public class RedisUpdateTimerStart implements MetricsServiceMessage {
+public class PersistenceUpdateTimerStop implements MetricsServiceMessage {
   private final String context;
   private final ActorRef<MetricRegistered> replyTo;
 
-  public RedisUpdateTimerStart(final String context) {
+  public PersistenceUpdateTimerStop(final String context) {
     this(context, null);
   }
 
-  public RedisUpdateTimerStart(final String context, final ActorRef<MetricRegistered> replyTo) {
+  public PersistenceUpdateTimerStop(
+      final String context, final ActorRef<MetricRegistered> replyTo) {
     this.context = context;
     this.replyTo = replyTo;
   }

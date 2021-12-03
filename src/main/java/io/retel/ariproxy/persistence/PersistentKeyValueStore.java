@@ -38,17 +38,18 @@ public class PersistentKeyValueStore implements KeyValueStore<String, String> {
             (result, error) -> {
               if (error != null) {
                 return HealthReport.error(
-                    "RedisCheck: unable to set & get value: " + error.getMessage());
+                    "PersistenceStoreCheck: unable to set & get value: " + error.getMessage());
               }
 
               if (result.isEmpty()) {
-                return HealthReport.error("RedisCheck: empty result on get()");
+                return HealthReport.error("PersistenceStoreCheck: empty result on get()");
               }
 
               if (!result.get().equals(value)) {
                 return HealthReport.error(
                     String.format(
-                        "RedisCheck: %s does not match expected %s", result.get(), value));
+                        "PersistenceStoreCheck: %s does not match expected %s",
+                        result.get(), value));
               }
 
               return HealthReport.ok();

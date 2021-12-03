@@ -75,15 +75,10 @@ CREATE TABLE retel (
 Hint: do not forget some kind of housekeeping by adding TTL or a cleanup job.
 
 ## Metrics
-Ari-proxy provides service specific metrics using the [micrometer framework](http://micrometer.io) which are available via JMX.
+Ari-proxy provides service specific metrics using the [micrometer framework](http://micrometer.io) which are available via JMX or HTTP.
 
-| mbean                           | type    | description                                                                                  |
-| ------------------------------- | --------| -------------------------------------------------------------------------------------------- |
-| metrics:name=CallSetupDelay.\*  | Timer   | Measures the duration between a `StasisStart` event and the first response to an ari-command |
-| metrics:name=CallsStarted       | Counter | Increases for every `StasisStart` event                                                      |
-| metrics:name=CallsEnded         | Counter | Increases for every `StasisEnd` event                                                        |
+For further details see: [Metrics](docs/metrics.md)
 
-Note: JMX data may be exposed via HTTP using the [jolokia jvm agent](http://jolokia.org) (see: [debian/ari-proxy@.service](/debian/ari-proxy.service)).
 
 ## Compatibility
 We aim for compatibility with the latest stable release of

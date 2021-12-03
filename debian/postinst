@@ -16,7 +16,6 @@ esac
 
 chown root:root /usr/share/java/ari-proxy/ari-proxy.jar
 chmod 0644 /usr/share/java/ari-proxy/ari-proxy.jar
-chmod 0644 /usr/share/java/ari-proxy/jolokia-jvm-1.6.0-agent.jar
 
 chown -R ari-proxy:ari-proxy /var/log/ari-proxy
 chmod 0755 /var/log/ari-proxy

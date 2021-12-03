@@ -77,17 +77,8 @@ Hint: do not forget some kind of housekeeping by adding TTL or a cleanup job.
 ## Metrics
 Ari-proxy provides service specific metrics using the [micrometer framework](http://micrometer.io) which are available via JMX or HTTP.
 
-### Metrics via JMX
-| mbean                           | type    | description                                                                                  |
-| ------------------------------- | --------| -------------------------------------------------------------------------------------------- |
-| metrics:name=CallSetupDelay.\*  | Timer   | Measures the duration between a `StasisStart` event and the first response to an ari-command |
-| metrics:name=CallsStarted       | Counter | Increases for every `StasisStart` event                                                      |
-| metrics:name=CallsEnded         | Counter | Increases for every `StasisEnd` event                                                        |
+For further details see: [Metrics](docs/metrics.md)
 
-Note: JMX data may be exposed via HTTP using the [jolokia jvm agent](http://jolokia.org) (see: [debian/ari-proxy@.service](/debian/ari-proxy.service)).
-
-### Metrics via HTTP
-Prometheus formatted metrics are provided on the path `/metrics` on the port configured by `service.httpport` in the service config file.
 
 ## Compatibility
 We aim for compatibility with the latest stable release of

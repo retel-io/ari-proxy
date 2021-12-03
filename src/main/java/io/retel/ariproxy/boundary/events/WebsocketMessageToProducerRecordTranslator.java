@@ -17,6 +17,7 @@ import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
+import io.retel.ariproxy.metrics.IncreaseCounter;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import java.util.function.Supplier;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -41,6 +42,7 @@ public class WebsocketMessageToProducerRecordTranslator {
     final Function<Throwable, Supervision.Directive> decider =
         t -> {
           system.log().error("WebsocketMessageToProducerRecordTranslator stream failed", t);
+          metricsService.tell(new IncreaseCounter("ariproxy.errors.EventProcessorRestarts"));
           return (Supervision.Directive) Supervision.resume();
         };
 

@@ -36,7 +36,7 @@
     <version.datastax>4.12.0</version.datastax>
     <version.cassandraunit>4.3.1.0</version.cassandraunit>
     <version.mockito>3.11.2</version.mockito>
-    <version.micrometer>1.7.2</version.micrometer>
+    <version.micrometer>1.8.0</version.micrometer>
     <version.jackson>2.12.4</version.jackson>
     <version.google-guava>30.1.1-jre</version.google-guava>
     <version.lettuce>6.1.4.RELEASE</version.lettuce>
@@ -128,6 +128,11 @@
     <dependency>
       <groupId>io.micrometer</groupId>
       <artifactId>micrometer-registry-jmx</artifactId>
+      <version>${version.micrometer}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
       <version>${version.micrometer}</version>
     </dependency>
 

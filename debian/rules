@@ -28,7 +28,7 @@ override_dh_install: copy_package
 ##########
 
 build_package:
-	mvn -B -Dmaven.repo.local=$(PWD)/.m2 -Dskip-spotless=true clean verify
+	./mvnw -B -Dmaven.repo.local=$(PWD)/.m2 -Dskip-spotless=true clean verify
 
 setup_service_lib_dir:
 	mkdir -p $(SERVICE_LIB_DIR)

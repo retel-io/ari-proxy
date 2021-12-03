@@ -21,7 +21,8 @@ import java.util.Map;
 
 public class MetricsService {
 
-  private static final String METRIC_NAME_PERSISTENCE_UPDATE_DELAY = "ariproxy.persistence.WriteTime";
+  private static final String METRIC_NAME_PERSISTENCE_UPDATE_DELAY =
+      "ariproxy.persistence.WriteTime";
   private static final String METRIC_NAME_CALL_SETUP_DELAY = "ariproxy.calls.SetupDelay";
 
   private MetricsService() {
@@ -63,7 +64,8 @@ public class MetricsService {
               .onMessage(
                   IncreaseCounter.class, msg -> handleIncreaseCounter(counters, registry, msg))
               .onMessage(
-                  IncreaseAriEventCounter.class, msg -> handleAriIncreaseCounter(eventCounters, registry, msg))
+                  IncreaseAriEventCounter.class,
+                  msg -> handleAriIncreaseCounter(eventCounters, registry, msg))
               .onMessage(StartCallSetupTimer.class, msg -> handleStartCallSetupTimer(timers, msg))
               .onMessage(
                   StopCallSetupTimer.class, msg -> handleStopCallSetupTimer(timers, registry, msg))
@@ -119,10 +121,17 @@ public class MetricsService {
   }
 
   private static Behavior<MetricsServiceMessage> handleAriIncreaseCounter(
-          final Map<AriMessageType, Counter> counters,
-          final MeterRegistry registry,
-          final IncreaseAriEventCounter message) {
-    counters.computeIfAbsent(message.getEventType(), eventType -> Counter.builder("ariproxy.events").tag("eventType", eventType.name()).register(registry)).increment();
+      final Map<AriMessageType, Counter> counters,
+      final MeterRegistry registry,
+      final IncreaseAriEventCounter message) {
+    counters
+        .computeIfAbsent(
+            message.getEventType(),
+            eventType ->
+                Counter.builder("ariproxy.events")
+                    .tag("eventType", eventType.name())
+                    .register(registry))
+        .increment();
     message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.COUNTER_INCREASED));
 
     return Behaviors.same();

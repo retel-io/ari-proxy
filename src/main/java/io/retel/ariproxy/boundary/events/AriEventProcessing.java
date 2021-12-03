@@ -15,7 +15,6 @@ import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageEnvel
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriResource;
 import io.retel.ariproxy.metrics.IncreaseAriEventCounter;
-import io.retel.ariproxy.metrics.IncreaseCounter;
 import io.retel.ariproxy.metrics.StartCallSetupTimer;
 import io.vavr.collection.List;
 import io.vavr.collection.Seq;
@@ -41,11 +40,11 @@ public class AriEventProcessing {
     List<MetricsGatherer> metricsGatherers =
         List.of(callContextSupplier -> new IncreaseAriEventCounter(type));
 
-      if (type == AriMessageType.STASIS_START) {
-          metricsGatherers =
-                  metricsGatherers.append(
-                          callContextSupplier -> new StartCallSetupTimer(callContextSupplier.get()));
-      }
+    if (type == AriMessageType.STASIS_START) {
+      metricsGatherers =
+          metricsGatherers.append(
+              callContextSupplier -> new StartCallSetupTimer(callContextSupplier.get()));
+    }
 
     return metricsGatherers;
   }

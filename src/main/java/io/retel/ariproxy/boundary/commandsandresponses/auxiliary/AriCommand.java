@@ -1,5 +1,6 @@
 package io.retel.ariproxy.boundary.commandsandresponses.auxiliary;
 
+import static io.retel.ariproxy.metrics.Metrics.countAriCommand;
 import static org.apache.commons.lang3.builder.EqualsBuilder.reflectionEquals;
 import static org.apache.commons.lang3.builder.HashCodeBuilder.reflectionHashCode;
 import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
@@ -51,6 +52,9 @@ public class AriCommand {
     List<AriResource> ariResources = AriCommandType.extractAllResources(getUrl());
 
     final AriCommandType commandType = AriCommandType.fromRequestUri(getUrl());
+
+    countAriCommand(commandType);
+
     if (!commandType.isCreationCommand()) {
       return ariResources.map(r -> new AriResourceRelation(r, false));
     }

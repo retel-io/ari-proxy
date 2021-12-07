@@ -23,7 +23,6 @@ public class MetricsService {
 
   private static final String METRIC_NAME_PERSISTENCE_UPDATE_DELAY =
       "ariproxy.persistence.WriteTime";
-  private static final String METRIC_NAME_CALL_SETUP_DELAY = "ariproxy.calls.SetupDelay";
 
   private MetricsService() {
     throw new IllegalStateException("Utility class");
@@ -45,10 +44,6 @@ public class MetricsService {
               .publishPercentileHistogram(true)
               .maximumExpectedValue(Duration.ofSeconds(3))
               .register(registry);
-          Timer.builder(METRIC_NAME_CALL_SETUP_DELAY)
-              .publishPercentileHistogram(true)
-              .maximumExpectedValue(Duration.ofSeconds(3))
-              .register(registry);
 
           final Map<String, Instant> timers = new HashMap<>();
           final Map<String, Counter> counters = new HashMap<>();
@@ -66,9 +61,6 @@ public class MetricsService {
               .onMessage(
                   IncreaseAriEventCounter.class,
                   msg -> handleAriIncreaseCounter(eventCounters, registry, msg))
-              .onMessage(StartCallSetupTimer.class, msg -> handleStartCallSetupTimer(timers, msg))
-              .onMessage(
-                  StopCallSetupTimer.class, msg -> handleStopCallSetupTimer(timers, registry, msg))
               .onMessage(
                   ReportPrometheusMetrics.class,
                   msg -> handleReportPrometheusMetrics(prometheusMeterRegistry, msg))
@@ -133,29 +125,6 @@ public class MetricsService {
                     .register(registry))
         .increment();
     message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.COUNTER_INCREASED));
-
-    return Behaviors.same();
-  }
-
-  private static Behavior<MetricsServiceMessage> handleStartCallSetupTimer(
-      final Map<String, Instant> timers, final StartCallSetupTimer message) {
-    timers.put(message.getCallContext(), Instant.now());
-    message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.TIMER_STARTED));
-
-    return Behaviors.same();
-  }
-
-  private static Behavior<MetricsServiceMessage> handleStopCallSetupTimer(
-      final Map<String, Instant> timers,
-      final MeterRegistry registry,
-      final StopCallSetupTimer message) {
-    final Instant timer = timers.get(message.getCallcontext());
-    if (timer != null) {
-      registry.timer(METRIC_NAME_CALL_SETUP_DELAY).record(Duration.between(timer, Instant.now()));
-      timers.remove(message.getCallcontext());
-    }
-
-    message.getReplyTo().ifPresent(replyTo -> replyTo.tell(MetricRegistered.TIMER_STOPPED));
 
     return Behaviors.same();
   }

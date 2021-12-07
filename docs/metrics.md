@@ -7,7 +7,6 @@ Metrics via HTTP are in Prometheus format and are provided via the route `/metri
 
 ## Meter descriptions
 
-* **ariproxy.calls.SetupDelay**: Measures the duration between a `StasisStart` event and the first response to an ari-command
 * **ariproxy.persistence.WriteTime**: Measures the time it takes to persist data in the persistence store backend.
 * **ariproxy.cache.Misses**: Increases every time a lookup for call context in local cache fails and it has to be retrieved from the persistence backend
 * **ariproxy.cache.AccessAttempts**: Counts how often the local cache is called to lookup a call context.

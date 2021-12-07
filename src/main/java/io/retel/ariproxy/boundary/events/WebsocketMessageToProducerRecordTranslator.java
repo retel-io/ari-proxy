@@ -51,9 +51,6 @@ public class WebsocketMessageToProducerRecordTranslator {
     final String eventsAndResponsesTopic = kafkaConfig.getString(EVENTS_AND_RESPONSES_TOPIC);
 
     return source
-        // .throttle(4 * 13, Duration.ofSeconds(1)) // Note: We die right now for calls/s >= 4.8
-        .wireTap(
-            Sink.foreach(msg -> gatherMetrics(msg, metricsService, callContextProvider, system)))
         .flatMapConcat(
             (msg) ->
                 generateProducerRecordFromEvent(
@@ -68,35 +65,5 @@ public class WebsocketMessageToProducerRecordTranslator {
         .withAttributes(LOG_LEVELS)
         .to(sink)
         .withAttributes(ActorAttributes.withSupervisionStrategy(decider));
-  }
-
-  private static void gatherMetrics(
-      Message message,
-      ActorRef<MetricsServiceMessage> metricsService,
-      akka.actor.typed.ActorRef<CallContextProviderMessage> callContextProvider,
-      final ActorSystem<?> system) {
-    final Supplier<String> callContextSupplier =
-        () ->
-            getValueFromMessageByPath(message, "/channel/id")
-                .toTry()
-                .flatMap(
-                    channelId ->
-                        getCallContext(
-                            channelId,
-                            callContextProvider,
-                            getValueFromMessageByPath(message, "/channel/channelvars/CALL_CONTEXT"),
-                            ProviderPolicy.CREATE_IF_MISSING,
-                            system))
-                .getOrElseThrow(
-                    () -> new RuntimeException(message.asTextMessage().getStrictText()));
-
-    getValueFromMessageByPath(message, "/type")
-        .map(type -> determineMetricsGatherer(AriMessageType.fromType(type)))
-        .forEach(
-            gatherers ->
-                gatherers.forEach(
-                    gatherer -> {
-                      metricsService.tell(gatherer.withCallContextSupplier(callContextSupplier));
-                    }));
   }
 }

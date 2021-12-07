@@ -23,7 +23,6 @@ import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.TestableCallContextProvider;
 import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
-import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -113,11 +112,6 @@ class AriCommandResponseKafkaProcessorTest {
       assertThat(registerCallContext.callContext(), is("CALL_CONTEXT"));
       assertThat(registerCallContext.resourceId(), is(resourceIdExpectedToRegisterInCallContext));
     }
-
-    final StopCallSetupTimer stopCallSetupTimer =
-        metricsService.expectMessageClass(StopCallSetupTimer.class);
-    assertThat(stopCallSetupTimer.getCallcontext(), is("CALL_CONTEXT"));
-    assertThat(stopCallSetupTimer.getApplication(), is("test-app"));
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> responseRecord =

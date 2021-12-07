@@ -34,7 +34,6 @@ import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.*;
 import io.retel.ariproxy.metrics.IncreaseCounter;
 import io.retel.ariproxy.metrics.Metrics;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
-import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.concurrent.Future;
@@ -144,7 +143,6 @@ public class AriCommandResponseKafkaProcessor {
                                 handleErrorInHTTPResponse(response, error), requestAndContext._2);
                           });
                 })
-            .wireTap(Sink.foreach(gatherMetrics(metricsService, stasisApp)))
             .mapAsync(
                 1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, system))
             .map(
@@ -176,13 +174,6 @@ public class AriCommandResponseKafkaProcessor {
         eventsAndResponsesTopic,
         context.getCallContext(),
         marshallAriMessageEnvelope(ariMessageEnvelope));
-  }
-
-  private static Procedure<Tuple2<HttpResponse, CallContextAndCommandRequestContext>> gatherMetrics(
-      ActorRef<MetricsServiceMessage> metricsService, String applicationName) {
-    return rawHttpResponseAndContext ->
-        metricsService.tell(
-            new StopCallSetupTimer(rawHttpResponseAndContext._2.getCallContext(), applicationName));
   }
 
   private static AriCommandEnvelope unmarshallAriCommandEnvelope(

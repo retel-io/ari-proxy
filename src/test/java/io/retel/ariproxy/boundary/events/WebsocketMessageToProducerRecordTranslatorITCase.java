@@ -26,7 +26,6 @@ import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.metrics.IncreaseCounter;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
-import io.retel.ariproxy.metrics.StartCallSetupTimer;
 import io.vavr.control.Option;
 import java.io.File;
 import java.io.IOException;
@@ -134,10 +133,6 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     assertThat(provideCallContextForRouting.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
     assertThat(provideCallContextForRouting.maybeCallContextFromChannelVars(), is(Option.none()));
 
-    final StartCallSetupTimer startCallSetupTimer =
-        metricsServiceProbe.expectMessageClass(StartCallSetupTimer.class);
-    assertThat(startCallSetupTimer.getCallContext(), is(CALL_CONTEXT_PROVIDED.callContext()));
-
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> completedRecord =
         kafkaProducerProbe.expectMessageClass(ProducerRecord.class);
@@ -225,10 +220,6 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     assertThat(
         provideCallContextForRouting.maybeCallContextFromChannelVars(),
         is(Option.some("aCallContext")));
-
-    final StartCallSetupTimer startCallSetupTimer =
-        metricsServiceProbe.expectMessageClass(StartCallSetupTimer.class);
-    assertThat(startCallSetupTimer.getCallContext(), is(CALL_CONTEXT_PROVIDED.callContext()));
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> completedRecord =

@@ -1,6 +1,7 @@
 package io.retel.ariproxy.boundary.events;
 
-import static io.retel.ariproxy.boundary.events.AriEventProcessing.generateProducerRecordFromEvent;
+import static io.retel.ariproxy.boundary.events.AriEventProcessing.*;
+import static io.retel.ariproxy.boundary.events.AriEventProcessing.getValueFromMessageByPath;
 
 import akka.NotUsed;
 import akka.actor.typed.ActorRef;
@@ -17,6 +18,7 @@ import akka.stream.javadsl.Source;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
+import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.metrics.Metrics;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
@@ -48,6 +50,7 @@ public class WebsocketMessageToProducerRecordTranslator {
     final String eventsAndResponsesTopic = kafkaConfig.getString(EVENTS_AND_RESPONSES_TOPIC);
 
     return source
+        .wireTap(msg -> gatherMetrics(msg))
         .flatMapConcat(
             (msg) ->
                 generateProducerRecordFromEvent(
@@ -62,5 +65,14 @@ public class WebsocketMessageToProducerRecordTranslator {
         .withAttributes(LOG_LEVELS)
         .to(sink)
         .withAttributes(ActorAttributes.withSupervisionStrategy(decider));
+  }
+
+  private static void gatherMetrics(final Message message) {
+    final AriMessageType type =
+        getValueFromMessageByPath(message, "/type")
+            .map(AriMessageType::fromType)
+            .getOrElse(AriMessageType.UNKNOWN);
+
+    Metrics.countAriEvent(type);
   }
 }

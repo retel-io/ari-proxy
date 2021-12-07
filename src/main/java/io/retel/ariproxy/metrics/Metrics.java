@@ -14,8 +14,10 @@ import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommand;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandType;
+import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 
 public final class Metrics {
@@ -29,6 +31,7 @@ public final class Metrics {
   private static final String OUTGOING_REQUESTS_ERRORS_METRIC_NAME =
       "ari-proxy.outgoing.requests.errors";
   private static final String PROCESSOR_RESTARTS_METRIC_NAME = "ari-proxy.processor.restarts";
+  private static final String EVENTS_METRIC_NAME = "ari-proxy.events";
 
   // Registry
   private static final CompositeMeterRegistry REGISTRY = new CompositeMeterRegistry();
@@ -56,6 +59,7 @@ public final class Metrics {
           PROCESSOR_RESTARTS_METRIC_NAME, List.of(Tag.of("processorType", "commandResponse")));
   private static final Counter EVENT_PROCESSOR_RESTARTS_COUNTER =
       REGISTRY.counter(PROCESSOR_RESTARTS_METRIC_NAME, List.of(Tag.of("processorType", "event")));
+  private static final HashMap<AriMessageType, Counter> EVENT_COUNTERS = new HashMap<>();
 
   static {
     REGISTRY.add(prometheusRegistry);
@@ -64,6 +68,14 @@ public final class Metrics {
     new JvmMemoryMetrics().bindTo(REGISTRY);
     new JvmGcMetrics().bindTo(REGISTRY);
     new JvmThreadMetrics().bindTo(REGISTRY);
+
+    registerAriEventCounters();
+  }
+
+  private static void registerAriEventCounters() {
+    for (final AriMessageType ariMessageType : AriMessageType.values()) {
+      getAriEventCounter(ariMessageType);
+    }
   }
 
   private static Timer getTimerWithHistogram(
@@ -122,5 +134,14 @@ public final class Metrics {
 
   public static String scrapePrometheusRegistry() {
     return prometheusRegistry.scrape();
+  }
+
+  public static void countAriEvent(final AriMessageType eventType) {
+    getAriEventCounter(eventType).increment();
+  }
+
+  private static Counter getAriEventCounter(final AriMessageType ariMessageType) {
+    return REGISTRY.counter(
+        EVENTS_METRIC_NAME, List.of(Tag.of("eventType", ariMessageType.name())));
   }
 }

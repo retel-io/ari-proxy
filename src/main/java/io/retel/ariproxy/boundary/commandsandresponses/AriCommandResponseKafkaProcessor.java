@@ -32,6 +32,7 @@ import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.*;
 import io.retel.ariproxy.metrics.IncreaseCounter;
+import io.retel.ariproxy.metrics.Metrics;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import io.vavr.Tuple;
@@ -40,6 +41,8 @@ import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
 import java.nio.charset.Charset;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import org.apache.commons.lang3.StringUtils;
@@ -127,14 +130,20 @@ public class AriCommandResponseKafkaProcessor {
                         context))
             .mapAsync(
                 1,
-                requestAndContext ->
-                    commandResponseHandler
-                        .apply(requestAndContext)
-                        .handle(
-                            (response, error) -> {
-                              return Tuple.of(
-                                  handleErrorInHTTPResponse(response, error), requestAndContext._2);
-                            }))
+                requestAndContext -> {
+                  final Instant start = Instant.now();
+                  return commandResponseHandler
+                      .apply(requestAndContext)
+                      .handle(
+                          (response, error) -> {
+                            Metrics.recordAriCommandRequest(
+                                requestAndContext._2.getAriCommand(),
+                                Duration.between(start, Instant.now()),
+                                error != null);
+                            return Tuple.of(
+                                handleErrorInHTTPResponse(response, error), requestAndContext._2);
+                          });
+                })
             .wireTap(Sink.foreach(gatherMetrics(metricsService, stasisApp)))
             .mapAsync(
                 1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, system))

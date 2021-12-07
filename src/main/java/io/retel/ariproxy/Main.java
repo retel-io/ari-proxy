@@ -25,9 +25,9 @@ import io.retel.ariproxy.boundary.events.WebsocketMessageToProducerRecordTransla
 import io.retel.ariproxy.health.HealthService;
 import io.retel.ariproxy.health.KafkaConnectionCheck;
 import io.retel.ariproxy.health.KafkaConnectionCheck.ReportKafkaConnectionHealth;
+import io.retel.ariproxy.metrics.Metrics;
 import io.retel.ariproxy.metrics.MetricsService;
 import io.retel.ariproxy.metrics.MetricsServiceMessage;
-import io.retel.ariproxy.metrics.api.ReportPrometheusMetrics;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
@@ -90,13 +90,7 @@ public class Main {
                                   HEALTH_REPORT_TIMEOUT,
                                   ctx.getSystem().scheduler())
                               .toCompletableFuture()),
-                  () ->
-                      AskPattern.ask(
-                              metricService,
-                              ReportPrometheusMetrics::new,
-                              HEALTH_REPORT_TIMEOUT,
-                              ctx.getSystem().scheduler())
-                          .toCompletableFuture(),
+                      Metrics::scrapePrometheusRegistry,
                   serviceConfig.getInt(HTTPPORT));
 
               runAriEventProcessor(

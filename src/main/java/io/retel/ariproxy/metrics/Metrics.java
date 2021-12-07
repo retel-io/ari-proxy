@@ -70,4 +70,8 @@ public final class Metrics {
     getTimerWithHistogram(OUTGOING_REQUESTS_TIMER_METRIC_NAME, tags, Duration.ofSeconds(10))
         .record(duration);
   }
+
+  public static String scrapePrometheusRegistry() {
+    return prometheusRegistry.scrape();
+  }
 }

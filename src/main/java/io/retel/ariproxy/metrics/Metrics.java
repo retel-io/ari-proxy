@@ -15,18 +15,20 @@ import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommand;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandType;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class Metrics {
+
+  private static final Duration MAX_EXPECTED_DURATION = Duration.ofSeconds(10);
 
   // Metric Names
   private static final String OUTGOING_REQUESTS_METRIC_NAME = "ari-proxy.outgoing.requests";
   private static final String OUTGOING_REQUESTS_TIMER_METRIC_NAME =
-      OUTGOING_REQUESTS_METRIC_NAME + ".duration";
+      "ari-proxy.outgoing.requests.duration";
   private static final String OUTGOING_REQUESTS_ERRORS_METRIC_NAME =
-      OUTGOING_REQUESTS_METRIC_NAME + ".errors";
+      "ari-proxy.outgoing.requests.errors";
+  private static final String PROCESSOR_RESTARTS_METRIC_NAME = "ari-proxy.processor.restarts";
 
   // Registry
   private static final CompositeMeterRegistry REGISTRY = new CompositeMeterRegistry();
@@ -35,6 +37,25 @@ public final class Metrics {
 
   private static final JmxMeterRegistry jmxMeterRegistry =
       new JmxMeterRegistry(JmxConfig.DEFAULT, Clock.SYSTEM);
+
+  private static final Counter CACHE_READ_ATTEMPTS_COUNTER =
+      REGISTRY.counter("ari-proxy.cache.read.attempts");
+  private static final Counter CACHE_READ_MISSES_COUNTER =
+      REGISTRY.counter("ari-proxy.cache.read.misses");
+  private static final Counter CACHE_READ_ERRORS_COUNTER =
+      REGISTRY.counter("ari-proxy.cache.read.errors");
+
+  private static final Counter PERSISTENCE_READ_ERRORS_COUNTERS =
+      REGISTRY.counter("ari-proxy.persistence.read.errors");
+  private static final Timer PERSISTENCE_WRITE_DURATION_TIMER =
+      getTimerWithHistogram(
+          "ari-proxy.persistence.write.duration", Collections.emptyList(), MAX_EXPECTED_DURATION);
+
+  private static final Counter COMMAND_RESPONSE_PROCESSOR_RESTARTS_COUNTER =
+      REGISTRY.counter(
+          PROCESSOR_RESTARTS_METRIC_NAME, List.of(Tag.of("processorType", "commandResponse")));
+  private static final Counter EVENT_PROCESSOR_RESTARTS_COUNTER =
+      REGISTRY.counter(PROCESSOR_RESTARTS_METRIC_NAME, List.of(Tag.of("processorType", "event")));
 
   static {
     REGISTRY.add(prometheusRegistry);
@@ -67,8 +88,36 @@ public final class Metrics {
       REGISTRY.counter(OUTGOING_REQUESTS_ERRORS_METRIC_NAME, tags).increment();
     }
 
-    getTimerWithHistogram(OUTGOING_REQUESTS_TIMER_METRIC_NAME, tags, Duration.ofSeconds(10))
+    getTimerWithHistogram(OUTGOING_REQUESTS_TIMER_METRIC_NAME, tags, MAX_EXPECTED_DURATION)
         .record(duration);
+  }
+
+  public static void countCacheReadAttempt() {
+    CACHE_READ_ATTEMPTS_COUNTER.increment();
+  }
+
+  public static void countCacheReadMiss() {
+    CACHE_READ_MISSES_COUNTER.increment();
+  }
+
+  public static void countCacheReadError() {
+    CACHE_READ_ERRORS_COUNTER.increment();
+  }
+
+  public static void countPersistenceReadError() {
+    PERSISTENCE_READ_ERRORS_COUNTERS.increment();
+  }
+
+  public static void timePersistenceWriteDuration(final Duration duration) {
+    PERSISTENCE_WRITE_DURATION_TIMER.record(duration);
+  }
+
+  public static void countCommandResponseProcessorRestarts() {
+    COMMAND_RESPONSE_PROCESSOR_RESTARTS_COUNTER.increment();
+  }
+
+  public static void countEventProcessorRestart() {
+    EVENT_PROCESSOR_RESTARTS_COUNTER.increment();
   }
 
   public static String scrapePrometheusRegistry() {

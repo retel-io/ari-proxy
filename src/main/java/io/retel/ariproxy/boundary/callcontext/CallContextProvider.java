@@ -2,14 +2,12 @@ package io.retel.ariproxy.boundary.callcontext;
 
 import static java.util.concurrent.CompletableFuture.completedFuture;
 
-import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
 import akka.actor.typed.PreRestart;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.pattern.StatusReply;
 import io.retel.ariproxy.boundary.callcontext.api.*;
-import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import io.retel.ariproxy.persistence.KeyValueStore;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,9 +27,8 @@ public class CallContextProvider {
     throw new IllegalStateException("Utility class");
   }
 
-  public static Behavior<CallContextProviderMessage> create(
-      final ActorRef<MetricsServiceMessage> metricsService) {
-    return create(KeyValueStore.createDefaultStore(metricsService));
+  public static Behavior<CallContextProviderMessage> create() {
+    return create(KeyValueStore.createDefaultStore());
   }
 
   public static Behavior<CallContextProviderMessage> create(

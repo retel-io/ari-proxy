@@ -7,18 +7,10 @@ Metrics via HTTP are in Prometheus format and are provided via the route `/metri
 
 ## Meter descriptions
 
-* **ariproxy.persistence.WriteTime**: Measures the time it takes to persist data in the persistence store backend.
-* **ariproxy.cache.Misses**: Increases every time a lookup for call context in local cache fails and it has to be retrieved from the persistence backend
-* **ariproxy.cache.AccessAttempts**: Counts how often the local cache is called to lookup a call context.
-* **ariproxy.errors.CacheErrors**: How often a call context lookup failed
-* **ariproxy.errors.CommandResponseProcessorRestarts**: Increases every time the command processing stream restarts because of errors.
-* **ariproxy.errors.EventProcessorRestarts**: Increases every time the ari event processing stream restarts because of errors.
-* **ariproxy.errors.PersistenceStoreReadErrors**: errors when trying to read from persistence store backend
-
-## ARI Event Counters
-All ARI events are counted and exported as `ariproxy.events` tagged by `eventType`, this includes for example:
-* DIAL
-* STASIS_START
-* PLAYBACK_STARTED
-* CHANNEL_HANGUP_REQUEST
-* ...
+* **ari-proxy.persistence.write.duration**: Measures the time it takes to persist data in the persistence store backend.
+* **ari-proxy.cache.read.misses**: Increases every time a lookup for call context in local cache fails and it has to be retrieved from the persistence backend
+* **ari-proxy.cache.read.attempts**: Counts how often the local cache is called to lookup a call context.
+* **ari-proxy.cache.read.errors**: How often a call context lookup failed
+* **ari-proxy.processor.restarts**: Increases every time the command or event processing stream restarts because of errors.
+* **ari-proxy.persistence.read.errors**: errors when trying to read from persistence store
+* **ari-proxy.persistence.write.duration**: duration of writing to persistence store

@@ -17,7 +17,6 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import io.retel.ariproxy.boundary.callcontext.CallContextProvider;
 import io.retel.ariproxy.health.api.HealthReport;
 import io.retel.ariproxy.health.api.HealthResponse;
-import io.retel.ariproxy.metrics.api.PrometheusMetricsReport;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -65,14 +64,7 @@ public class HealthService {
                 concat(
                     path("smoke", () -> get(() -> complete(StatusCodes.OK))),
                     get(() -> handleHealthBaseRoute(healthSuppliers)))),
-        pathPrefix(
-            "metrics",
-            () ->
-                get(
-                    () ->
-                        complete(
-                            metricsSupplier
-                                .get()))));
+        pathPrefix("metrics", () -> get(() -> complete(metricsSupplier.get()))));
   }
 
   private static Route handleHealthBaseRoute(
@@ -85,8 +77,7 @@ public class HealthService {
       final Collection<Supplier<CompletableFuture<HealthReport>>> healthSuppliers) {
     return CompletableFuture.supplyAsync(
         () ->
-            healthSuppliers
-                .parallelStream()
+            healthSuppliers.parallelStream()
                 .map(HealthService::fetchHealthReport)
                 .reduce(HealthReport.empty(), HealthReport::merge));
   }

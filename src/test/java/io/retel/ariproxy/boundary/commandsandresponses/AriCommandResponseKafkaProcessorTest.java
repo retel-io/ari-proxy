@@ -22,7 +22,6 @@ import com.fasterxml.jackson.databind.node.MissingNode;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.TestableCallContextProvider;
 import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
-import io.retel.ariproxy.metrics.MetricsServiceMessage;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -48,7 +47,6 @@ class AriCommandResponseKafkaProcessorTest {
   @Test()
   void properlyHandleInvalidCommandMessage() {
     final TestProbe<ProducerRecord> kafkaProducer = testKit.createTestProbe();
-    final TestProbe<MetricsServiceMessage> metricsService = testKit.createTestProbe();
     final TestableCallContextProvider callContextProvider =
         new TestableCallContextProvider(testKit);
 
@@ -63,7 +61,6 @@ class AriCommandResponseKafkaProcessorTest {
             testKit.system(),
             requestAndContext -> Http.get(testKit.system()).singleRequest(requestAndContext._1),
             callContextProvider.ref(),
-            metricsService.ref(),
             source,
             sink)
         .run(testKit.system());
@@ -80,7 +77,6 @@ class AriCommandResponseKafkaProcessorTest {
       final String resourceIdExpectedToRegisterInCallContext)
       throws Exception {
     final TestProbe<ProducerRecord> kafkaProducer = testKit.createTestProbe();
-    final TestProbe<MetricsServiceMessage> metricsService = testKit.createTestProbe();
     final TestableCallContextProvider callContextProvider =
         new TestableCallContextProvider(testKit);
 
@@ -101,7 +97,6 @@ class AriCommandResponseKafkaProcessorTest {
               return asteriskResponse;
             },
             callContextProvider.ref(),
-            metricsService.ref(),
             source,
             sink)
         .run(testKit.system());

@@ -12,5 +12,15 @@ Metrics via HTTP are in Prometheus format and are provided via the route `/metri
 * **ari-proxy.cache.read.attempts**: Counts how often the local cache is called to lookup a call context.
 * **ari-proxy.cache.read.errors**: How often a call context lookup failed
 * **ari-proxy.processor.restarts**: Increases every time the command or event processing stream restarts because of errors.
-* **ari-proxy.persistence.read.errors**: errors when trying to read from persistence store
-* **ari-proxy.persistence.write.duration**: duration of writing to persistence store
+* **ari-proxy.persistence.read.errors**: Errors when trying to read from persistence store
+* **ari-proxy.persistence.write.duration**: Duration of writing to persistence store
+* **ari-proxy.events**: Tagged by `eventType`. Counts ARI events of the respective type.
+
+## ARI Event Counters
+
+All ARI events are counted and exported as `ariproxy.events` tagged by `eventType`, this includes for example:
+* DIAL
+* STASIS_START
+* PLAYBACK_STARTED
+* CHANNEL_HANGUP_REQUEST
+* ...

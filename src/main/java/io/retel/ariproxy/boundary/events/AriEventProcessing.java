@@ -14,10 +14,6 @@ import io.retel.ariproxy.boundary.callcontext.api.*;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageEnvelope;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriResource;
-import io.retel.ariproxy.metrics.IncreaseAriEventCounter;
-import io.retel.ariproxy.metrics.StartCallSetupTimer;
-import io.vavr.collection.List;
-import io.vavr.collection.Seq;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
 import java.time.Duration;
@@ -34,20 +30,6 @@ public class AriEventProcessing {
   // Note: This timeout is pretty high right now as the initial redis interaction takes quite some
   // time...
   private static final Duration PROVIDE_CALLCONTEXT_TIMEOUT = Duration.ofMillis(1000);
-
-  public static Seq<MetricsGatherer> determineMetricsGatherer(AriMessageType type) {
-
-    List<MetricsGatherer> metricsGatherers =
-        List.of(callContextSupplier -> new IncreaseAriEventCounter(type));
-
-    if (type == AriMessageType.STASIS_START) {
-      metricsGatherers =
-          metricsGatherers.append(
-              callContextSupplier -> new StartCallSetupTimer(callContextSupplier.get()));
-    }
-
-    return metricsGatherers;
-  }
 
   public static Source<ProducerRecord<String, String>, NotUsed> generateProducerRecordFromEvent(
       final String kafkaCommandsTopic,

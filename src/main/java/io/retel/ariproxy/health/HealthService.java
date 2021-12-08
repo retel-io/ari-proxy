@@ -17,7 +17,6 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import io.retel.ariproxy.boundary.callcontext.CallContextProvider;
 import io.retel.ariproxy.health.api.HealthReport;
 import io.retel.ariproxy.health.api.HealthResponse;
-import io.retel.ariproxy.metrics.api.PrometheusMetricsReport;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -37,14 +36,14 @@ public class HealthService {
   public static ServerBinding run(
       final ActorSystem<?> system,
       final Collection<Supplier<CompletableFuture<HealthReport>>> healthSuppliers,
-      final Supplier<CompletableFuture<PrometheusMetricsReport>> metricSupplier,
+      final Supplier<String> metricsSupplier,
       final int httpPort) {
     try {
       final String address = "0.0.0.0";
       final ServerBinding binding =
           Http.get(system)
               .newServerAt(address, httpPort)
-              .bind(buildHandlerProvider(healthSuppliers, metricSupplier))
+              .bind(buildHandlerProvider(healthSuppliers, metricsSupplier))
               .toCompletableFuture()
               .get();
       LOGGER.info("HTTP server online at http://{}:{}/...", address, httpPort);
@@ -57,7 +56,7 @@ public class HealthService {
 
   private static Route buildHandlerProvider(
       final Collection<Supplier<CompletableFuture<HealthReport>>> healthSuppliers,
-      final Supplier<CompletableFuture<PrometheusMetricsReport>> metricsService) {
+      final Supplier<String> metricsSupplier) {
     return concat(
         pathPrefix(
             "health",
@@ -65,19 +64,7 @@ public class HealthService {
                 concat(
                     path("smoke", () -> get(() -> complete(StatusCodes.OK))),
                     get(() -> handleHealthBaseRoute(healthSuppliers)))),
-        pathPrefix(
-            "metrics",
-            () ->
-                get(
-                    () ->
-                        completeWithFuture(
-                            metricsService
-                                .get()
-                                .thenApply(
-                                    report ->
-                                        HttpResponse.create()
-                                            .withStatus(StatusCodes.OK)
-                                            .withEntity(report.getPrometheusString()))))));
+        pathPrefix("metrics", () -> get(() -> complete(metricsSupplier.get()))));
   }
 
   private static Route handleHealthBaseRoute(
@@ -90,8 +77,7 @@ public class HealthService {
       final Collection<Supplier<CompletableFuture<HealthReport>>> healthSuppliers) {
     return CompletableFuture.supplyAsync(
         () ->
-            healthSuppliers
-                .parallelStream()
+            healthSuppliers.parallelStream()
                 .map(HealthService::fetchHealthReport)
                 .reduce(HealthReport.empty(), HealthReport::merge));
   }

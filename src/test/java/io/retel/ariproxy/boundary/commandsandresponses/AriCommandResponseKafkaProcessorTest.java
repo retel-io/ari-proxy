@@ -22,8 +22,6 @@ import com.fasterxml.jackson.databind.node.MissingNode;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.TestableCallContextProvider;
 import io.retel.ariproxy.boundary.callcontext.api.RegisterCallContext;
-import io.retel.ariproxy.metrics.MetricsServiceMessage;
-import io.retel.ariproxy.metrics.StopCallSetupTimer;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -49,7 +47,6 @@ class AriCommandResponseKafkaProcessorTest {
   @Test()
   void properlyHandleInvalidCommandMessage() {
     final TestProbe<ProducerRecord> kafkaProducer = testKit.createTestProbe();
-    final TestProbe<MetricsServiceMessage> metricsService = testKit.createTestProbe();
     final TestableCallContextProvider callContextProvider =
         new TestableCallContextProvider(testKit);
 
@@ -64,7 +61,6 @@ class AriCommandResponseKafkaProcessorTest {
             testKit.system(),
             requestAndContext -> Http.get(testKit.system()).singleRequest(requestAndContext._1),
             callContextProvider.ref(),
-            metricsService.ref(),
             source,
             sink)
         .run(testKit.system());
@@ -81,7 +77,6 @@ class AriCommandResponseKafkaProcessorTest {
       final String resourceIdExpectedToRegisterInCallContext)
       throws Exception {
     final TestProbe<ProducerRecord> kafkaProducer = testKit.createTestProbe();
-    final TestProbe<MetricsServiceMessage> metricsService = testKit.createTestProbe();
     final TestableCallContextProvider callContextProvider =
         new TestableCallContextProvider(testKit);
 
@@ -102,7 +97,6 @@ class AriCommandResponseKafkaProcessorTest {
               return asteriskResponse;
             },
             callContextProvider.ref(),
-            metricsService.ref(),
             source,
             sink)
         .run(testKit.system());
@@ -113,11 +107,6 @@ class AriCommandResponseKafkaProcessorTest {
       assertThat(registerCallContext.callContext(), is("CALL_CONTEXT"));
       assertThat(registerCallContext.resourceId(), is(resourceIdExpectedToRegisterInCallContext));
     }
-
-    final StopCallSetupTimer stopCallSetupTimer =
-        metricsService.expectMessageClass(StopCallSetupTimer.class);
-    assertThat(stopCallSetupTimer.getCallcontext(), is("CALL_CONTEXT"));
-    assertThat(stopCallSetupTimer.getApplication(), is("test-app"));
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> responseRecord =

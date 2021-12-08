@@ -51,6 +51,7 @@ public class AriCommand {
     List<AriResource> ariResources = AriCommandType.extractAllResources(getUrl());
 
     final AriCommandType commandType = AriCommandType.fromRequestUri(getUrl());
+
     if (!commandType.isCreationCommand()) {
       return ariResources.map(r -> new AriResourceRelation(r, false));
     }

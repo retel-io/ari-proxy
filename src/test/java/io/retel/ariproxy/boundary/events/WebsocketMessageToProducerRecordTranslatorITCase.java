@@ -23,17 +23,14 @@ import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
-import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
-import io.retel.ariproxy.metrics.IncreaseCounter;
-import io.retel.ariproxy.metrics.MetricsServiceMessage;
-import io.retel.ariproxy.metrics.StartCallSetupTimer;
 import io.vavr.control.Option;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.hamcrest.CoreMatchers;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 class WebsocketMessageToProducerRecordTranslatorITCase {
 
@@ -57,7 +54,6 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     WebsocketMessageToProducerRecordTranslator.eventProcessing(
             testKit.system(),
             testKit.<CallContextProviderMessage>createTestProbe().ref(),
-            testKit.<MetricsServiceMessage>createTestProbe().ref(),
             source,
             sink,
             () -> shutdownRequestedProbe.getRef().tell("Application replaced"))
@@ -83,7 +79,6 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
         new TestableCallContextProvider(
             testKit, new MemoryKeyValueStore(resourceId, CALL_CONTEXT_PROVIDED.callContext()));
     final TestProbe<Object> kafkaProducerProbe = testKit.createTestProbe();
-    final TestProbe<MetricsServiceMessage> metricsServiceProbe = testKit.createTestProbe();
     final TestProbe<String> shutdownRequestedProbe = testKit.createTestProbe();
 
     final Strict stasisStartEvent = new Strict(StasisEvents.stasisStartEvent);
@@ -97,7 +92,6 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     WebsocketMessageToProducerRecordTranslator.eventProcessing(
             testKit.system(),
             callContextProvider.ref(),
-            metricsServiceProbe.ref(),
             source,
             sink,
             () -> shutdownRequestedProbe.getRef().tell("Application replaced"))
@@ -120,23 +114,11 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
             OBJECT_MAPPER.readTree(
                 loadJsonAsString("messages/events/stasisStartEventWithoutCallContext.json"))));
 
-    final IncreaseCounter eventTypeCounter =
-        metricsServiceProbe.expectMessageClass(IncreaseCounter.class);
-    assertThat(eventTypeCounter.getName(), CoreMatchers.is(AriMessageType.STASIS_START.name()));
-
-    final IncreaseCounter callsStartedCounter =
-        metricsServiceProbe.expectMessageClass(IncreaseCounter.class);
-    assertThat(callsStartedCounter.getName(), is("CallsStarted"));
-
     final ProvideCallContext provideCallContextForRouting =
         callContextProvider.probe().expectMessageClass(ProvideCallContext.class);
     assertThat(provideCallContextForRouting.resourceId(), is(resourceId));
     assertThat(provideCallContextForRouting.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
     assertThat(provideCallContextForRouting.maybeCallContextFromChannelVars(), is(Option.none()));
-
-    final StartCallSetupTimer startCallSetupTimer =
-        metricsServiceProbe.expectMessageClass(StartCallSetupTimer.class);
-    assertThat(startCallSetupTimer.getCallContext(), is(CALL_CONTEXT_PROVIDED.callContext()));
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> completedRecord =
@@ -171,7 +153,6 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
                     })
                 .build());
     final TestProbe<Object> kafkaProducerProbe = testKit.createTestProbe();
-    final TestProbe<MetricsServiceMessage> metricsServiceProbe = testKit.createTestProbe();
     final TestProbe<String> shutdownRequestedProbe = testKit.createTestProbe();
 
     final Strict stasisStartEvent = new Strict(StasisEvents.stasisStartEventWithCallContext);
@@ -185,7 +166,6 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     WebsocketMessageToProducerRecordTranslator.eventProcessing(
             testKit.system(),
             callContextProvider,
-            metricsServiceProbe.ref(),
             source,
             sink,
             () -> shutdownRequestedProbe.getRef().tell("Application replaced"))
@@ -210,14 +190,6 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
             OBJECT_MAPPER.readTree(
                 loadJsonAsString("messages/events/stasisStartEventWithCallContext.json"))));
 
-    final IncreaseCounter eventTypeCounter =
-        metricsServiceProbe.expectMessageClass(IncreaseCounter.class);
-    assertThat(eventTypeCounter.getName(), CoreMatchers.is(AriMessageType.STASIS_START.name()));
-
-    final IncreaseCounter callsStartedCounter =
-        metricsServiceProbe.expectMessageClass(IncreaseCounter.class);
-    assertThat(callsStartedCounter.getName(), is("CallsStarted"));
-
     final ProvideCallContext provideCallContextForRouting =
         callContextProviderProbe.expectMessageClass(ProvideCallContext.class);
     assertThat(provideCallContextForRouting.resourceId(), is(resourceId));
@@ -225,10 +197,6 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     assertThat(
         provideCallContextForRouting.maybeCallContextFromChannelVars(),
         is(Option.some("aCallContext")));
-
-    final StartCallSetupTimer startCallSetupTimer =
-        metricsServiceProbe.expectMessageClass(StartCallSetupTimer.class);
-    assertThat(startCallSetupTimer.getCallContext(), is(CALL_CONTEXT_PROVIDED.callContext()));
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> completedRecord =

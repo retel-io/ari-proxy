@@ -1,12 +1,10 @@
 package io.retel.ariproxy.persistence;
 
-import akka.actor.typed.ActorRef;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.retel.ariproxy.health.api.HealthReport;
-import io.retel.ariproxy.metrics.IncreaseCounter;
-import io.retel.ariproxy.metrics.MetricsServiceMessage;
+import io.retel.ariproxy.metrics.Metrics;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -20,13 +18,9 @@ public class CachedKeyValueStore implements KeyValueStore<String, String> {
 
   private final KeyValueStore<String, String> store;
   private final LoadingCache<String, Optional<String>> cache;
-  private final ActorRef<MetricsServiceMessage> metricsService;
 
-  public CachedKeyValueStore(
-      final KeyValueStore<String, String> store,
-      final ActorRef<MetricsServiceMessage> metricsService) {
+  public CachedKeyValueStore(final KeyValueStore<String, String> store) {
     this.store = store;
-    this.metricsService = metricsService;
 
     cache =
         CacheBuilder.newBuilder()
@@ -36,13 +30,13 @@ public class CachedKeyValueStore implements KeyValueStore<String, String> {
                     (String key) -> {
                       try {
                         final Optional<String> result = store.get(key).get();
-                        this.metricsService.tell(new IncreaseCounter("ariproxy.cache.Misses"));
+                        Metrics.countCacheReadMiss();
 
                         return result;
                       } catch (InterruptedException | ExecutionException e) {
                         LOGGER.warn("Unable to retrieve value for key {} from store", key, e);
-                        this.metricsService.tell(
-                            new IncreaseCounter("ariproxy.errors.PersistenceStoreReadErrors"));
+                        Metrics.countPersistenceReadError();
+
                         return Optional.empty();
                       }
                     }));
@@ -57,11 +51,11 @@ public class CachedKeyValueStore implements KeyValueStore<String, String> {
   @Override
   public CompletableFuture<Optional<String>> get(final String key) {
     try {
-      this.metricsService.tell(new IncreaseCounter("ariproxy.cache.AccessAttempts"));
+      Metrics.countCacheReadAttempt();
       return CompletableFuture.completedFuture(cache.get(key));
     } catch (ExecutionException e) {
       LOGGER.error("Unable to get value for key {} from cache", key, e);
-      this.metricsService.tell(new IncreaseCounter("ariproxy.errors.CacheErrors"));
+      Metrics.countCacheReadError();
       return CompletableFuture.completedFuture(Optional.empty());
     }
   }

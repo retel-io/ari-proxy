@@ -104,6 +104,12 @@ public enum AriCommandType {
     return ariCommandType.orElse(UNKNOWN);
   }
 
+  public static Optional<String> extractTemplatedPath(final String uri) {
+    return pathsToCommandTypes.keySet().stream()
+        .filter(pathTemplate -> pathMatchesPathTemplateWithPlaceholders(uri, pathTemplate))
+        .findFirst();
+  }
+
   private static boolean pathMatchesPathTemplateWithPlaceholders(
       final String path, final String pathTemplate) {
     final String regexWithWildcardsForPlaceholders =

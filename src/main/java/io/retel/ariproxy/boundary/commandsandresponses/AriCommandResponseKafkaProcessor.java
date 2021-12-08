@@ -10,7 +10,6 @@ import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.headers.HttpCredentials;
 import akka.japi.function.Function;
-import akka.japi.function.Procedure;
 import akka.stream.ActorAttributes;
 import akka.stream.Attributes;
 import akka.stream.Supervision;
@@ -31,15 +30,15 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.*;
-import io.retel.ariproxy.metrics.IncreaseCounter;
-import io.retel.ariproxy.metrics.MetricsServiceMessage;
-import io.retel.ariproxy.metrics.StopCallSetupTimer;
+import io.retel.ariproxy.metrics.Metrics;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
 import java.nio.charset.Charset;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import org.apache.commons.lang3.StringUtils;
@@ -76,14 +75,12 @@ public class AriCommandResponseKafkaProcessor {
       final ActorSystem<?> system,
       final CommandResponseHandler commandResponseHandler,
       final ActorRef<CallContextProviderMessage> callContextProvider,
-      final ActorRef<MetricsServiceMessage> metricsService,
       final Source<ConsumerRecord<String, String>, NotUsed> source,
       final Sink<ProducerRecord<String, String>, NotUsed> sink) {
     final Function<Throwable, Directive> decider =
         error -> {
           system.log().error("Error in some stage; restarting stream ...", error);
-          metricsService.tell(
-              new IncreaseCounter("ariproxy.errors.CommandResponseProcessorRestarts"));
+          Metrics.countCommandResponseProcessorRestarts();
           return (Directive) Supervision.restart();
         };
 
@@ -127,15 +124,20 @@ public class AriCommandResponseKafkaProcessor {
                         context))
             .mapAsync(
                 1,
-                requestAndContext ->
-                    commandResponseHandler
-                        .apply(requestAndContext)
-                        .handle(
-                            (response, error) -> {
-                              return Tuple.of(
-                                  handleErrorInHTTPResponse(response, error), requestAndContext._2);
-                            }))
-            .wireTap(Sink.foreach(gatherMetrics(metricsService, stasisApp)))
+                requestAndContext -> {
+                  final Instant start = Instant.now();
+                  return commandResponseHandler
+                      .apply(requestAndContext)
+                      .handle(
+                          (response, error) -> {
+                            Metrics.recordAriCommandRequest(
+                                requestAndContext._2.getAriCommand(),
+                                Duration.between(start, Instant.now()),
+                                error != null);
+                            return Tuple.of(
+                                handleErrorInHTTPResponse(response, error), requestAndContext._2);
+                          });
+                })
             .mapAsync(
                 1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, system))
             .map(
@@ -167,13 +169,6 @@ public class AriCommandResponseKafkaProcessor {
         eventsAndResponsesTopic,
         context.getCallContext(),
         marshallAriMessageEnvelope(ariMessageEnvelope));
-  }
-
-  private static Procedure<Tuple2<HttpResponse, CallContextAndCommandRequestContext>> gatherMetrics(
-      ActorRef<MetricsServiceMessage> metricsService, String applicationName) {
-    return rawHttpResponseAndContext ->
-        metricsService.tell(
-            new StopCallSetupTimer(rawHttpResponseAndContext._2.getCallContext(), applicationName));
   }
 
   private static AriCommandEnvelope unmarshallAriCommandEnvelope(

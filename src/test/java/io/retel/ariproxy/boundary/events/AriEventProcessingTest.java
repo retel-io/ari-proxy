@@ -28,9 +28,6 @@ import io.retel.ariproxy.boundary.callcontext.api.CallContextProvided;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.callcontext.api.ProvideCallContext;
 import io.retel.ariproxy.boundary.callcontext.api.ProviderPolicy;
-import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
-import io.retel.ariproxy.metrics.IncreaseAriEventCounter;
-import io.retel.ariproxy.metrics.StartCallSetupTimer;
 import io.vavr.collection.Seq;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
@@ -159,48 +156,6 @@ class AriEventProcessingTest {
     waitForShutdownTriggered.await(1000, TimeUnit.MILLISECONDS);
     assertTrue(didTriggerShutdown.get(), "shutdown was triggered");
     assertThat(wsToKafkaProcessor.await().get(), is(Source.empty()));
-  }
-
-  @Test
-  void verifyTheRequiredMetricsAreGatheredForStasisStart() {
-    final Seq<MetricsGatherer> metricsGatherers =
-        AriEventProcessing.determineMetricsGatherer(AriMessageType.STASIS_START);
-
-    metricsGatherers.forEach(
-        metricsGatherer -> {
-          final Object metricsReq = metricsGatherer.withCallContextSupplier(() -> CALL_CONTEXT);
-          System.out.println(metricsReq);
-        });
-
-    final Seq<Object> metricsRequests =
-        metricsGatherers.map(
-            metricsGatherer -> metricsGatherer.withCallContextSupplier(() -> CALL_CONTEXT));
-
-    assertThat(len(metricsGatherers), is(2));
-
-    final IncreaseAriEventCounter eventTypeCounter =
-        (IncreaseAriEventCounter) metricsRequests.get(0);
-    final StartCallSetupTimer callSetupTimer = (StartCallSetupTimer) metricsRequests.get(1);
-
-    assertThat(eventTypeCounter.getEventType(), is(AriMessageType.STASIS_START));
-    assertThat(callSetupTimer.getCallContext(), is(CALL_CONTEXT));
-  }
-
-  @Test
-  void verifyTheRequiredMetricsAreGatheredForStasisEnd() {
-    final Seq<MetricsGatherer> metricsGatherers =
-        AriEventProcessing.determineMetricsGatherer(AriMessageType.STASIS_END);
-
-    final Seq<Object> metricsRequests =
-        metricsGatherers.map(
-            metricsGatherer -> metricsGatherer.withCallContextSupplier(() -> CALL_CONTEXT));
-
-    assertThat(len(metricsGatherers), is(1));
-
-    final IncreaseAriEventCounter eventTypeCounter =
-        (IncreaseAriEventCounter) metricsRequests.get(0);
-
-    assertThat(eventTypeCounter.getEventType(), is(AriMessageType.STASIS_END));
   }
 
   @Test

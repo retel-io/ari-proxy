@@ -18,7 +18,7 @@ Metrics via HTTP are in Prometheus format and are provided via the route `/metri
 
 ## ARI Event Counters
 
-All ARI events are counted and exported as `ariproxy.events` tagged by `eventType`, this includes for example:
+All ARI events are counted and exported as `ari-proxy.events` tagged by `eventType`, this includes for example:
 * DIAL
 * STASIS_START
 * PLAYBACK_STARTED

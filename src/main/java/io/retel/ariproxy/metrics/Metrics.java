@@ -15,6 +15,8 @@ import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommand;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandType;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
+import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriResourceType;
+
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -140,6 +142,6 @@ public final class Metrics {
 
   private static Counter getAriEventCounter(final AriMessageType ariMessageType) {
     return REGISTRY.counter(
-        EVENTS_METRIC_NAME, List.of(Tag.of("eventType", ariMessageType.name())));
+        EVENTS_METRIC_NAME, List.of(Tag.of("eventType", ariMessageType.name()), Tag.of("resourceType", ariMessageType.getResourceType().map(AriResourceType::toString).getOrElse("NONE"))));
   }
 }

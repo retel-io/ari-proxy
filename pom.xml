@@ -27,7 +27,7 @@
     <version.akka.http>10.2.4</version.akka.http>
     <version.akka.stream.kafka>2.1.0</version.akka.stream.kafka>
     <version.vavr>0.10.4</version.vavr>
-    <version.log4j>2.15.0</version.log4j>
+    <version.log4j>2.17.0</version.log4j>
     <version.log4j.staticshutdown>1.1.0</version.log4j.staticshutdown>
     <version.expiringmap>0.5.10</version.expiringmap>
     <version.junit>5.7.2</version.junit>

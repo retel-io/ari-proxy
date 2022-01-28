@@ -119,7 +119,8 @@ public class CallContextProvider {
 
   private static CompletableFuture<Optional<String>> provideCallContextForCreateIfMissingPolicy(
       final KeyValueStore<String, String> store, final ProvideCallContext msg) {
-    final String prefixedResourceId = withKeyPrefix(msg.resourceId());
+    final String resourceId = msg.resourceId();
+    final String prefixedResourceId = withKeyPrefix(resourceId);
 
     if (msg.maybeCallContextFromChannelVars().isDefined()) {
       final String callContext =
@@ -138,7 +139,14 @@ public class CallContextProvider {
               final String generatedCallContext = UUID.randomUUID().toString();
               return store
                   .put(prefixedResourceId, generatedCallContext)
-                  .thenApply(done -> Optional.of(generatedCallContext));
+                  .thenApply(
+                      done -> {
+                        LOGGER.debug(
+                            "Successfully stored newly generated call context '{}' for resource id '{}'",
+                            generatedCallContext,
+                            resourceId);
+                        return Optional.of(generatedCallContext);
+                      });
             });
   }
 

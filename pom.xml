@@ -21,7 +21,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <shaded-classifier-name>fat</shaded-classifier-name>
-    <version.maven-surefire-plugin>3.0.0-M1</version.maven-surefire-plugin>
+    <version.maven-surefire-plugin>3.0.0-M3</version.maven-surefire-plugin>
     <version.scala.compat>2.13</version.scala.compat>
     <version.akka>2.6.15</version.akka>
     <version.akka.http>10.2.4</version.akka.http>

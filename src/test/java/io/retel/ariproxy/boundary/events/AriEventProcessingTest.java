@@ -1,5 +1,6 @@
 package io.retel.ariproxy.boundary.events;
 
+import static io.retel.ariproxy.TestUtils.withCallContextKeyPrefix;
 import static io.retel.ariproxy.boundary.events.StasisEvents.applicationReplacedEvent;
 import static io.retel.ariproxy.boundary.events.StasisEvents.invalidEvent;
 import static io.retel.ariproxy.boundary.events.StasisEvents.playbackFinishedEvent;
@@ -162,7 +163,8 @@ class AriEventProcessingTest {
   void verifyGetCallContextWorksAsExpected() {
     final TestableCallContextProvider callContextProvider =
         new TestableCallContextProvider(
-            testKit, new MemoryKeyValueStore("RESOURCE_ID123", CALL_CONTEXT));
+            testKit,
+            new MemoryKeyValueStore(withCallContextKeyPrefix("RESOURCE_ID123"), CALL_CONTEXT));
     final Try<String> callContext =
         AriEventProcessing.getCallContext(
             "RESOURCE_ID123",

@@ -1,5 +1,6 @@
 package io.retel.ariproxy.boundary.events;
 
+import static io.retel.ariproxy.TestUtils.withCallContextKeyPrefix;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -77,7 +78,9 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     final String resourceId = "1532965104.0";
     final TestableCallContextProvider callContextProvider =
         new TestableCallContextProvider(
-            testKit, new MemoryKeyValueStore(resourceId, CALL_CONTEXT_PROVIDED.callContext()));
+            testKit,
+            new MemoryKeyValueStore(
+                withCallContextKeyPrefix(resourceId), CALL_CONTEXT_PROVIDED.callContext()));
     final TestProbe<Object> kafkaProducerProbe = testKit.createTestProbe();
     final TestProbe<String> shutdownRequestedProbe = testKit.createTestProbe();
 
@@ -96,12 +99,6 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
             sink,
             () -> shutdownRequestedProbe.getRef().tell("Application replaced"))
         .run(testKit.system());
-
-    final ProvideCallContext provideCallContextForMetrics =
-        callContextProvider.probe().expectMessageClass(ProvideCallContext.class);
-    assertThat(provideCallContextForMetrics.resourceId(), is(resourceId));
-    assertThat(provideCallContextForMetrics.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
-    assertThat(provideCallContextForMetrics.maybeCallContextFromChannelVars(), is(Option.none()));
 
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> record =
@@ -126,6 +123,7 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     assertThat(completedRecord.topic(), is("none"));
     assertThat(completedRecord.value(), is("completed"));
 
+    callContextProvider.probe().expectNoMessage();
     kafkaProducerProbe.expectNoMessage();
     shutdownRequestedProbe.expectNoMessage();
   }
@@ -171,14 +169,6 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
             () -> shutdownRequestedProbe.getRef().tell("Application replaced"))
         .run(testKit.system());
 
-    final ProvideCallContext provideCallContextForMetrics =
-        callContextProviderProbe.expectMessageClass(ProvideCallContext.class);
-    assertThat(provideCallContextForMetrics.resourceId(), is(resourceId));
-    assertThat(provideCallContextForMetrics.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
-    assertThat(
-        provideCallContextForMetrics.maybeCallContextFromChannelVars(),
-        is(Option.some("aCallContext")));
-
     @SuppressWarnings("unchecked")
     final ProducerRecord<String, String> record =
         kafkaProducerProbe.expectMessageClass(ProducerRecord.class);
@@ -203,6 +193,10 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
         kafkaProducerProbe.expectMessageClass(ProducerRecord.class);
     assertThat(completedRecord.topic(), is("none"));
     assertThat(completedRecord.value(), is("completed"));
+
+    callContextProviderProbe.expectNoMessage();
+    kafkaProducerProbe.expectNoMessage();
+    shutdownRequestedProbe.expectNoMessage();
   }
 
   private static String loadJsonAsString(final String fileName) throws IOException {

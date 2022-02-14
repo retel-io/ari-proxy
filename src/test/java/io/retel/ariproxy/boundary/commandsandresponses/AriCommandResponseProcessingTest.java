@@ -39,8 +39,7 @@ class AriCommandResponseProcessingTest {
         AriCommandResponseProcessing.registerCallContext(
             callContextProviderProbe.getRef(),
             CALL_CONTEXT,
-            new AriCommand(null, "/channels/CHANNEL_ID/answer", null),
-            testKit.system());
+            new AriCommand(null, "/channels/CHANNEL_ID/answer", null));
 
     assertTrue(result.isSuccess());
     callContextProviderProbe.expectNoMessage(Duration.ofMillis(500));
@@ -55,8 +54,7 @@ class AriCommandResponseProcessingTest {
         AriCommandResponseProcessing.registerCallContext(
             callContextProvider.ref(),
             CALL_CONTEXT,
-            new AriCommand(null, "/channels/CHANNEL_ID/play/PLAYBACK_ID", null),
-            testKit.system());
+            new AriCommand(null, "/channels/CHANNEL_ID/play/PLAYBACK_ID", null));
 
     assertTrue(result.isSuccess());
     final RegisterCallContext registerCallContext =
@@ -72,10 +70,7 @@ class AriCommandResponseProcessingTest {
 
     final Try<Done> result =
         AriCommandResponseProcessing.registerCallContext(
-            callContextProviderProbe.ref(),
-            null,
-            new AriCommand(null, "/channels", null),
-            testKit.system());
+            callContextProviderProbe.ref(), null, new AriCommand(null, "/channels", null));
 
     assertTrue(result.isFailure());
   }
@@ -90,7 +85,7 @@ class AriCommandResponseProcessingTest {
 
     final Try<Done> result =
         AriCommandResponseProcessing.registerCallContext(
-            callContextProvider.ref(), CALL_CONTEXT, ariCommand, testKit.system());
+            callContextProvider.ref(), CALL_CONTEXT, ariCommand);
 
     assertTrue(result.isSuccess());
     final RegisterCallContext registerCallContext =
@@ -109,7 +104,7 @@ class AriCommandResponseProcessingTest {
 
     final Try<Done> res =
         AriCommandResponseProcessing.registerCallContext(
-            callContextProvider.ref(), CALL_CONTEXT, ariCommand, testKit.system());
+            callContextProvider.ref(), CALL_CONTEXT, ariCommand);
 
     assertTrue(res.isSuccess());
 

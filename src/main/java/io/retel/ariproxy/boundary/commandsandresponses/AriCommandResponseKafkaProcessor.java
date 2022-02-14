@@ -106,8 +106,7 @@ public class AriCommandResponseKafkaProcessor {
                   AriCommandResponseProcessing.registerCallContext(
                           callContextProvider,
                           msgEnvelope.getCallContext(),
-                          msgEnvelope.getAriCommand(),
-                          system)
+                          msgEnvelope.getAriCommand())
                       .onFailure(
                           error -> {
                             throw new IllegalStateException(error);

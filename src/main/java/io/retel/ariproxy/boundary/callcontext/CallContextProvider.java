@@ -53,12 +53,19 @@ public class CallContextProvider {
     store
         .put(withKeyPrefix(resourceId), callContext)
         .thenRunAsync(
-            () -> {
-              LOGGER.debug(
-                  "Successfully registered resourceId '{}' => callContext '{}'",
+            () ->
+                LOGGER.debug(
+                    "Successfully registered resourceId '{}' => callContext '{}'",
+                    resourceId,
+                    callContext))
+        .exceptionallyAsync(
+            error -> {
+              LOGGER.error(
+                  "Failed to register resourceId '{}' => callContext '{}' with error: {}",
                   resourceId,
-                  callContext);
-              msg.replyTo().tell(new CallContextRegistered(resourceId, callContext));
+                  callContext,
+                  error.getMessage());
+              return null;
             });
 
     return Behaviors.same();

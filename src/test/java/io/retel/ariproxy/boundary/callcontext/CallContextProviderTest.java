@@ -28,19 +28,6 @@ class CallContextProviderTest {
   private static final String CALL_CONTEXT_FROM_CHANNEL_VARS = "theCallContextFromChannelVars";
 
   @Test
-  void verifyRegisterCallContextReturnsThatContext() {
-    final ActorRef<CallContextProviderMessage> callContextProvider =
-        testKit.spawn(CallContextProvider.create(new MemoryKeyValueStore()));
-    final TestProbe<CallContextRegistered> probe =
-        testKit.createTestProbe(CallContextRegistered.class);
-
-    callContextProvider.tell(
-        new RegisterCallContext(RESOURCE_ID, CALL_CONTEXT_FROM_DB, probe.getRef()));
-
-    probe.expectMessage(new CallContextRegistered(RESOURCE_ID, CALL_CONTEXT_FROM_DB));
-  }
-
-  @Test
   void verifyCreateIfMissingPolicyIsAppliedProperly() {
     final Map<String, String> store = new HashMap<>();
     final ActorRef<CallContextProviderMessage> callContextProvider =

@@ -123,7 +123,9 @@ public class Main {
             .withBootstrapServers(kafkaConfig.getString(BOOTSTRAP_SERVERS))
             .withGroupId(kafkaConfig.getString(CONSUMER_GROUP))
             .withProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true")
-            .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+            .withProperty(
+                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
+                kafkaConfig.getString("auto-offset-reset"));
 
     final ProducerSettings<String, String> producerSettings =
         ProducerSettings.create(system, new StringSerializer(), new StringSerializer())

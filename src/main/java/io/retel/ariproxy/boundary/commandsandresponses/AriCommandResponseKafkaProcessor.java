@@ -1,6 +1,6 @@
 package io.retel.ariproxy.boundary.commandsandresponses;
 
-import akka.NotUsed;
+import akka.Done;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.ActorSystem;
 import akka.event.Logging;
@@ -10,11 +10,11 @@ import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.headers.HttpCredentials;
 import akka.japi.function.Function;
+import akka.kafka.javadsl.Consumer;
 import akka.stream.ActorAttributes;
 import akka.stream.Attributes;
 import akka.stream.Supervision;
 import akka.stream.Supervision.Directive;
-import akka.stream.javadsl.Keep;
 import akka.stream.javadsl.RunnableGraph;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
@@ -41,6 +41,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.function.Supplier;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -71,12 +72,12 @@ public class AriCommandResponseKafkaProcessor {
   private static final ObjectWriter genericWriter = mapper.writer();
   private static final ObjectReader genericReader = mapper.reader();
 
-  public static RunnableGraph<NotUsed> commandResponseProcessing(
+  public static RunnableGraph<Supplier<Consumer.DrainingControl<Done>>> commandResponseProcessing(
       final ActorSystem<?> system,
       final CommandResponseHandler commandResponseHandler,
       final ActorRef<CallContextProviderMessage> callContextProvider,
-      final Source<ConsumerRecord<String, String>, NotUsed> source,
-      final Sink<ProducerRecord<String, String>, NotUsed> sink) {
+      final Source<ConsumerRecord<String, String>, Supplier<Consumer.Control>> source,
+      final Sink<ProducerRecord<String, String>, CompletionStage<Done>> sink) {
     final Function<Throwable, Directive> decider =
         error -> {
           system.log().error("Error in some stage; restarting stream ...", error);
@@ -96,58 +97,59 @@ public class AriCommandResponseKafkaProcessor {
     final String restUser = restConfig.getString(USER);
     final String restPassword = restConfig.getString(PASSWORD);
 
-    final RunnableGraph<NotUsed> notUsedRunnableGraph =
-        source
-            .log(">>>   ARI COMMAND", ConsumerRecord::value)
-            .withAttributes(LOG_LEVELS)
-            .map(AriCommandResponseKafkaProcessor::unmarshallAriCommandEnvelope)
-            .map(
-                msgEnvelope -> {
-                  AriCommandResponseProcessing.registerCallContext(
-                          callContextProvider,
-                          msgEnvelope.getCallContext(),
-                          msgEnvelope.getAriCommand())
-                      .onFailure(
-                          error -> {
-                            throw new IllegalStateException(error);
-                          });
-                  return new CallContextAndCommandRequestContext(
+    return source
+        .log(">>>   ARI COMMAND", ConsumerRecord::value)
+        .withAttributes(LOG_LEVELS)
+        .map(AriCommandResponseKafkaProcessor::unmarshallAriCommandEnvelope)
+        .map(
+            msgEnvelope -> {
+              AriCommandResponseProcessing.registerCallContext(
+                      callContextProvider,
                       msgEnvelope.getCallContext(),
-                      msgEnvelope.getCommandId(),
-                      msgEnvelope.getAriCommand());
-                })
-            .map(
-                context ->
-                    Tuple.of(
-                        toHttpRequest(context.getAriCommand(), restUri, restUser, restPassword),
-                        context))
-            .mapAsync(
-                1,
-                requestAndContext -> {
-                  final Instant start = Instant.now();
-                  return commandResponseHandler
-                      .apply(requestAndContext)
-                      .handle(
-                          (response, error) -> {
-                            Metrics.recordAriCommandRequest(
-                                requestAndContext._2.getAriCommand(),
-                                Duration.between(start, Instant.now()),
-                                error != null);
-                            return Tuple.of(
-                                handleErrorInHTTPResponse(response, error), requestAndContext._2);
-                          });
-                })
-            .mapAsync(
-                1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, system))
-            .map(
-                ariResponseAndContext ->
-                    envelopeAriResponseToProducerRecord(
-                        commandsTopic, eventsAndResponsesTopic, ariResponseAndContext))
-            .log(">>>   ARI RESPONSE", ProducerRecord::value)
-            .withAttributes(LOG_LEVELS)
-            .toMat(sink, Keep.none())
-            .withAttributes(ActorAttributes.withSupervisionStrategy(decider));
-    return notUsedRunnableGraph;
+                      msgEnvelope.getAriCommand())
+                  .onFailure(
+                      error -> {
+                        throw new IllegalStateException(error);
+                      });
+              return new CallContextAndCommandRequestContext(
+                  msgEnvelope.getCallContext(),
+                  msgEnvelope.getCommandId(),
+                  msgEnvelope.getAriCommand());
+            })
+        .map(
+            context ->
+                Tuple.of(
+                    toHttpRequest(context.getAriCommand(), restUri, restUser, restPassword),
+                    context))
+        .mapAsync(
+            1,
+            requestAndContext -> {
+              final Instant start = Instant.now();
+              return commandResponseHandler
+                  .apply(requestAndContext)
+                  .handle(
+                      (response, error) -> {
+                        Metrics.recordAriCommandRequest(
+                            requestAndContext._2.getAriCommand(),
+                            Duration.between(start, Instant.now()),
+                            error != null);
+                        return Tuple.of(
+                            handleErrorInHTTPResponse(response, error), requestAndContext._2);
+                      });
+            })
+        .mapAsync(1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, system))
+        .map(
+            ariResponseAndContext ->
+                envelopeAriResponseToProducerRecord(
+                    commandsTopic, eventsAndResponsesTopic, ariResponseAndContext))
+        .log(">>>   ARI RESPONSE", ProducerRecord::value)
+        .withAttributes(LOG_LEVELS)
+        .toMat(
+            sink,
+            (control, streamCompletion) ->
+                (Supplier<Consumer.DrainingControl<Done>>)
+                    () -> Consumer.createDrainingControl(control.get(), streamCompletion))
+        .withAttributes(ActorAttributes.withSupervisionStrategy(decider));
   }
 
   private static HttpResponse handleErrorInHTTPResponse(HttpResponse response, Throwable error) {

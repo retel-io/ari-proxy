@@ -5,7 +5,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import akka.NotUsed;
+import akka.Done;
 import akka.actor.testkit.typed.javadsl.ActorTestKit;
 import akka.actor.testkit.typed.javadsl.TestProbe;
 import akka.actor.typed.javadsl.Adapter;
@@ -13,6 +13,7 @@ import akka.http.javadsl.Http;
 import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.StatusCodes;
+import akka.kafka.javadsl.Consumer;
 import akka.stream.StreamTcpException;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
@@ -27,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -52,10 +54,9 @@ class AriCommandResponseKafkaProcessorTest {
 
     final ConsumerRecord<String, String> consumerRecord =
         new ConsumerRecord<>("topic", 0, 0, "key", "NOT JSON");
-    final Source<ConsumerRecord<String, String>, NotUsed> source = Source.single(consumerRecord);
-    final Sink<ProducerRecord<String, String>, NotUsed> sink =
-        Sink.<ProducerRecord<String, String>>ignore()
-            .mapMaterializedValue(q -> NotUsed.getInstance());
+    final Source<ConsumerRecord<String, String>, Supplier<Consumer.Control>> source =
+        Source.single(consumerRecord).mapMaterializedValue(ignored -> Consumer::createNoopControl);
+    final Sink<ProducerRecord<String, String>, CompletionStage<Done>> sink = Sink.ignore();
 
     AriCommandResponseKafkaProcessor.commandResponseProcessing(
             testKit.system(),
@@ -84,11 +85,14 @@ class AriCommandResponseKafkaProcessorTest {
     final ConsumerRecord<String, String> consumerRecord =
         new ConsumerRecord<>("topic", 0, 0, "none", inputString);
 
-    final Source<ConsumerRecord<String, String>, NotUsed> source = Source.single(consumerRecord);
-    final Sink<ProducerRecord<String, String>, NotUsed> sink =
-        Sink.actorRef(
-            Adapter.toClassic(kafkaProducer.getRef()),
-            new ProducerRecord<String, String>("topic", "endMessage"));
+    final Source<ConsumerRecord<String, String>, Supplier<Consumer.Control>> source =
+        Source.single(consumerRecord).mapMaterializedValue(ignored -> Consumer::createNoopControl);
+
+    final Sink<ProducerRecord<String, String>, CompletionStage<Done>> sink =
+        Sink.<ProducerRecord<String, String>>actorRef(
+                Adapter.toClassic(kafkaProducer.getRef()),
+                new ProducerRecord<String, String>("topic", "endMessage"))
+            .mapMaterializedValue(ignored -> new CompletableFuture<>());
 
     AriCommandResponseKafkaProcessor.commandResponseProcessing(
             testKit.system(),

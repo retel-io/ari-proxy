@@ -1,6 +1,8 @@
 package io.retel.ariproxy;
 
+import akka.Done;
 import akka.NotUsed;
+import akka.actor.CoordinatedShutdown;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.ActorSystem;
 import akka.actor.typed.javadsl.AskPattern;
@@ -9,11 +11,13 @@ import akka.http.javadsl.Http;
 import akka.http.javadsl.model.ws.Message;
 import akka.http.javadsl.model.ws.WebSocketRequest;
 import akka.http.javadsl.model.ws.WebSocketUpgradeResponse;
+import akka.japi.Pair;
 import akka.kafka.ConsumerSettings;
 import akka.kafka.ProducerSettings;
 import akka.kafka.Subscriptions;
 import akka.kafka.javadsl.Consumer;
 import akka.kafka.javadsl.Producer;
+import akka.stream.RestartSettings;
 import akka.stream.javadsl.*;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -27,9 +31,10 @@ import io.retel.ariproxy.health.KafkaConnectionCheck;
 import io.retel.ariproxy.health.KafkaConnectionCheck.ReportKafkaConnectionHealth;
 import io.retel.ariproxy.metrics.Metrics;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -118,6 +123,37 @@ public class Main {
       final Config kafkaConfig,
       final ActorSystem<Void> system,
       final ActorRef<CallContextProviderMessage> callContextProvider) {
+
+    final Supplier<Consumer.DrainingControl<Done>> controlSupplier =
+        AriCommandResponseKafkaProcessor.commandResponseProcessing(
+                system,
+                requestAndContext -> Http.get(system).singleRequest(requestAndContext._1),
+                callContextProvider,
+                createConsumerSource(kafkaConfig, system),
+                createProducerSink(kafkaConfig, system))
+            .run(system);
+
+    CoordinatedShutdown.get(system)
+        .addTask(
+            CoordinatedShutdown.PhaseBeforeServiceUnbind(),
+            "drainKafkaConsumerSource",
+            () -> {
+              LOGGER.info("Draining kafka consumer and shutting down...");
+              return controlSupplier
+                  .get()
+                  .drainAndShutdown(system.executionContext())
+                  .whenComplete(
+                      (done, error) -> {
+                        if (error != null) {
+                          LOGGER.error("Failed draining kafka consumer and shutting down", error);
+                        }
+                        LOGGER.info("Successfully drained kafka consumer and shut down");
+                      });
+            });
+  }
+
+  private static Source<ConsumerRecord<String, String>, Supplier<Consumer.Control>>
+      createConsumerSource(final Config kafkaConfig, final ActorSystem<?> system) {
     final ConsumerSettings<String, String> consumerSettings =
         ConsumerSettings.create(system, new StringDeserializer(), new StringDeserializer())
             .withBootstrapServers(kafkaConfig.getString(BOOTSTRAP_SERVERS))
@@ -127,31 +163,37 @@ public class Main {
                 ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
                 kafkaConfig.getString("auto-offset-reset"));
 
+    final RestartSettings restartSettings =
+        RestartSettings.create(Duration.ofSeconds(5), Duration.ofSeconds(30), 0.2);
+
+    // We pre-materialize the draining control of the current source instance and make it accessible
+    // as the materialized value of the wrapping RestartSource here.
+    final AtomicReference<Consumer.Control> control =
+        new AtomicReference<>(Consumer.createNoopControl());
+
+    return RestartSource.onFailuresWithBackoff(
+            restartSettings,
+            () -> {
+              final Pair<Consumer.Control, Source<ConsumerRecord<String, String>, NotUsed>>
+                  preMaterializedSource =
+                      Consumer.plainSource(
+                              consumerSettings,
+                              Subscriptions.topics(kafkaConfig.getString(COMMANDS_TOPIC)))
+                          .preMaterialize(system);
+              control.set(preMaterializedSource.first());
+
+              return preMaterializedSource.second();
+            })
+        .mapMaterializedValue(ignored -> control::get);
+  }
+
+  private static Sink<ProducerRecord<String, String>, CompletionStage<Done>> createProducerSink(
+      final Config kafkaConfig, final ActorSystem<Void> system) {
     final ProducerSettings<String, String> producerSettings =
         ProducerSettings.create(system, new StringSerializer(), new StringSerializer())
             .withBootstrapServers(kafkaConfig.getString(BOOTSTRAP_SERVERS));
 
-    final Source<ConsumerRecord<String, String>, NotUsed> source =
-        RestartSource.withBackoff(
-            Duration.of(5, ChronoUnit.SECONDS),
-            Duration.of(10, ChronoUnit.SECONDS),
-            0.2,
-            () ->
-                Consumer.plainSource(
-                        consumerSettings,
-                        Subscriptions.topics(kafkaConfig.getString(COMMANDS_TOPIC)))
-                    .mapMaterializedValue(control -> NotUsed.getInstance()));
-
-    final Sink<ProducerRecord<String, String>, NotUsed> sink =
-        Producer.plainSink(producerSettings).mapMaterializedValue(done -> NotUsed.getInstance());
-
-    AriCommandResponseKafkaProcessor.commandResponseProcessing(
-            system,
-            requestAndContext -> Http.get(system).singleRequest(requestAndContext._1),
-            callContextProvider,
-            source,
-            sink)
-        .run(system);
+    return Producer.plainSink(producerSettings);
   }
 
   private static void runAriEventProcessor(

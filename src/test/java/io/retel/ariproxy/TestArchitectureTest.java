@@ -17,9 +17,12 @@ public class TestArchitectureTest {
   @ArchTest
   public static final ArchRule NOTHING_DEPENDS_ON_AKKA_CLASSIC =
       classes()
+          .that()
+          .haveSimpleNameNotEndingWith("ArchitectureTest")
           .should()
           .onlyDependOnClassesThat(
               resideOutsideOfPackage("akka.actor..")
                   .or(resideInAPackage("akka.actor.typed.."))
-                  .or(resideInAPackage("akka.actor.testkit.typed..")));
+                  .or(resideInAPackage("akka.actor.testkit.typed.."))
+                  .or(type(ArchitectureTest.class)));
 }

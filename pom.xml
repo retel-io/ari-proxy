@@ -23,7 +23,7 @@
     <shaded-classifier-name>fat</shaded-classifier-name>
     <version.maven-surefire-plugin>3.0.0-M3</version.maven-surefire-plugin>
     <version.scala.compat>2.13</version.scala.compat>
-    <version.akka>2.6.18</version.akka>
+    <version.akka>2.6.19</version.akka>
     <version.akka.http>10.2.7</version.akka.http>
     <version.kafka>3.0.0</version.kafka>
     <version.vavr>0.10.4</version.vavr>

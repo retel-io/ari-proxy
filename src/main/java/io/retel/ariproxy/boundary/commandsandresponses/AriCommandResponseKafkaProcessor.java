@@ -1,6 +1,7 @@
 package io.retel.ariproxy.boundary.commandsandresponses;
 
 import akka.Done;
+import akka.NotUsed;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.ActorSystem;
 import akka.event.Logging;
@@ -10,11 +11,18 @@ import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.headers.HttpCredentials;
 import akka.japi.function.Function;
+import akka.kafka.ConsumerMessage.CommittableMessage;
+import akka.kafka.ConsumerMessage.CommittableOffset;
+import akka.kafka.ConsumerMessage.PartitionOffset;
+import akka.kafka.ProducerMessage.Envelope;
+import akka.kafka.ProducerMessage.Results;
 import akka.kafka.javadsl.Consumer;
+import akka.kafka.javadsl.Consumer.Control;
 import akka.stream.ActorAttributes;
 import akka.stream.Attributes;
 import akka.stream.Supervision;
 import akka.stream.Supervision.Directive;
+import akka.stream.javadsl.Flow;
 import akka.stream.javadsl.RunnableGraph;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
@@ -47,6 +55,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
 public class AriCommandResponseKafkaProcessor {
+
   private static final Attributes LOG_LEVELS =
       Attributes.createLogLevels(Logging.InfoLevel(), Logging.InfoLevel(), Logging.ErrorLevel());
 
@@ -76,8 +85,10 @@ public class AriCommandResponseKafkaProcessor {
       final ActorSystem<?> system,
       final CommandResponseHandler commandResponseHandler,
       final ActorRef<CallContextProviderMessage> callContextProvider,
-      final Source<ConsumerRecord<String, String>, Supplier<Consumer.Control>> source,
-      final Sink<ProducerRecord<String, String>, CompletionStage<Done>> sink) {
+      final Source<CommittableMessage<String, String>, Supplier<Control>> source,
+      final Flow<Envelope<String, String, Object>, Results<String, String, Object>, NotUsed>
+          producerFlow,
+      final Sink<CommittableOffset, CompletionStage<Done>> sink) {
     final Function<Throwable, Directive> decider =
         error -> {
           system.log().error("Error in some stage; restarting stream ...", error);
@@ -98,23 +109,36 @@ public class AriCommandResponseKafkaProcessor {
     final String restPassword = restConfig.getString(PASSWORD);
 
     return source
-        .log(">>>   ARI COMMAND", ConsumerRecord::value)
+        .log(
+            ">>>   ARI COMMAND",
+            (CommittableMessage<String, String> message) -> message.record().value())
         .withAttributes(LOG_LEVELS)
-        .map(AriCommandResponseKafkaProcessor::unmarshallAriCommandEnvelope)
-        .map(
-            msgEnvelope -> {
-              AriCommandResponseProcessing.registerCallContext(
-                      callContextProvider,
-                      msgEnvelope.getCallContext(),
-                      msgEnvelope.getAriCommand())
-                  .onFailure(
-                      error -> {
-                        throw new IllegalStateException(error);
-                      });
-              return new CallContextAndCommandRequestContext(
-                  msgEnvelope.getCallContext(),
-                  msgEnvelope.getCommandId(),
-                  msgEnvelope.getAriCommand());
+        .flatMapConcat(
+            committableMessage -> {
+              try {
+                final ConsumerRecord<String, String> record = committableMessage.record();
+                final AriCommandEnvelope msgEnvelope = reader.readValue(record.value());
+                AriCommandResponseProcessing.registerCallContext(
+                        callContextProvider,
+                        msgEnvelope.getCallContext(),
+                        msgEnvelope.getAriCommand())
+                    .get();
+                return Source.single(
+                    new CallContextAndCommandRequestContext(
+                        msgEnvelope.getCallContext(),
+                        msgEnvelope.getCommandId(),
+                        msgEnvelope.getAriCommand()));
+              } catch (RuntimeException e) {
+                final PartitionOffset partitionOffset =
+                    committableMessage.committableOffset().partitionOffset();
+                system
+                    .log()
+                    .error(
+                        "Unable to process command on partition {} at offset {}. Committing anyway.",
+                        partitionOffset.key().partition(),
+                        partitionOffset.offset(),
+                        e);
+              }
             })
         .map(
             context ->
@@ -144,6 +168,7 @@ public class AriCommandResponseKafkaProcessor {
                     commandsTopic, eventsAndResponsesTopic, ariResponseAndContext))
         .log(">>>   ARI RESPONSE", ProducerRecord::value)
         .withAttributes(LOG_LEVELS)
+        .via(producerFlow)
         .toMat(
             sink,
             (control, streamCompletion) ->
@@ -170,12 +195,6 @@ public class AriCommandResponseKafkaProcessor {
         eventsAndResponsesTopic,
         context.getCallContext(),
         marshallAriMessageEnvelope(ariMessageEnvelope));
-  }
-
-  private static AriCommandEnvelope unmarshallAriCommandEnvelope(
-      final ConsumerRecord<String, String> record) {
-    return Try.of(() -> (AriCommandEnvelope) reader.readValue(record.value()))
-        .getOrElseThrow(t -> new RuntimeException(t));
   }
 
   private static AriMessageEnvelope envelopeAriResponse(

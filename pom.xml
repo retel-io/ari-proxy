@@ -25,6 +25,7 @@
     <version.scala.compat>2.13</version.scala.compat>
     <version.akka>2.6.19</version.akka>
     <version.akka.http>10.2.9</version.akka.http>
+    <version.akka.stream.kafka>3.0.0</version.akka.stream.kafka>
     <version.kafka>3.0.0</version.kafka>
     <version.vavr>0.10.4</version.vavr>
     <version.log4j>2.17.2</version.log4j>
@@ -139,6 +140,18 @@
     <dependency>
       <groupId>com.typesafe.akka</groupId>
       <artifactId>akka-actor-testkit-typed_${version.scala.compat}</artifactId>
+      <version>${version.akka}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.typesafe.akka</groupId>
+      <artifactId>akka-stream-kafka-testkit_${version.scala.compat}</artifactId>
+      <version>${version.akka.stream.kafka}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.typesafe.akka</groupId>
+      <artifactId>akka-stream-testkit_${version.scala.compat}</artifactId>
       <version>${version.akka}</version>
       <scope>test</scope>
     </dependency>

@@ -12,10 +12,14 @@ import akka.http.javadsl.model.ws.Message;
 import akka.http.javadsl.model.ws.WebSocketRequest;
 import akka.http.javadsl.model.ws.WebSocketUpgradeResponse;
 import akka.japi.Pair;
+import akka.kafka.ConsumerMessage.CommittableMessage;
 import akka.kafka.ConsumerSettings;
+import akka.kafka.ProducerMessage.Envelope;
+import akka.kafka.ProducerMessage.Results;
 import akka.kafka.ProducerSettings;
 import akka.kafka.Subscriptions;
 import akka.kafka.javadsl.Consumer;
+import akka.kafka.javadsl.Consumer.Control;
 import akka.kafka.javadsl.Producer;
 import akka.stream.RestartSettings;
 import akka.stream.javadsl.*;
@@ -36,7 +40,6 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -130,7 +133,8 @@ public class Main {
                 requestAndContext -> Http.get(system).singleRequest(requestAndContext._1),
                 callContextProvider,
                 createConsumerSource(kafkaConfig, system),
-                createProducerSink(kafkaConfig, system))
+                        createProducerFlow(kafkaConfig, system),
+                        createCommitterSink())
             .run(system);
 
     CoordinatedShutdown.get(system)
@@ -152,13 +156,16 @@ public class Main {
             });
   }
 
-  private static Source<ConsumerRecord<String, String>, Supplier<Consumer.Control>>
+    private static Object createCommitterSink() {
+        return null;
+    }
+
+    private static Source<CommittableMessage<String, String>, Supplier<Consumer.Control>>
       createConsumerSource(final Config kafkaConfig, final ActorSystem<?> system) {
     final ConsumerSettings<String, String> consumerSettings =
         ConsumerSettings.create(system, new StringDeserializer(), new StringDeserializer())
             .withBootstrapServers(kafkaConfig.getString(BOOTSTRAP_SERVERS))
             .withGroupId(kafkaConfig.getString(CONSUMER_GROUP))
-            .withProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true")
             .withProperty(
                 ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
                 kafkaConfig.getString("auto-offset-reset"));
@@ -174,11 +181,12 @@ public class Main {
     return RestartSource.onFailuresWithBackoff(
             restartSettings,
             () -> {
-              final Pair<Consumer.Control, Source<ConsumerRecord<String, String>, NotUsed>>
+                Source<CommittableMessage<String, String>, Control> committableSource = Consumer.committableSource(
+                        consumerSettings, Subscriptions.topics(kafkaConfig.getString(COMMANDS_TOPIC)));
+
+                final Pair<Consumer.Control, Source<CommittableMessage<String, String>, NotUsed>>
                   preMaterializedSource =
-                      Consumer.plainSource(
-                              consumerSettings,
-                              Subscriptions.topics(kafkaConfig.getString(COMMANDS_TOPIC)))
+                      committableSource
                           .preMaterialize(system);
               control.set(preMaterializedSource.first());
 
@@ -187,13 +195,14 @@ public class Main {
         .mapMaterializedValue(ignored -> control::get);
   }
 
-  private static Sink<ProducerRecord<String, String>, CompletionStage<Done>> createProducerSink(
+  private static Flow<Envelope<String, String, Object>, Results<String, String, Object>, NotUsed> createProducerFlow(
       final Config kafkaConfig, final ActorSystem<Void> system) {
     final ProducerSettings<String, String> producerSettings =
         ProducerSettings.create(system, new StringSerializer(), new StringSerializer())
             .withBootstrapServers(kafkaConfig.getString(BOOTSTRAP_SERVERS));
 
-    return Producer.plainSink(producerSettings);
+      return Producer.flexiFlow(
+              producerSettings.withProducer(producerSettings.createKafkaProducer()));
   }
 
   private static void runAriEventProcessor(
@@ -203,11 +212,10 @@ public class Main {
       final Runnable applicationReplacedHandler) {
     // see:
     // https://doc.akka.io/docs/akka/2.5.8/java/stream/stream-error.html#delayed-restarts-with-a-backoff-stage
-    final Flow<Message, Message, NotUsed> restartWebsocketFlow =
+      final RestartSettings restartSettings = RestartSettings.create(Duration.ofSeconds(3), Duration.ofSeconds(30), 0.2);
+      final Flow<Message, Message, NotUsed> restartWebsocketFlow =
         RestartFlow.withBackoff(
-            Duration.ofSeconds(3), // min backoff
-            Duration.ofSeconds(30), // max backoff
-            0.2, // adds 20% "noise" to vary the intervals slightly
+            restartSettings,
             () -> createWebsocketFlow(system, serviceConfig.getString(WEBSOCKET_URI)));
 
     final Source<Message, NotUsed> source =

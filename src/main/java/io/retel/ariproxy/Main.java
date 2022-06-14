@@ -12,12 +12,11 @@ import akka.http.javadsl.model.ws.Message;
 import akka.http.javadsl.model.ws.WebSocketRequest;
 import akka.http.javadsl.model.ws.WebSocketUpgradeResponse;
 import akka.japi.Pair;
+import akka.kafka.*;
 import akka.kafka.ConsumerMessage.CommittableMessage;
-import akka.kafka.ConsumerSettings;
 import akka.kafka.ProducerMessage.Envelope;
 import akka.kafka.ProducerMessage.Results;
-import akka.kafka.ProducerSettings;
-import akka.kafka.Subscriptions;
+import akka.kafka.javadsl.Committer;
 import akka.kafka.javadsl.Consumer;
 import akka.kafka.javadsl.Consumer.Control;
 import akka.kafka.javadsl.Producer;
@@ -134,7 +133,7 @@ public class Main {
                 callContextProvider,
                 createConsumerSource(kafkaConfig, system),
                         createProducerFlow(kafkaConfig, system),
-                        createCommitterSink())
+                        createCommitterSink(system))
             .run(system);
 
     CoordinatedShutdown.get(system)
@@ -156,8 +155,8 @@ public class Main {
             });
   }
 
-    private static Object createCommitterSink() {
-        return null;
+    private static Sink<ConsumerMessage.CommittableOffset, CompletionStage<Done>> createCommitterSink(ActorSystem<Void> actorSystem) {
+        return Committer.sink(CommitterSettings.create(actorSystem));
     }
 
     private static Source<CommittableMessage<String, String>, Supplier<Consumer.Control>>
@@ -195,7 +194,7 @@ public class Main {
         .mapMaterializedValue(ignored -> control::get);
   }
 
-  private static Flow<Envelope<String, String, Object>, Results<String, String, Object>, NotUsed> createProducerFlow(
+  private static Flow<Envelope<String, String, ConsumerMessage.CommittableOffset>, Results<String, String, ConsumerMessage.CommittableOffset>, NotUsed> createProducerFlow(
       final Config kafkaConfig, final ActorSystem<Void> system) {
     final ProducerSettings<String, String> producerSettings =
         ProducerSettings.create(system, new StringSerializer(), new StringSerializer())

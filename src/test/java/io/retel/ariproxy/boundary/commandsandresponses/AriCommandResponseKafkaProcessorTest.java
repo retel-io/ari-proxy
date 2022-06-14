@@ -2,19 +2,28 @@ package io.retel.ariproxy.boundary.commandsandresponses;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import akka.Done;
+import akka.NotUsed;
 import akka.actor.testkit.typed.javadsl.ActorTestKit;
 import akka.actor.testkit.typed.javadsl.TestProbe;
+import akka.actor.typed.ActorRef;
 import akka.actor.typed.javadsl.Adapter;
+import akka.actor.typed.javadsl.Behaviors;
 import akka.http.javadsl.Http;
 import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.StatusCodes;
+import akka.kafka.ConsumerMessage;
+import akka.kafka.ConsumerMessage.CommittableMessage;
+import akka.kafka.ProducerMessage;
 import akka.kafka.javadsl.Consumer;
+import akka.kafka.testkit.ConsumerResultFactory;
+import akka.kafka.testkit.ProducerResultFactory;
 import akka.stream.StreamTcpException;
+import akka.stream.javadsl.Flow;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -48,25 +57,45 @@ class AriCommandResponseKafkaProcessorTest {
 
   @Test()
   void properlyHandleInvalidCommandMessage() {
-    final TestProbe<ProducerRecord> kafkaProducer = testKit.createTestProbe();
+    final TestProbe<ProducerRecord<String, String>> kafkaProducer = testKit.createTestProbe();
     final TestableCallContextProvider callContextProvider =
         new TestableCallContextProvider(testKit);
 
+    final int offset = 123;
+    final int partition = 456;
+
     final ConsumerRecord<String, String> consumerRecord =
-        new ConsumerRecord<>("topic", 0, 0, "key", "NOT JSON");
-    final Source<ConsumerRecord<String, String>, Supplier<Consumer.Control>> source =
-        Source.single(consumerRecord).mapMaterializedValue(ignored -> Consumer::createNoopControl);
-    final Sink<ProducerRecord<String, String>, CompletionStage<Done>> sink = Sink.ignore();
+        new ConsumerRecord<>("topic", partition, offset, "key", "NOT JSON");
+    final Source<CommittableMessage<String, String>, Supplier<Consumer.Control>> source =
+        Source.single(
+                new CommittableMessage<String, String>(
+                    consumerRecord,
+                    ConsumerResultFactory.committableOffset(
+                        "groupId", "topic", partition, offset, "metadata")))
+            .mapMaterializedValue(ignored -> Consumer::createNoopControl);
+    final TestConsumerCommitterSink testSink = TestConsumerCommitterSink.create(testKit);
+
+    final Flow<
+            ProducerMessage.Envelope<String, String, ConsumerMessage.CommittableOffset>,
+            ProducerMessage.Results<String, String, ConsumerMessage.CommittableOffset>,
+            NotUsed>
+        mockedFlow = producerFlow(kafkaProducer.getRef());
 
     AriCommandResponseKafkaProcessor.commandResponseProcessing(
             testKit.system(),
             requestAndContext -> Http.get(testKit.system()).singleRequest(requestAndContext._1),
             callContextProvider.ref(),
             source,
-            sink)
+            mockedFlow,
+            testSink.sink())
         .run(testKit.system());
 
     kafkaProducer.expectNoMessage();
+
+    final ConsumerMessage.CommittableOffset committableOffset =
+        testSink.probe().expectMessageClass(ConsumerMessage.CommittableOffset.class);
+    assertEquals(offset, committableOffset.partitionOffset().offset());
+    assertEquals(partition, committableOffset.partitionOffset().key().partition());
   }
 
   @ParameterizedTest
@@ -77,22 +106,27 @@ class AriCommandResponseKafkaProcessorTest {
       final String expectedResponseJsonFilename,
       final String resourceIdExpectedToRegisterInCallContext)
       throws Exception {
-    final TestProbe<ProducerRecord> kafkaProducer = testKit.createTestProbe();
+    final TestProbe<ProducerRecord<String, String>> kafkaProducer = testKit.createTestProbe();
     final TestableCallContextProvider callContextProvider =
         new TestableCallContextProvider(testKit);
 
+    final int offset = 2132;
+    final int partition = 29375;
+
     final String inputString = loadJsonAsString(commandJsonFilename);
     final ConsumerRecord<String, String> consumerRecord =
-        new ConsumerRecord<>("topic", 0, 0, "none", inputString);
+        new ConsumerRecord<>("topic", partition, offset, "none", inputString);
 
-    final Source<ConsumerRecord<String, String>, Supplier<Consumer.Control>> source =
-        Source.single(consumerRecord).mapMaterializedValue(ignored -> Consumer::createNoopControl);
+    final CommittableMessage<String, String> committableMessage =
+        ConsumerResultFactory.committableMessage(
+            consumerRecord,
+            ConsumerResultFactory.committableOffset(
+                "theGroupId", consumerRecord.topic(), partition, offset, "metadata"));
+    final Source<CommittableMessage<String, String>, Supplier<Consumer.Control>> source =
+        Source.single(committableMessage)
+            .mapMaterializedValue(ignored -> Consumer::createNoopControl);
 
-    final Sink<ProducerRecord<String, String>, CompletionStage<Done>> sink =
-        Sink.<ProducerRecord<String, String>>actorRef(
-                Adapter.toClassic(kafkaProducer.getRef()),
-                new ProducerRecord<String, String>("topic", "endMessage"))
-            .mapMaterializedValue(ignored -> new CompletableFuture<>());
+    final TestConsumerCommitterSink testSink = TestConsumerCommitterSink.create(testKit);
 
     AriCommandResponseKafkaProcessor.commandResponseProcessing(
             testKit.system(),
@@ -102,7 +136,8 @@ class AriCommandResponseKafkaProcessorTest {
             },
             callContextProvider.ref(),
             source,
-            sink)
+            producerFlow(kafkaProducer.getRef()),
+            testSink.sink())
         .run(testKit.system());
 
     if (resourceIdExpectedToRegisterInCallContext != null) {
@@ -121,13 +156,55 @@ class AriCommandResponseKafkaProcessorTest {
         OBJECT_MAPPER.readTree(loadJsonAsString(expectedResponseJsonFilename)),
         OBJECT_MAPPER.readTree(responseRecord.value()));
 
-    @SuppressWarnings("unchecked")
-    final ProducerRecord<String, String> endMsg =
-        kafkaProducer.expectMessageClass(ProducerRecord.class);
-    assertThat(endMsg.topic(), is("topic"));
-    assertThat(endMsg.value(), is("endMessage"));
+    kafkaProducer.expectNoMessage();
+
+    final ConsumerMessage.CommittableOffset committableOffset =
+        testSink.probe().expectMessageClass(ConsumerMessage.CommittableOffset.class);
+    assertEquals(offset, committableOffset.partitionOffset().offset());
+    assertEquals(partition, committableOffset.partitionOffset().key().partition());
+  }
+
+  @Test
+  void testCommandResponseProcessingProducerFails() {
+    final TestProbe<ProducerRecord<String, String>> kafkaProducer = testKit.createTestProbe();
+    final TestableCallContextProvider callContextProvider =
+        new TestableCallContextProvider(testKit);
+
+    final int offset = 2132;
+    final int partition = 29375;
+
+    final String inputString =
+        loadJsonAsString("messages/commands/bridgeCreateCommandWithBody.json");
+    final ConsumerRecord<String, String> consumerRecord =
+        new ConsumerRecord<>("topic", partition, offset, "none", inputString);
+
+    final CommittableMessage<String, String> committableMessage =
+        ConsumerResultFactory.committableMessage(
+            consumerRecord,
+            ConsumerResultFactory.committableOffset(
+                "theGroupId", consumerRecord.topic(), partition, offset, "metadata"));
+    final Source<CommittableMessage<String, String>, Supplier<Consumer.Control>> source =
+        Source.single(committableMessage)
+            .mapMaterializedValue(ignored -> Consumer::createNoopControl);
+
+    final TestConsumerCommitterSink testSink = TestConsumerCommitterSink.create(testKit);
+
+    AriCommandResponseKafkaProcessor.commandResponseProcessing(
+            testKit.system(),
+            requestAndContext ->
+                CompletableFuture.completedFuture(
+                    HttpResponse.create()
+                        .withStatus(StatusCodes.OK)
+                        .withEntity(
+                            loadJsonAsString("messages/ari/responses/bridgeCreateResponse.json"))),
+            callContextProvider.ref(),
+            source,
+            brokenProducerFlow(),
+            testSink.sink())
+        .run(testKit.system());
 
     kafkaProducer.expectNoMessage();
+    testSink.probe().expectNoMessage();
   }
 
   private void validateRequest(final HttpRequest actualHttpRequest, final String inputString) {
@@ -154,6 +231,7 @@ class AriCommandResponseKafkaProcessorTest {
   }
 
   static class ResponseArgumentsProvider implements ArgumentsProvider {
+
     @Override
     public Stream<? extends Arguments> provideArguments(ExtensionContext context) {
       return Stream.of(
@@ -219,5 +297,88 @@ class AriCommandResponseKafkaProcessorTest {
   @AfterAll
   public static void cleanup() {
     testKit.shutdownTestKit();
+  }
+
+  private Flow<
+          ProducerMessage.Envelope<String, String, ConsumerMessage.CommittableOffset>,
+          ProducerMessage.Results<String, String, ConsumerMessage.CommittableOffset>,
+          NotUsed>
+      producerFlow(final ActorRef<ProducerRecord<String, String>> kafkaProducer) {
+    return Flow
+        .<ProducerMessage.Envelope<String, String, ConsumerMessage.CommittableOffset>>create()
+        .map(
+            msg -> {
+              if (msg
+                  instanceof
+                  ProducerMessage.Message<String, String, ConsumerMessage.CommittableOffset>
+                  message) {
+                kafkaProducer.tell(message.record());
+                return ProducerResultFactory.result(message);
+              } else throw new RuntimeException("unexpected element: " + msg);
+            });
+  }
+
+  private Flow<
+          ProducerMessage.Envelope<String, String, ConsumerMessage.CommittableOffset>,
+          ProducerMessage.Results<String, String, ConsumerMessage.CommittableOffset>,
+          NotUsed>
+      brokenProducerFlow() {
+    return Flow.fromFunction(
+        msg -> {
+          throw new RuntimeException("Test Exception. Simulating failure during producer stage.");
+        });
+  }
+
+  public record TestConsumerCommitterSink(
+      TestProbe<ConsumerMessage.CommittableOffset> probe,
+      Sink<ConsumerMessage.CommittableOffset, CompletionStage<Done>> sink) {
+
+    private static final CompletableFuture<Done> completableFuture = new CompletableFuture<>();
+
+    public static TestConsumerCommitterSink create(final ActorTestKit testKit) {
+      interface CommitterMessage {}
+      record Offset(ConsumerMessage.CommittableOffset payload) implements CommitterMessage {}
+      record StreamCompleted() implements CommitterMessage {}
+
+      final TestProbe<ConsumerMessage.CommittableOffset> probe =
+          testKit.createTestProbe(ConsumerMessage.CommittableOffset.class);
+
+      final ActorRef<Object> adapter =
+          testKit.spawn(
+              Behaviors.receive(Object.class)
+                  .onMessage(
+                      Offset.class,
+                      offset -> {
+                        testKit
+                            .system()
+                            .log()
+                            .warn("TestConsumerCommitterSink committing {}", offset.payload());
+                        probe.ref().tell(offset.payload());
+                        return Behaviors.same();
+                      })
+                  .onMessage(
+                      StreamCompleted.class,
+                      offset -> {
+                        testKit.system().log().warn("TestConsumerCommitterSink stopped");
+                        completableFuture.complete(Done.done());
+                        return Behaviors.same();
+                      })
+                  .onAnyMessage(
+                      param -> {
+                        testKit
+                            .system()
+                            .log()
+                            .warn("TestConsumerCommitterSink received message {}", param);
+                        return Behaviors.same();
+                      })
+                  .build());
+
+      final Sink<ConsumerMessage.CommittableOffset, CompletionStage<Done>> sink =
+          Flow.<ConsumerMessage.CommittableOffset, CommitterMessage>fromFunction(Offset::new)
+              .to(Sink.actorRef(Adapter.toClassic(adapter), new StreamCompleted()))
+              .mapMaterializedValue(param -> completableFuture);
+
+      return new TestConsumerCommitterSink(probe, sink);
+    }
   }
 }

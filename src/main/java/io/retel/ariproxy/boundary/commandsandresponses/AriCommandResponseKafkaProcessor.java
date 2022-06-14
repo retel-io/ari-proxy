@@ -1,6 +1,7 @@
 package io.retel.ariproxy.boundary.commandsandresponses;
 
 import akka.Done;
+import akka.NotUsed;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.ActorSystem;
 import akka.event.Logging;
@@ -10,15 +11,24 @@ import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.headers.HttpCredentials;
 import akka.japi.function.Function;
+import akka.kafka.ConsumerMessage.CommittableMessage;
+import akka.kafka.ConsumerMessage.CommittableOffset;
+import akka.kafka.ConsumerMessage.PartitionOffset;
+import akka.kafka.ProducerMessage;
+import akka.kafka.ProducerMessage.Envelope;
+import akka.kafka.ProducerMessage.Results;
 import akka.kafka.javadsl.Consumer;
+import akka.kafka.javadsl.Consumer.Control;
 import akka.stream.ActorAttributes;
 import akka.stream.Attributes;
 import akka.stream.Supervision;
 import akka.stream.Supervision.Directive;
+import akka.stream.javadsl.Flow;
 import akka.stream.javadsl.RunnableGraph;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -47,6 +57,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
 public class AriCommandResponseKafkaProcessor {
+
   private static final Attributes LOG_LEVELS =
       Attributes.createLogLevels(Logging.InfoLevel(), Logging.InfoLevel(), Logging.ErrorLevel());
 
@@ -76,8 +87,13 @@ public class AriCommandResponseKafkaProcessor {
       final ActorSystem<?> system,
       final CommandResponseHandler commandResponseHandler,
       final ActorRef<CallContextProviderMessage> callContextProvider,
-      final Source<ConsumerRecord<String, String>, Supplier<Consumer.Control>> source,
-      final Sink<ProducerRecord<String, String>, CompletionStage<Done>> sink) {
+      final Source<CommittableMessage<String, String>, Supplier<Control>> source,
+      final Flow<
+              Envelope<String, String, CommittableOffset>,
+              Results<String, String, CommittableOffset>,
+              NotUsed>
+          producerFlow,
+      final Sink<CommittableOffset, CompletionStage<Done>> sink) {
     final Function<Throwable, Directive> decider =
         error -> {
           system.log().error("Error in some stage; restarting stream ...", error);
@@ -98,52 +114,82 @@ public class AriCommandResponseKafkaProcessor {
     final String restPassword = restConfig.getString(PASSWORD);
 
     return source
-        .log(">>>   ARI COMMAND", ConsumerRecord::value)
+        .log(
+            ">>>   ARI COMMAND",
+            (CommittableMessage<String, String> message) -> message.record().value())
         .withAttributes(LOG_LEVELS)
-        .map(AriCommandResponseKafkaProcessor::unmarshallAriCommandEnvelope)
-        .map(
-            msgEnvelope -> {
-              AriCommandResponseProcessing.registerCallContext(
-                      callContextProvider,
-                      msgEnvelope.getCallContext(),
-                      msgEnvelope.getAriCommand())
-                  .onFailure(
-                      error -> {
-                        throw new IllegalStateException(error);
-                      });
-              return new CallContextAndCommandRequestContext(
-                  msgEnvelope.getCallContext(),
-                  msgEnvelope.getCommandId(),
-                  msgEnvelope.getAriCommand());
+        .flatMapConcat(
+            committableMessage -> {
+              try {
+                final ConsumerRecord<String, String> record = committableMessage.record();
+                final AriCommandEnvelope msgEnvelope = reader.readValue(record.value());
+                AriCommandResponseProcessing.registerCallContext(
+                        callContextProvider,
+                        msgEnvelope.getCallContext(),
+                        msgEnvelope.getAriCommand())
+                    .get();
+                final Source<Envelope<String, String, CommittableOffset>, NotUsed>
+                    messageNotUsedSource =
+                        Source.single(
+                                new CallContextAndCommandRequestContext(
+                                    msgEnvelope.getCallContext(),
+                                    msgEnvelope.getCommandId(),
+                                    msgEnvelope.getAriCommand()))
+                            .map(
+                                context ->
+                                    Tuple.of(
+                                        toHttpRequest(
+                                            context.getAriCommand(),
+                                            restUri,
+                                            restUser,
+                                            restPassword),
+                                        context))
+                            .mapAsync(
+                                1,
+                                requestAndContext -> {
+                                  final Instant start = Instant.now();
+                                  return commandResponseHandler
+                                      .apply(requestAndContext)
+                                      .handle(
+                                          (response, error) -> {
+                                            Metrics.recordAriCommandRequest(
+                                                requestAndContext._2().getAriCommand(),
+                                                Duration.between(start, Instant.now()),
+                                                error != null);
+                                            return Tuple.of(
+                                                handleErrorInHTTPResponse(response, error),
+                                                requestAndContext._2());
+                                          });
+                                })
+                            .mapAsync(
+                                1,
+                                rawHttpResponseAndContext ->
+                                    toAriResponse(rawHttpResponseAndContext, system))
+                            .map(
+                                ariResponseAndContext ->
+                                    envelopeAriResponseToProducerRecord(
+                                        commandsTopic,
+                                        eventsAndResponsesTopic,
+                                        ariResponseAndContext,
+                                        committableMessage.committableOffset()))
+                            .log(">>>   ARI RESPONSE", param -> param.record().value())
+                            .withAttributes(LOG_LEVELS)
+                            .map(param -> param);
+
+                return messageNotUsedSource.via(producerFlow).map(Results::passThrough);
+              } catch (JacksonException e) {
+                final PartitionOffset partitionOffset =
+                    committableMessage.committableOffset().partitionOffset();
+                system
+                    .log()
+                    .error(
+                        "Unable to process command on partition {} at offset {}. Committing anyway.",
+                        partitionOffset.key().partition(),
+                        partitionOffset.offset(),
+                        e);
+                return Source.single(committableMessage.committableOffset());
+              }
             })
-        .map(
-            context ->
-                Tuple.of(
-                    toHttpRequest(context.getAriCommand(), restUri, restUser, restPassword),
-                    context))
-        .mapAsync(
-            1,
-            requestAndContext -> {
-              final Instant start = Instant.now();
-              return commandResponseHandler
-                  .apply(requestAndContext)
-                  .handle(
-                      (response, error) -> {
-                        Metrics.recordAriCommandRequest(
-                            requestAndContext._2.getAriCommand(),
-                            Duration.between(start, Instant.now()),
-                            error != null);
-                        return Tuple.of(
-                            handleErrorInHTTPResponse(response, error), requestAndContext._2);
-                      });
-            })
-        .mapAsync(1, rawHttpResponseAndContext -> toAriResponse(rawHttpResponseAndContext, system))
-        .map(
-            ariResponseAndContext ->
-                envelopeAriResponseToProducerRecord(
-                    commandsTopic, eventsAndResponsesTopic, ariResponseAndContext))
-        .log(">>>   ARI RESPONSE", ProducerRecord::value)
-        .withAttributes(LOG_LEVELS)
         .toMat(
             sink,
             (control, streamCompletion) ->
@@ -156,26 +202,24 @@ public class AriCommandResponseKafkaProcessor {
     return error != null ? HttpResponse.create().withStatus(500) : response;
   }
 
-  private static ProducerRecord<String, String> envelopeAriResponseToProducerRecord(
-      final String commandsTopic,
-      final String eventsAndResponsesTopic,
-      final Tuple2<AriResponse, CallContextAndCommandRequestContext> ariResponseAndContext) {
+  private static ProducerMessage.Message<String, String, CommittableOffset>
+      envelopeAriResponseToProducerRecord(
+          final String commandsTopic,
+          final String eventsAndResponsesTopic,
+          final Tuple2<AriResponse, CallContextAndCommandRequestContext> ariResponseAndContext,
+          final CommittableOffset committableOffset) {
     final AriResponse ariResponse = ariResponseAndContext._1;
     final CallContextAndCommandRequestContext context = ariResponseAndContext._2;
 
     AriMessageEnvelope ariMessageEnvelope =
         envelopeAriResponse(ariResponse, context, commandsTopic);
 
-    return new ProducerRecord<>(
-        eventsAndResponsesTopic,
-        context.getCallContext(),
-        marshallAriMessageEnvelope(ariMessageEnvelope));
-  }
-
-  private static AriCommandEnvelope unmarshallAriCommandEnvelope(
-      final ConsumerRecord<String, String> record) {
-    return Try.of(() -> (AriCommandEnvelope) reader.readValue(record.value()))
-        .getOrElseThrow(t -> new RuntimeException(t));
+    return new ProducerMessage.Message<>(
+        new ProducerRecord<>(
+            eventsAndResponsesTopic,
+            context.getCallContext(),
+            marshallAriMessageEnvelope(ariMessageEnvelope)),
+        committableOffset);
   }
 
   private static AriMessageEnvelope envelopeAriResponse(

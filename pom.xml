@@ -317,22 +317,6 @@
           </java>
         </configuration>
       </plugin>
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>versions-maven-plugin</artifactId>
-        <version>2.9.0</version>
-        <configuration>
-		<rulesUri>file:///${project.basedir}/maven-version-rules.xml</rulesUri>
-        </configuration>
-        <executions>
-          <execution>
-            <phase>verify</phase>
-            <goals>
-              <goal>display-dependency-updates</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
     </plugins>
   </build>
 </project>

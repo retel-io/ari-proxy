@@ -32,7 +32,7 @@
     <version.log4j.staticshutdown>1.1.0</version.log4j.staticshutdown>
     <version.expiringmap>0.5.10</version.expiringmap>
     <version.junit>5.8.2</version.junit>
-    <version.junit-platform>1.8.2</version.junit-platform>
+    <version.junit-platform>1.9.0</version.junit-platform>
     <version.hamcrest>2.2</version.hamcrest>
     <version.datastax>4.14.1</version.datastax>
     <version.cassandraunit>4.3.1.0</version.cassandraunit>

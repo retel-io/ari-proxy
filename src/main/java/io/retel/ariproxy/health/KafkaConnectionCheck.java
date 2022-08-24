@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
-
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -38,68 +37,67 @@ public class KafkaConnectionCheck {
     consumer = createKafkaConsumer(kafkaConfig);
 
     final List<String> wantedTopics =
-            Arrays.asList(
-                    kafkaConfig.getString(COMMANDS_TOPIC),
-                    kafkaConfig.getString(EVENTS_AND_RESPONSES_TOPIC));
+        Arrays.asList(
+            kafkaConfig.getString(COMMANDS_TOPIC),
+            kafkaConfig.getString(EVENTS_AND_RESPONSES_TOPIC));
 
     return Behaviors.receive(ReportKafkaConnectionHealth.class)
-            .onMessage(
-                    ReportKafkaConnectionHealth.class,
-                    message -> reportHealth(kafkaConfig, wantedTopics, message))
-            .build();
+        .onMessage(
+            ReportKafkaConnectionHealth.class,
+            message -> reportHealth(kafkaConfig, wantedTopics, message))
+        .build();
   }
 
   private static KafkaConsumer<String, String> createKafkaConsumer(final Config kafkaConfig) {
     final Properties kafkaProperties = new Properties();
     kafkaProperties.setProperty(
-            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getCanonicalName());
+        ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getCanonicalName());
     kafkaProperties.setProperty(
-            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
-            StringDeserializer.class.getCanonicalName());
-    kafkaProperties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, kafkaConfig.getString(CONSUMER_GROUP));
-    kafkaProperties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getString(BOOTSTRAP_SERVERS));
+        ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
+        StringDeserializer.class.getCanonicalName());
+    kafkaProperties.setProperty(
+        ConsumerConfig.GROUP_ID_CONFIG, kafkaConfig.getString(CONSUMER_GROUP));
+    kafkaProperties.setProperty(
+        ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getString(BOOTSTRAP_SERVERS));
     return new KafkaConsumer<>(kafkaProperties);
   }
 
   private static Behavior<ReportKafkaConnectionHealth> reportHealth(
-          final Config kafkaConfig,
-          final List<String> wantedTopics,
-          final ReportKafkaConnectionHealth message) {
-    provideHealthReport(
-            kafkaConfig.getString(BOOTSTRAP_SERVERS),
-            wantedTopics)
-            .thenAccept(healthReport -> message.replyTo().tell(healthReport));
+      final Config kafkaConfig,
+      final List<String> wantedTopics,
+      final ReportKafkaConnectionHealth message) {
+    provideHealthReport(kafkaConfig.getString(BOOTSTRAP_SERVERS), wantedTopics)
+        .thenAccept(healthReport -> message.replyTo().tell(healthReport));
 
     return Behaviors.same();
   }
 
   private static CompletableFuture<HealthReport> provideHealthReport(
-          final String bootstrapServers, final List<String> neededTopics) {
+      final String bootstrapServers, final List<String> neededTopics) {
 
     return CompletableFuture.supplyAsync(
-            () -> {
-              try {
-                final Map<String, List<PartitionInfo>> receivedTopics =
-                        consumer.listTopics(Duration.ofMillis(100));
+        () -> {
+          try {
+            final Map<String, List<PartitionInfo>> receivedTopics =
+                consumer.listTopics(Duration.ofMillis(100));
 
-                final List<String> missingTopics =
-                        neededTopics.stream()
-                                .filter(s -> !receivedTopics.containsKey(s)).toList();
-                if (!missingTopics.isEmpty()) {
-                  return HealthReport.error(
-                          String.format(
-                                  "KafkaConnectionCheck: missing topics, please create: %s", missingTopics));
-                }
+            final List<String> missingTopics =
+                neededTopics.stream().filter(s -> !receivedTopics.containsKey(s)).toList();
+            if (!missingTopics.isEmpty()) {
+              return HealthReport.error(
+                  String.format(
+                      "KafkaConnectionCheck: missing topics, please create: %s", missingTopics));
+            }
 
-                return HealthReport.ok();
+            return HealthReport.ok();
 
-              } catch (TimeoutException timeoutException) {
-                return HealthReport.error(
-                        String.format(
-                                "KafkaConnectionCheck: timeout during connection to servers: %s",
-                                bootstrapServers));
-              }
-            });
+          } catch (TimeoutException timeoutException) {
+            return HealthReport.error(
+                String.format(
+                    "KafkaConnectionCheck: timeout during connection to servers: %s",
+                    bootstrapServers));
+          }
+        });
   }
 
   public record ReportKafkaConnectionHealth(ActorRef<HealthReport> replyTo) {

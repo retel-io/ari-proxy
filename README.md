@@ -74,7 +74,20 @@ CREATE TABLE retel (
 
 Hint: do not forget some kind of housekeeping by adding TTL or a cleanup job.
 
-## Metrics
+## Monitoring
+### Health-Check
+There are three routes to check for service health:
+ - `/health`
+ - `/health/smoke`
+ - `/health/backing-services`
+
+`/health` is meant to check if the service itself is healthy in terms of JVM,Akka etc. settings. Yet to be implemented correctly.
+
+`/health/smoke` is used for deployment to check if the service is started. Only checks for open port.
+
+`/health/backing-services` checks all services that are necessary for running the application e.g. Kafka, Asterisk, Redis/Cassandra.
+
+### Metrics
 Ari-proxy provides service specific metrics using the [micrometer framework](http://micrometer.io) which are available via JMX or HTTP.
 
 For further details see: [Metrics](docs/metrics.md)

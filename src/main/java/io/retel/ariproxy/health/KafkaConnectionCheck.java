@@ -85,17 +85,16 @@ public class KafkaConnectionCheck {
                 neededTopics.stream().filter(s -> !receivedTopics.containsKey(s)).toList();
             if (!missingTopics.isEmpty()) {
               return HealthReport.error(
-                  String.format(
-                      "KafkaConnectionCheck: missing topics, please create: %s", missingTopics));
+                  KafkaConnectionCheck.class,
+                  "missing topics, please create: %s".formatted(missingTopics));
             }
 
             return HealthReport.ok();
 
           } catch (TimeoutException timeoutException) {
             return HealthReport.error(
-                String.format(
-                    "KafkaConnectionCheck: timeout during connection to servers: %s",
-                    bootstrapServers));
+                KafkaConnectionCheck.class,
+                "timeout during connection to servers: %s".formatted(bootstrapServers));
           }
         });
   }

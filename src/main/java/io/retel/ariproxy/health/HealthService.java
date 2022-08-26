@@ -63,11 +63,14 @@ public class HealthService {
             () ->
                 concat(
                     path("smoke", () -> get(() -> complete(StatusCodes.OK))),
-                    get(() -> handleHealthBaseRoute(healthSuppliers)))),
+                    path(
+                        "backing-services",
+                        () -> handleBackingServicesHealthRoute(healthSuppliers)),
+                    get(() -> complete(StatusCodes.OK)))),
         pathPrefix("metrics", () -> get(() -> complete(metricsSupplier.get()))));
   }
 
-  private static Route handleHealthBaseRoute(
+  private static Route handleBackingServicesHealthRoute(
       final Collection<Supplier<CompletableFuture<HealthReport>>> healthSuppliers) {
     return completeWithFuture(
         generateHealthReport(healthSuppliers).thenApply(HealthService::healthReportToHttpResponse));

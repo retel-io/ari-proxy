@@ -29,6 +29,8 @@ import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.callcontext.api.ReportHealth;
 import io.retel.ariproxy.boundary.commandsandresponses.AriCommandResponseKafkaProcessor;
 import io.retel.ariproxy.boundary.events.WebsocketMessageToProducerRecordTranslator;
+import io.retel.ariproxy.health.AriConnectionCheck;
+import io.retel.ariproxy.health.AriConnectionCheck.ReportAriConnectionHealth;
 import io.retel.ariproxy.health.HealthService;
 import io.retel.ariproxy.health.KafkaConnectionCheck;
 import io.retel.ariproxy.health.KafkaConnectionCheck.ReportKafkaConnectionHealth;
@@ -55,6 +57,7 @@ public class Main {
   private static final String NAME = "name";
   private static final String HTTPPORT = "httpport";
   public static final String KAFKA = "kafka";
+  public static final String REST = "rest";
   private static final Duration HEALTH_REPORT_TIMEOUT = Duration.ofMillis(100);
   private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
 
@@ -79,6 +82,10 @@ public class Main {
                   ctx.spawn(
                       KafkaConnectionCheck.create(serviceConfig.getConfig(KAFKA)),
                       "kafka-connection-check");
+              final ActorRef<ReportAriConnectionHealth> ariConnectionCheck =
+                  ctx.spawn(
+                      AriConnectionCheck.create(serviceConfig.getConfig(REST)),
+                      "ari-connection-check");
 
               HealthService.run(
                   ctx.getSystem(),
@@ -95,6 +102,13 @@ public class Main {
                                   kafkaConnectionCheck,
                                   ReportKafkaConnectionHealth::new,
                                   HEALTH_REPORT_TIMEOUT,
+                                  ctx.getSystem().scheduler())
+                              .toCompletableFuture(),
+                      () ->
+                          AskPattern.ask(
+                                  ariConnectionCheck,
+                                  ReportAriConnectionHealth::new,
+                                  Duration.ofSeconds(2),
                                   ctx.getSystem().scheduler())
                               .toCompletableFuture()),
                   Metrics::scrapePrometheusRegistry,

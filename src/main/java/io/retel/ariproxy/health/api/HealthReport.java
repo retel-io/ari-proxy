@@ -18,8 +18,12 @@ public class HealthReport {
     return empty();
   }
 
-  public static HealthReport error(String error) {
+  public static HealthReport error(final String error) {
     return new HealthReport(List.of(error));
+  }
+
+  public static HealthReport error(final Class<?> checkClass, final String error) {
+    return new HealthReport(List.of("%s: %s".formatted(checkClass.getSimpleName(), error)));
   }
 
   private HealthReport(final List<String> errors) {

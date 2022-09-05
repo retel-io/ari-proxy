@@ -25,7 +25,7 @@
     <version.scala.compat>2.13</version.scala.compat>
     <version.akka>2.6.19</version.akka>
     <version.akka.http>10.2.9</version.akka.http>
-    <version.akka.stream.kafka>3.0.0</version.akka.stream.kafka>
+    <version.akka.stream.kafka>3.0.1</version.akka.stream.kafka>
     <version.kafka>3.0.0</version.kafka>
     <version.vavr>0.10.4</version.vavr>
     <version.log4j>2.18.0</version.log4j>

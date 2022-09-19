@@ -23,12 +23,12 @@
     <shaded-classifier-name>fat</shaded-classifier-name>
     <version.maven-surefire-plugin>3.0.0-M3</version.maven-surefire-plugin>
     <version.scala.compat>2.13</version.scala.compat>
-    <version.akka>2.6.19</version.akka>
-    <version.akka.http>10.2.9</version.akka.http>
+    <version.akka>2.6.20</version.akka>
+    <version.akka.http>10.2.10</version.akka.http>
     <version.akka.stream.kafka>3.0.1</version.akka.stream.kafka>
     <version.kafka>3.0.1</version.kafka>
     <version.vavr>0.10.4</version.vavr>
-    <version.log4j>2.18.0</version.log4j>
+    <version.log4j>2.19.0</version.log4j>
     <version.log4j.staticshutdown>1.1.0</version.log4j.staticshutdown>
     <version.expiringmap>0.5.10</version.expiringmap>
     <version.junit>5.9.0</version.junit>
@@ -38,7 +38,7 @@
     <version.cassandraunit>4.3.1.0</version.cassandraunit>
     <version.mockito>4.8.0</version.mockito>
     <version.micrometer>1.9.4</version.micrometer>
-    <version.jackson>2.13.3</version.jackson>
+    <version.jackson>2.13.4</version.jackson>
     <version.google-guava>31.1-jre</version.google-guava>
     <version.lettuce>6.2.0.RELEASE</version.lettuce>
     <version.kafka-test-junit5>3.2.4</version.kafka-test-junit5>

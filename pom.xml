@@ -37,7 +37,7 @@
     <version.datastax>4.14.1</version.datastax>
     <version.cassandraunit>4.3.1.0</version.cassandraunit>
     <version.mockito>4.8.0</version.mockito>
-    <version.micrometer>1.9.2</version.micrometer>
+    <version.micrometer>1.9.4</version.micrometer>
     <version.jackson>2.13.3</version.jackson>
     <version.google-guava>31.1-jre</version.google-guava>
     <version.lettuce>6.2.0.RELEASE</version.lettuce>

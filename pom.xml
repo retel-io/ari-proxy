@@ -36,7 +36,7 @@
     <version.hamcrest>2.2</version.hamcrest>
     <version.datastax>4.15.0</version.datastax>
     <version.cassandraunit>4.3.1.0</version.cassandraunit>
-    <version.mockito>4.8.1</version.mockito>
+    <version.mockito>4.9.0</version.mockito>
     <version.micrometer>1.9.5</version.micrometer>
     <version.jackson>2.14.0</version.jackson>
     <version.google-guava>31.1-jre</version.google-guava>

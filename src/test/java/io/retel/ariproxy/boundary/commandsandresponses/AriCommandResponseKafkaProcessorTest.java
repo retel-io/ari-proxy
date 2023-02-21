@@ -259,6 +259,12 @@ class AriCommandResponseKafkaProcessorTest {
               "messages/responses/channelAnswerResponse.json",
               null),
           Arguments.of(
+              "messages/commands/channelDeleteWithReasonCommand.json",
+              CompletableFuture.completedFuture(
+                  HttpResponse.create().withStatus(StatusCodes.NO_CONTENT)),
+              "messages/responses/channelDeleteWithReasonResponse.json",
+              null),
+          Arguments.of(
               "messages/commands/channelAnswerCommandWithoutCommandId.json",
               CompletableFuture.completedFuture(
                   HttpResponse.create().withStatus(StatusCodes.NO_CONTENT)),

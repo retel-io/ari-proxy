@@ -44,13 +44,16 @@ public class AriCommand {
   }
 
   public AriCommandType extractCommandType() {
-    return AriCommandType.fromRequestUri(getUrl());
+    final String uri = getUrl().split("\\?")[0];
+    return AriCommandType.fromRequestUri(uri);
   }
 
   public List<AriResourceRelation> extractResourceRelations() {
-    List<AriResource> ariResources = AriCommandType.extractAllResources(getUrl());
 
-    final AriCommandType commandType = AriCommandType.fromRequestUri(getUrl());
+    final String uri = getUrl().split("\\?")[0];
+    List<AriResource> ariResources = AriCommandType.extractAllResources(uri);
+
+    final AriCommandType commandType = AriCommandType.fromRequestUri(uri);
 
     if (!commandType.isCreationCommand()) {
       return ariResources.map(r -> new AriResourceRelation(r, false));

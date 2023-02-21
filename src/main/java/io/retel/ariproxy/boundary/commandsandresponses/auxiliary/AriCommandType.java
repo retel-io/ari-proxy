@@ -136,6 +136,7 @@ public enum AriCommandType {
   }
 
   public static List<AriResource> extractAllResources(final String uri) {
+
     if (uri.equals("/channels/create")) {
       return List.empty();
     }

@@ -54,7 +54,7 @@ class AriCommandResponseProcessingTest {
         AriCommandResponseProcessing.registerCallContext(
             callContextProvider.ref(),
             CALL_CONTEXT,
-            new AriCommand(null, "/channels/CHANNEL_ID/play/PLAYBACK_ID", null));
+            new AriCommand("POST", "/channels/CHANNEL_ID/play/PLAYBACK_ID", null));
 
     assertTrue(result.isSuccess());
     final RegisterCallContext registerCallContext =
@@ -64,13 +64,28 @@ class AriCommandResponseProcessingTest {
   }
 
   @Test
+  void doesNotTryToRegisterACallContextForDeleteRequests() {
+    final TestableCallContextProvider callContextProvider =
+        new TestableCallContextProvider(testKit);
+
+    final Try<Done> result =
+        AriCommandResponseProcessing.registerCallContext(
+            callContextProvider.ref(),
+            CALL_CONTEXT,
+            new AriCommand("DELETE", "/channels/CHANNEL_ID", null));
+
+    assertTrue(result.isSuccess());
+    callContextProvider.probe().expectNoMessage();
+  }
+
+  @Test
   void registerCallContextThrowsARuntimeExceptionIfTheAriCommandIsMalformed() {
     final TestProbe<CallContextProviderMessage> callContextProviderProbe =
         testKit.createTestProbe(CallContextProviderMessage.class);
 
     final Try<Done> result =
         AriCommandResponseProcessing.registerCallContext(
-            callContextProviderProbe.ref(), null, new AriCommand(null, "/channels", null));
+            callContextProviderProbe.ref(), null, new AriCommand("POST", "/channels", null));
 
     assertTrue(result.isFailure());
   }

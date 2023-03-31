@@ -55,7 +55,7 @@ public class AriCommand {
 
     final AriCommandType commandType = AriCommandType.fromRequestUri(uri);
 
-    if (!commandType.isCreationCommand()) {
+    if (!commandType.isRouteForResourceCreation()) {
       return ariResources.map(r -> new AriResourceRelation(r, false));
     }
 
@@ -83,6 +83,10 @@ public class AriCommand {
     } catch (JsonProcessingException e) {
       throw new IllegalStateException("Unable to serialize command body: " + this, e);
     }
+  }
+
+  public boolean isCreationCommand() {
+    return extractCommandType().isRouteForResourceCreation() && "POST".equals(method);
   }
 
   @Override

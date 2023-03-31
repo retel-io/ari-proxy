@@ -82,15 +82,15 @@ public enum AriCommandType {
   private static final ObjectReader READER = new ObjectMapper().reader();
 
   private final AriResourceType resourceType;
-  private final boolean isCreationCommand;
+  private final boolean isRouteForResourceCreation;
   private final Function<String, Option<Try<String>>> resourceIdBodyExtractor;
 
   AriCommandType(
       final AriResourceType resourceType,
-      final boolean isCreationCommand,
+      final boolean isRouteForResourceCreation,
       final Function<String, Option<Try<String>>> resourceIdBodyExtractor) {
     this.resourceType = resourceType;
-    this.isCreationCommand = isCreationCommand;
+    this.isRouteForResourceCreation = isRouteForResourceCreation;
     this.resourceIdBodyExtractor = resourceIdBodyExtractor;
   }
 
@@ -121,8 +121,8 @@ public enum AriCommandType {
     return resourceType;
   }
 
-  public boolean isCreationCommand() {
-    return isCreationCommand;
+  public boolean isRouteForResourceCreation() {
+    return isRouteForResourceCreation;
   }
 
   public Option<String> extractResourceIdFromUri(final String uri) {

@@ -17,7 +17,7 @@ public class AriCommandResponseProcessing {
       final String callContext,
       final AriCommand ariCommand) {
 
-    if (!ariCommand.extractCommandType().isCreationCommand()) {
+    if (!ariCommand.isCreationCommand()) {
       return Try.success(Done.done());
     }
 

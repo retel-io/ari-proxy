@@ -44,15 +44,18 @@ public class AriCommand {
   }
 
   public AriCommandType extractCommandType() {
-    return AriCommandType.fromRequestUri(getUrl());
+    final String uri = getUrl().split("\\?")[0];
+    return AriCommandType.fromRequestUri(uri);
   }
 
   public List<AriResourceRelation> extractResourceRelations() {
-    List<AriResource> ariResources = AriCommandType.extractAllResources(getUrl());
 
-    final AriCommandType commandType = AriCommandType.fromRequestUri(getUrl());
+    final String uri = getUrl().split("\\?")[0];
+    List<AriResource> ariResources = AriCommandType.extractAllResources(uri);
 
-    if (!commandType.isCreationCommand()) {
+    final AriCommandType commandType = AriCommandType.fromRequestUri(uri);
+
+    if (!commandType.isRouteForResourceCreation()) {
       return ariResources.map(r -> new AriResourceRelation(r, false));
     }
 
@@ -80,6 +83,10 @@ public class AriCommand {
     } catch (JsonProcessingException e) {
       throw new IllegalStateException("Unable to serialize command body: " + this, e);
     }
+  }
+
+  public boolean isCreationCommand() {
+    return extractCommandType().isRouteForResourceCreation() && "POST".equals(method);
   }
 
   @Override

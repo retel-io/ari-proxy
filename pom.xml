@@ -31,13 +31,13 @@
     <version.log4j>2.19.0</version.log4j>
     <version.log4j.staticshutdown>1.1.0</version.log4j.staticshutdown>
     <version.expiringmap>0.5.10</version.expiringmap>
-    <version.junit>5.9.1</version.junit>
+    <version.junit>5.9.2</version.junit>
     <version.junit-platform>1.9.2</version.junit-platform>
     <version.hamcrest>2.2</version.hamcrest>
     <version.datastax>4.15.0</version.datastax>
     <version.cassandraunit>4.3.1.0</version.cassandraunit>
     <version.mockito>4.9.0</version.mockito>
-    <version.micrometer>1.10.2</version.micrometer>
+    <version.micrometer>1.10.3</version.micrometer>
     <version.jackson>2.14.1</version.jackson>
     <version.google-guava>31.1-jre</version.google-guava>
     <version.lettuce>6.2.2.RELEASE</version.lettuce>

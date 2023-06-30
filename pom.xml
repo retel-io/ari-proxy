@@ -39,7 +39,7 @@
     <version.mockito>5.3.0</version.mockito>
     <version.micrometer>1.10.3</version.micrometer>
     <version.jackson>2.14.1</version.jackson>
-    <version.google-guava>31.1-jre</version.google-guava>
+    <version.google-guava>32.1.0-jre</version.google-guava>
     <version.lettuce>6.2.2.RELEASE</version.lettuce>
     <version.kafka-test-junit5>3.2.4</version.kafka-test-junit5>
   </properties>

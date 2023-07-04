@@ -21,7 +21,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <shaded-classifier-name>fat</shaded-classifier-name>
-    <version.maven-surefire-plugin>3.0.0-M3</version.maven-surefire-plugin>
+    <version.maven-surefire-plugin>3.0.0</version.maven-surefire-plugin>
     <version.scala.compat>2.13</version.scala.compat>
     <version.akka>2.6.20</version.akka>
     <version.akka.http>10.2.10</version.akka.http>
@@ -38,7 +38,7 @@
     <version.cassandraunit>4.3.1.0</version.cassandraunit>
     <version.mockito>5.3.0</version.mockito>
     <version.micrometer>1.10.6</version.micrometer>
-    <version.jackson>2.14.1</version.jackson>
+    <version.jackson>2.14.2</version.jackson>
     <version.google-guava>31.1-jre</version.google-guava>
     <version.lettuce>6.2.2.RELEASE</version.lettuce>
     <version.kafka-test-junit5>3.2.4</version.kafka-test-junit5>
@@ -252,7 +252,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.10.1</version>
+          <version>3.11.0</version>
         </plugin>
       </plugins>
     </pluginManagement>

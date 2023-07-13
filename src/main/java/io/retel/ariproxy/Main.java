@@ -2,7 +2,6 @@ package io.retel.ariproxy;
 
 import akka.Done;
 import akka.NotUsed;
-import akka.actor.CoordinatedShutdown;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.ActorSystem;
 import akka.actor.typed.javadsl.AskPattern;
@@ -11,14 +10,7 @@ import akka.http.javadsl.Http;
 import akka.http.javadsl.model.ws.Message;
 import akka.http.javadsl.model.ws.WebSocketRequest;
 import akka.http.javadsl.model.ws.WebSocketUpgradeResponse;
-import akka.japi.Pair;
-import akka.kafka.*;
-import akka.kafka.ConsumerMessage.CommittableMessage;
-import akka.kafka.ProducerMessage.Envelope;
-import akka.kafka.ProducerMessage.Results;
-import akka.kafka.javadsl.Committer;
-import akka.kafka.javadsl.Consumer;
-import akka.kafka.javadsl.Consumer.Control;
+import akka.kafka.ProducerSettings;
 import akka.kafka.javadsl.Producer;
 import akka.stream.RestartSettings;
 import akka.stream.javadsl.*;
@@ -27,7 +19,7 @@ import com.typesafe.config.ConfigFactory;
 import io.retel.ariproxy.boundary.callcontext.CallContextProvider;
 import io.retel.ariproxy.boundary.callcontext.api.CallContextProviderMessage;
 import io.retel.ariproxy.boundary.callcontext.api.ReportHealth;
-import io.retel.ariproxy.boundary.commandsandresponses.AriCommandResponseKafkaProcessor;
+import io.retel.ariproxy.boundary.commandsandresponses.AriCommandResponseProcessor;
 import io.retel.ariproxy.boundary.events.WebsocketMessageToProducerRecordTranslator;
 import io.retel.ariproxy.health.AriConnectionCheck;
 import io.retel.ariproxy.health.AriConnectionCheck.ReportAriConnectionHealth;
@@ -38,11 +30,7 @@ import io.retel.ariproxy.metrics.Metrics;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,6 +75,41 @@ public class Main {
                       AriConnectionCheck.create(serviceConfig.getConfig(REST)),
                       "ari-connection-check");
 
+              final ActorRef<AriCommandMessage> ariCommandResponseProcessor =
+                  ctx.spawn(
+                      AriCommandResponseProcessor.create(
+                          requestAndContext ->
+                              Http.get(ctx.getSystem()).singleRequest(requestAndContext._1),
+                          callContextProvider,
+                          createProducerSink(serviceConfig.getConfig(KAFKA), ctx.getSystem())),
+                      "ari-command-response-processor");
+
+              final ActorRef<Object> kafkaConsumer =
+                  ctx.spawn(
+                      KafkaConsumerActor.create(ariCommandResponseProcessor), "kafka-consumer");
+
+              //                CoordinatedShutdown.get(ctx.getSystem())
+              //                        .addTask(
+              //                                CoordinatedShutdown.PhaseBeforeServiceUnbind(),
+              //                                "drainKafkaConsumerSource",
+              //                                () -> {
+              //                                    LOGGER.info("Draining kafka consumer and
+              // shutting down...");
+              //                                    return controlSupplier
+              //                                            .get()
+              //
+              // .drainAndShutdown(system.executionContext())
+              //                                            .whenComplete(
+              //                                                    (done, error) -> {
+              //                                                        if (error != null) {
+              //                                                            LOGGER.error("Failed
+              // draining kafka consumer and shutting down", error);
+              //                                                        }
+              //                                                        LOGGER.info("Successfully
+              // drained kafka consumer and shut down");
+              //                                                    });
+              //                                });
+
               HealthService.run(
                   ctx.getSystem(),
                   Arrays.asList(
@@ -120,9 +143,6 @@ public class Main {
                   callContextProvider,
                   () -> ctx.getSystem().terminate());
 
-              runAriCommandResponseProcessor(
-                  serviceConfig.getConfig(KAFKA), ctx.getSystem(), callContextProvider);
-
               return Behaviors.ignore();
             }),
         serviceConfig.getString(NAME));
@@ -135,90 +155,12 @@ public class Main {
                 }));
   }
 
-  private static void runAriCommandResponseProcessor(
-      final Config kafkaConfig,
-      final ActorSystem<Void> system,
-      final ActorRef<CallContextProviderMessage> callContextProvider) {
-
-    final Supplier<Consumer.DrainingControl<Done>> controlSupplier =
-        AriCommandResponseKafkaProcessor.commandResponseProcessing(
-                system,
-                requestAndContext -> Http.get(system).singleRequest(requestAndContext._1),
-                callContextProvider,
-                createConsumerSource(kafkaConfig, system),
-                createProducerFlow(kafkaConfig, system),
-                createCommitterSink(system))
-            .run(system);
-
-    CoordinatedShutdown.get(system)
-        .addTask(
-            CoordinatedShutdown.PhaseBeforeServiceUnbind(),
-            "drainKafkaConsumerSource",
-            () -> {
-              LOGGER.info("Draining kafka consumer and shutting down...");
-              return controlSupplier
-                  .get()
-                  .drainAndShutdown(system.executionContext())
-                  .whenComplete(
-                      (done, error) -> {
-                        if (error != null) {
-                          LOGGER.error("Failed draining kafka consumer and shutting down", error);
-                        }
-                        LOGGER.info("Successfully drained kafka consumer and shut down");
-                      });
-            });
-  }
-
-  private static Sink<ConsumerMessage.CommittableOffset, CompletionStage<Done>> createCommitterSink(
-      ActorSystem<Void> actorSystem) {
-    return Committer.sink(CommitterSettings.create(actorSystem));
-  }
-
-  private static Source<CommittableMessage<String, String>, Supplier<Consumer.Control>>
-      createConsumerSource(final Config kafkaConfig, final ActorSystem<?> system) {
-    final ConsumerSettings<String, String> consumerSettings =
-        ConsumerSettings.create(system, new StringDeserializer(), new StringDeserializer())
-            .withBootstrapServers(kafkaConfig.getString(BOOTSTRAP_SERVERS))
-            .withGroupId(kafkaConfig.getString(CONSUMER_GROUP))
-            .withProperty(
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
-                kafkaConfig.getString("auto-offset-reset"));
-
-    final RestartSettings restartSettings =
-        RestartSettings.create(Duration.ofSeconds(5), Duration.ofSeconds(30), 0.2);
-
-    // We pre-materialize the draining control of the current source instance and make it accessible
-    // as the materialized value of the wrapping RestartSource here.
-    final AtomicReference<Consumer.Control> control =
-        new AtomicReference<>(Consumer.createNoopControl());
-
-    return RestartSource.onFailuresWithBackoff(
-            restartSettings,
-            () -> {
-              Source<CommittableMessage<String, String>, Control> committableSource =
-                  Consumer.committableSource(
-                      consumerSettings,
-                      Subscriptions.topics(kafkaConfig.getString(COMMANDS_TOPIC)));
-
-              final Pair<Consumer.Control, Source<CommittableMessage<String, String>, NotUsed>>
-                  preMaterializedSource = committableSource.preMaterialize(system);
-              control.set(preMaterializedSource.first());
-
-              return preMaterializedSource.second();
-            })
-        .mapMaterializedValue(ignored -> control::get);
-  }
-
-  private static Flow<
-          Envelope<String, String, ConsumerMessage.CommittableOffset>,
-          Results<String, String, ConsumerMessage.CommittableOffset>,
-          NotUsed>
-      createProducerFlow(final Config kafkaConfig, final ActorSystem<Void> system) {
+  private static Sink<ProducerRecord<String, String>, CompletionStage<Done>> createProducerSink(
+      final Config kafkaConfig, final ActorSystem<Void> system) {
     final ProducerSettings<String, String> producerSettings =
         ProducerSettings.create(system, new StringSerializer(), new StringSerializer())
             .withBootstrapServers(kafkaConfig.getString(BOOTSTRAP_SERVERS));
-
-    return Producer.flexiFlow(
+    return Producer.plainSink(
         producerSettings.withProducer(producerSettings.createKafkaProducer()));
   }
 

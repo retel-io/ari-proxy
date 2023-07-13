@@ -81,7 +81,7 @@ class AriCommandResponseKafkaProcessorTest {
             NotUsed>
         mockedFlow = producerFlow(kafkaProducer.getRef());
 
-    AriCommandResponseKafkaProcessor.commandResponseProcessing(
+    AriCommandResponseProcessor.commandResponseProcessing(
             testKit.system(),
             requestAndContext -> Http.get(testKit.system()).singleRequest(requestAndContext._1),
             callContextProvider.ref(),
@@ -128,7 +128,7 @@ class AriCommandResponseKafkaProcessorTest {
 
     final TestConsumerCommitterSink testSink = TestConsumerCommitterSink.create(testKit);
 
-    AriCommandResponseKafkaProcessor.commandResponseProcessing(
+    AriCommandResponseProcessor.commandResponseProcessing(
             testKit.system(),
             requestAndContext -> {
               validateRequest(requestAndContext._1(), inputString);
@@ -189,7 +189,7 @@ class AriCommandResponseKafkaProcessorTest {
 
     final TestConsumerCommitterSink testSink = TestConsumerCommitterSink.create(testKit);
 
-    AriCommandResponseKafkaProcessor.commandResponseProcessing(
+    AriCommandResponseProcessor.commandResponseProcessing(
             testKit.system(),
             requestAndContext ->
                 CompletableFuture.completedFuture(

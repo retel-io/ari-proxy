@@ -41,7 +41,7 @@
     <version.jackson>2.14.2</version.jackson>
     <version.google-guava>32.1.1-jre</version.google-guava>
     <version.lettuce>6.2.4.RELEASE</version.lettuce>
-    <version.kafka-test-junit5>3.2.4</version.kafka-test-junit5>
+    <version.kafka-test-junit5>3.2.5</version.kafka-test-junit5>
     <version.parallelconsumer>0.5.2.5</version.parallelconsumer>
   </properties>
 

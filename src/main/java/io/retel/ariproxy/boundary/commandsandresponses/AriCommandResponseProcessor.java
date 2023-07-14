@@ -15,7 +15,6 @@ import akka.stream.*;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,11 +40,15 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class AriCommandResponseProcessor {
 
   private static final Attributes LOG_LEVELS =
       Attributes.createLogLevels(Logging.InfoLevel(), Logging.InfoLevel(), Logging.ErrorLevel());
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(AriCommandResponseProcessor.class);
 
   private static final ObjectMapper mapper = new ObjectMapper();
   private static final String SERVICE = "service";
@@ -53,7 +56,6 @@ public class AriCommandResponseProcessor {
   public static final String URI = "uri";
   public static final String PASSWORD = "password";
   public static final String USER = "user";
-  public static final String STASIS_APP = "stasis-app";
   public static final String KAFKA = "kafka";
   public static final String EVENTS_AND_RESPONSES_TOPIC = "events-and-responses-topic";
   public static final String COMMANDS_TOPIC = "commands-topic";
@@ -94,7 +96,7 @@ public class AriCommandResponseProcessor {
       final ActorSystem<?> system,
       final CommandResponseHandler commandResponseHandler,
       final ActorRef<CallContextProviderMessage> callContextProvider,
-      final Sink<ProducerRecord<String, String>, CompletionStage<Done>> producerFlow,
+      final Sink<ProducerRecord<String, String>, CompletionStage<Done>> producerSink,
       final AriCommandMessage msg) {
 
     final Config serviceConfig = ConfigFactory.load().getConfig(SERVICE);
@@ -107,6 +109,8 @@ public class AriCommandResponseProcessor {
     final String restUri = restConfig.getString(URI);
     final String restUser = restConfig.getString(USER);
     final String restPassword = restConfig.getString(PASSWORD);
+
+    LOGGER.info(">>> ARI COMMAND: {}", msg.getCommandJson());
     try {
       final AriCommandEnvelope msgEnvelope = reader.readValue(msg.getCommandJson());
       AriCommandResponseProcessing.registerCallContext(
@@ -153,8 +157,8 @@ public class AriCommandResponseProcessor {
               .log(">>>   ARI RESPONSE", ProducerRecord::value)
               .withAttributes(LOG_LEVELS);
 
-      messageNotUsedSource.to(producerFlow).run(system);
-    } catch (JacksonException e) {
+      messageNotUsedSource.to(producerSink).run(system);
+    } catch (Exception e) {
       system.log().error("Unable to process command. {}", msg.getCommandJson(), e);
       msg.getReplyTo().tell(StatusReply.error(e));
     }

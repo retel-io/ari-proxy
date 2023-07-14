@@ -20,6 +20,9 @@
         <Logger name="org.apache.kafka.clients.producer.ProducerConfig" level="ERROR" additivity="false">
             <AppenderRef ref="Async"/>
         </Logger>
+        <Logger name="io.confluent" level="WARN" additivity="false">
+            <AppenderRef ref="AsyncKafka"/>
+        </Logger>
         <Root level="DEBUG">
             <AppenderRef ref="Async"/>
         </Root>

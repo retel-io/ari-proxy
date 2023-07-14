@@ -26,9 +26,12 @@ public final class KafkaConsumerActor extends AbstractBehavior<Object> {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaConsumerActor.class);
 
+  public static final String SERVICE = "service";
+  public static final String KAFKA = "kafka";
+
   private static final int MAX_PARALLEL_REQUESTS_PROCESSING = 10;
-  private static final String INBOX_TOPIC =
-      ConfigFactory.load().getConfig("kafka").getString("inbox-topic");
+  private static final String TOPIC =
+      ConfigFactory.load().getConfig(SERVICE).getConfig(KAFKA).getString("commands-topic");
   private final ParallelStreamProcessor<String, String> streamProcessor;
 
   private KafkaConsumerActor(
@@ -45,9 +48,9 @@ public final class KafkaConsumerActor extends AbstractBehavior<Object> {
 
     streamProcessor = ParallelStreamProcessor.createEosStreamProcessor(options);
 
-    LOGGER.debug("Starting Kafka Consumer and subscribing to topic {}.", INBOX_TOPIC);
+    LOGGER.debug("Starting Kafka Consumer and subscribing to topic {}.", TOPIC);
 
-    streamProcessor.subscribe(Set.of(INBOX_TOPIC));
+    streamProcessor.subscribe(Set.of(TOPIC));
 
     streamProcessor.poll(
         recordContexts -> {
@@ -90,7 +93,7 @@ public final class KafkaConsumerActor extends AbstractBehavior<Object> {
   }
 
   private static Consumer<String, String> createConsumer() {
-    final Config kafkaConfig = ConfigFactory.load().getConfig("kafka");
+    final Config kafkaConfig = ConfigFactory.load().getConfig(SERVICE).getConfig(KAFKA);
     final String bootstrapServers = kafkaConfig.getString("bootstrap-servers");
     final String groupId = kafkaConfig.getString("consumer-group");
 

@@ -164,56 +164,6 @@ public class AriCommandResponseProcessor {
     }
   }
 
-  //    public static RunnableGraph<Supplier<Consumer.DrainingControl<Done>>>
-  // commandResponseProcessing(
-  //      final ActorSystem<?> system,
-  //      final CommandResponseHandler commandResponseHandler,
-  //      final ActorRef<CallContextProviderMessage> callContextProvider,
-  //      final Source<CommittableMessage<String, String>, Supplier<Control>> source,
-  //      final Flow<
-  //              Envelope<String, String, CommittableOffset>,
-  //              Results<String, String, CommittableOffset>,
-  //              NotUsed>
-  //          producerFlow,
-  //      final Sink<CommittableOffset, CompletionStage<Done>> sink) {
-  //    final Function<Throwable, Directive> decider =
-  //        error -> {
-  //          system.log().error("Error in some stage; restarting stream ...", error);
-  //          Metrics.countCommandResponseProcessorRestarts();
-  //          return (Directive) Supervision.restart();
-  //        };
-  //
-  //    final Config serviceConfig = ConfigFactory.load().getConfig(SERVICE);
-  //    final String stasisApp = serviceConfig.getString(STASIS_APP);
-  //
-  //    final Config kafkaConfig = serviceConfig.getConfig(KAFKA);
-  //    final String commandsTopic = kafkaConfig.getString(COMMANDS_TOPIC);
-  //    final String eventsAndResponsesTopic = kafkaConfig.getString(EVENTS_AND_RESPONSES_TOPIC);
-  //
-  //    final Config restConfig = serviceConfig.getConfig(REST);
-  //    final String restUri = restConfig.getString(URI);
-  //    final String restUser = restConfig.getString(USER);
-  //    final String restPassword = restConfig.getString(PASSWORD);
-  //
-  //    return source
-  //        .log(
-  //            ">>>   ARI COMMAND",
-  //            (CommittableMessage<String, String> message) -> message.record().value())
-  //        .withAttributes(LOG_LEVELS)
-  //        .flatMapConcat(
-  //                committableMessage -> {
-  //                    return executeCommand(system, commandResponseHandler, callContextProvider,
-  // producerFlow, commandsTopic, eventsAndResponsesTopic, restUri, restUser, restPassword,
-  // committableMessage);
-  //                })
-  //        .toMat(
-  //            sink,
-  //            (control, streamCompletion) ->
-  //                (Supplier<Consumer.DrainingControl<Done>>)
-  //                    () -> Consumer.createDrainingControl(control.get(), streamCompletion))
-  //        .withAttributes(ActorAttributes.withSupervisionStrategy(decider));
-  //  }
-
   private static HttpResponse handleErrorInHTTPResponse(HttpResponse response, Throwable error) {
     return error != null ? HttpResponse.create().withStatus(500) : response;
   }
@@ -282,7 +232,7 @@ public class AriCommandResponseProcessor {
                                     jsonBody ->
                                         new AriResponse(response.status().intValue(), jsonBody))
                                 .map(res -> responseWithContext.map1(httpResponse -> res))
-                                .map(tuple -> CompletableFuture.completedFuture(tuple))
+                                .map(CompletableFuture::completedFuture)
                                 .getOrElseGet(
                                     t ->
                                         Future

@@ -39,8 +39,6 @@ public class Main {
 
   private static final String BOOTSTRAP_SERVERS = "bootstrap-servers";
   private static final String WEBSOCKET_URI = "websocket-uri";
-  private static final String CONSUMER_GROUP = "consumer-group";
-  private static final String COMMANDS_TOPIC = "commands-topic";
   private static final String SERVICE = "service";
   private static final String NAME = "name";
   private static final String HTTPPORT = "httpport";
@@ -84,31 +82,10 @@ public class Main {
                           createProducerSink(serviceConfig.getConfig(KAFKA), ctx.getSystem())),
                       "ari-command-response-processor");
 
-              final ActorRef<Object> kafkaConsumer =
-                  ctx.spawn(
-                      KafkaConsumerActor.create(ariCommandResponseProcessor), "kafka-consumer");
-
-              //                CoordinatedShutdown.get(ctx.getSystem())
-              //                        .addTask(
-              //                                CoordinatedShutdown.PhaseBeforeServiceUnbind(),
-              //                                "drainKafkaConsumerSource",
-              //                                () -> {
-              //                                    LOGGER.info("Draining kafka consumer and
-              // shutting down...");
-              //                                    return controlSupplier
-              //                                            .get()
-              //
-              // .drainAndShutdown(system.executionContext())
-              //                                            .whenComplete(
-              //                                                    (done, error) -> {
-              //                                                        if (error != null) {
-              //                                                            LOGGER.error("Failed
-              // draining kafka consumer and shutting down", error);
-              //                                                        }
-              //                                                        LOGGER.info("Successfully
-              // drained kafka consumer and shut down");
-              //                                                    });
-              //                                });
+              ctx.spawn(
+                  KafkaConsumerActor.create(
+                      serviceConfig.getConfig(KAFKA), ariCommandResponseProcessor),
+                  "kafka-consumer");
 
               HealthService.run(
                   ctx.getSystem(),

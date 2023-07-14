@@ -8,7 +8,6 @@ import akka.actor.typed.PostStop;
 import akka.actor.typed.javadsl.*;
 import akka.pattern.StatusReply;
 import com.typesafe.config.Config;
-import com.typesafe.config.ConfigFactory;
 import io.confluent.parallelconsumer.ParallelConsumerOptions;
 import io.confluent.parallelconsumer.ParallelStreamProcessor;
 import java.time.Duration;
@@ -26,31 +25,31 @@ public final class KafkaConsumerActor extends AbstractBehavior<Object> {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaConsumerActor.class);
 
-  public static final String SERVICE = "service";
-  public static final String KAFKA = "kafka";
+  private final Config kafkaConfig;
 
-  private static final int MAX_PARALLEL_REQUESTS_PROCESSING = 10;
-  private static final String TOPIC =
-      ConfigFactory.load().getConfig(SERVICE).getConfig(KAFKA).getString("commands-topic");
   private final ParallelStreamProcessor<String, String> streamProcessor;
 
   private KafkaConsumerActor(
       final ActorContext<Object> context,
+      final Config kafkaConfig,
       final ActorRef<AriCommandMessage> commandResponseProcessor) {
     super(context);
 
+    this.kafkaConfig = kafkaConfig;
     final ParallelConsumerOptions<String, String> options =
         ParallelConsumerOptions.<String, String>builder()
             .ordering(KEY)
-            .maxConcurrency(MAX_PARALLEL_REQUESTS_PROCESSING)
+            .maxConcurrency(this.kafkaConfig.getInt("parallel-consumer-max-concurrency"))
             .consumer(createConsumer())
             .build();
 
     streamProcessor = ParallelStreamProcessor.createEosStreamProcessor(options);
 
-    LOGGER.debug("Starting Kafka Consumer and subscribing to topic {}.", TOPIC);
+    LOGGER.debug(
+        "Starting Kafka Consumer and subscribing to topic {}.",
+        this.kafkaConfig.getString("commands-topic"));
 
-    streamProcessor.subscribe(Set.of(TOPIC));
+    streamProcessor.subscribe(Set.of(this.kafkaConfig.getString("commands-topic")));
 
     streamProcessor.poll(
         recordContexts -> {
@@ -65,15 +64,18 @@ public final class KafkaConsumerActor extends AbstractBehavior<Object> {
               .thenAccept(
                   (StatusReply<Void> reply) -> {
                     if (reply.isError()) {
-                      LOGGER.error("something went wrong", reply.getError());
+                      LOGGER.error(
+                          "Error occurred during message processing. Committing offset anyway.",
+                          reply.getError());
                     }
                   });
         });
   }
 
   public static Behavior<Object> create(
-      final ActorRef<AriCommandMessage> commandResponseProcessor) {
-    return Behaviors.setup(context -> new KafkaConsumerActor(context, commandResponseProcessor));
+      final Config config, final ActorRef<AriCommandMessage> commandResponseProcessor) {
+    return Behaviors.setup(
+        context -> new KafkaConsumerActor(context, config, commandResponseProcessor));
   }
 
   @Override
@@ -92,23 +94,20 @@ public final class KafkaConsumerActor extends AbstractBehavior<Object> {
         .build();
   }
 
-  private static Consumer<String, String> createConsumer() {
-    final Config kafkaConfig = ConfigFactory.load().getConfig(SERVICE).getConfig(KAFKA);
-    final String bootstrapServers = kafkaConfig.getString("bootstrap-servers");
-    final String groupId = kafkaConfig.getString("consumer-group");
+  private Consumer<String, String> createConsumer() {
 
     Map<String, Object> config =
         Map.of(
             ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
             "false",
             ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
-            bootstrapServers,
+            kafkaConfig.getString("bootstrap-servers"),
             ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
             StringDeserializer.class,
             ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
             StringDeserializer.class,
             ConsumerConfig.GROUP_ID_CONFIG,
-            groupId);
+            kafkaConfig.getString("consumer-group"));
 
     return new KafkaConsumer<>(config);
   }

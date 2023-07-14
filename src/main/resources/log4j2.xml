@@ -21,7 +21,7 @@
             <AppenderRef ref="Async"/>
         </Logger>
         <Logger name="io.confluent" level="WARN" additivity="false">
-            <AppenderRef ref="AsyncKafka"/>
+            <AppenderRef ref="Async"/>
         </Logger>
         <Root level="DEBUG">
             <AppenderRef ref="Async"/>

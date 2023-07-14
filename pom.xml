@@ -42,6 +42,7 @@
     <version.google-guava>32.1.1-jre</version.google-guava>
     <version.lettuce>6.2.4.RELEASE</version.lettuce>
     <version.kafka-test-junit5>3.2.4</version.kafka-test-junit5>
+    <version.parallelconsumer>0.5.2.5</version.parallelconsumer>
   </properties>
 
   <dependencies>
@@ -134,6 +135,11 @@
       <groupId>io.micrometer</groupId>
       <artifactId>micrometer-registry-prometheus</artifactId>
       <version>${version.micrometer}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.confluent.parallelconsumer</groupId>
+      <artifactId>parallel-consumer-core</artifactId>
+      <version>${version.parallelconsumer}</version>
     </dependency>
 
     <!-- test dependencies -->

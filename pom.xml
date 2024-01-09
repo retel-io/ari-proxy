@@ -43,7 +43,7 @@
         <version.kafka-test-junit5>3.2.5</version.kafka-test-junit5>
         <version.parallelconsumer>0.5.2.7</version.parallelconsumer>
         <version.archunit>1.2.0</version.archunit>
-        <versions.commons-lang3>3.13.0</versions.commons-lang3>
+        <versions.commons-lang3>3.14.0</versions.commons-lang3>
     </properties>
 
     <dependencies>

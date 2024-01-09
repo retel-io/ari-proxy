@@ -42,7 +42,7 @@
         <version.lettuce>6.3.0.RELEASE</version.lettuce>
         <version.kafka-test-junit5>3.2.5</version.kafka-test-junit5>
         <version.parallelconsumer>0.5.2.7</version.parallelconsumer>
-        <version.archunit>1.2.0</version.archunit>
+        <version.archunit>1.2.1</version.archunit>
         <versions.commons-lang3>3.14.0</versions.commons-lang3>
     </properties>
 

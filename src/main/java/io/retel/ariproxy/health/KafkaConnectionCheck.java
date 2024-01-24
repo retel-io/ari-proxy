@@ -14,10 +14,14 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
+import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.clients.admin.ScramMechanism;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.PartitionInfo;
+import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.errors.TimeoutException;
+import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.serialization.StringDeserializer;
 
 public class KafkaConnectionCheck {
@@ -59,6 +63,20 @@ public class KafkaConnectionCheck {
         ConsumerConfig.GROUP_ID_CONFIG, kafkaConfig.getString(CONSUMER_GROUP));
     kafkaProperties.setProperty(
         ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getString(BOOTSTRAP_SERVERS));
+
+    if ("SASL_SSL".equals(kafkaConfig.getString("security.protocol"))) {
+      kafkaProperties.setProperty(
+          CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, SecurityProtocol.SASL_SSL.name());
+      kafkaProperties.setProperty(
+          SaslConfigs.SASL_MECHANISM, ScramMechanism.SCRAM_SHA_256.mechanismName());
+      kafkaProperties.setProperty(
+          SaslConfigs.SASL_JAAS_CONFIG,
+          "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"%s\" password=\"%s\";"
+              .formatted(
+                  kafkaConfig.getString("security.user"),
+                  kafkaConfig.getString("security.password")));
+    }
+
     return new KafkaConsumer<>(kafkaProperties);
   }
 

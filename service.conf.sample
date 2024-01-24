@@ -13,6 +13,14 @@ service {
 
   kafka {
     bootstrap-servers = "localhost:9092"
+
+    // Optionally set the SASL_SSL security protocol and provide user and password to enable kafka authentication
+    // security {
+    //   protocol = "SASL_SSL"
+    //   user = ""
+    //   password = ""
+    // }
+
     consumer-group = "ari-proxy" // optional, default: ari-proxy
     commands-topic = "ari-commands-topic"
     events-and-responses-topic = "ari-eventsandresponses-topic"

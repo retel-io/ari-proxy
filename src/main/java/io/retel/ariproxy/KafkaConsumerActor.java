@@ -11,12 +11,18 @@ import com.typesafe.config.Config;
 import io.confluent.parallelconsumer.ParallelConsumerOptions;
 import io.confluent.parallelconsumer.ParallelStreamProcessor;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.clients.admin.ScramMechanism;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,19 +101,23 @@ public final class KafkaConsumerActor extends AbstractBehavior<Object> {
   }
 
   private Consumer<String, String> createConsumer() {
+    Map<String, Object> config = new HashMap<>();
+    config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+    config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getString("bootstrap-servers"));
+    config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+    config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+    config.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaConfig.getString("consumer-group"));
 
-    Map<String, Object> config =
-        Map.of(
-            ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
-            "false",
-            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
-            kafkaConfig.getString("bootstrap-servers"),
-            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
-            StringDeserializer.class,
-            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
-            StringDeserializer.class,
-            ConsumerConfig.GROUP_ID_CONFIG,
-            kafkaConfig.getString("consumer-group"));
+    if ("SASL_SSL".equals(kafkaConfig.getString("security.protocol"))) {
+      config.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, SecurityProtocol.SASL_SSL.name());
+      config.put(SaslConfigs.SASL_MECHANISM, ScramMechanism.SCRAM_SHA_256.mechanismName());
+      config.put(
+          SaslConfigs.SASL_JAAS_CONFIG,
+          "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"%s\" password=\"%s\";"
+              .formatted(
+                  kafkaConfig.getString("security.user"),
+                  kafkaConfig.getString("security.password")));
+    }
 
     return new KafkaConsumer<>(config);
   }

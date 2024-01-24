@@ -30,7 +30,12 @@ import io.retel.ariproxy.metrics.Metrics;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.CompletionStage;
+
+import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.clients.admin.ScramMechanism;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +48,9 @@ public class Main {
   private static final String NAME = "name";
   private static final String HTTPPORT = "httpport";
   public static final String KAFKA = "kafka";
+  public static final String KAFKA_SECURITY_PROTOCOL = "security.protocol";
+  public static final String KAFKA_SECURITY_USER = "security.user";
+  public static final String KAFKA_SECURITY_PASSWORD = "security.password";
   public static final String REST = "rest";
   private static final Duration HEALTH_REPORT_TIMEOUT = Duration.ofMillis(100);
   private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
@@ -135,8 +143,8 @@ public class Main {
   private static Sink<ProducerRecord<String, String>, CompletionStage<Done>> createProducerSink(
       final Config kafkaConfig, final ActorSystem<Void> system) {
     final ProducerSettings<String, String> producerSettings =
-        ProducerSettings.create(system, new StringSerializer(), new StringSerializer())
-            .withBootstrapServers(kafkaConfig.getString(BOOTSTRAP_SERVERS));
+        getKafkaProducerSettings(kafkaConfig, system);
+
     return Producer.plainSink(
         producerSettings.withProducer(producerSettings.createKafkaProducer()));
   }
@@ -159,8 +167,7 @@ public class Main {
         Source.<Message>maybe().viaMat(restartWebsocketFlow, Keep.right());
 
     final ProducerSettings<String, String> producerSettings =
-        ProducerSettings.create(system, new StringSerializer(), new StringSerializer())
-            .withBootstrapServers(serviceConfig.getConfig(KAFKA).getString(BOOTSTRAP_SERVERS));
+        getKafkaProducerSettings(serviceConfig.getConfig(KAFKA), system);
 
     final Sink<ProducerRecord<String, String>, NotUsed> sink =
         Producer.plainSink(producerSettings).mapMaterializedValue(done -> NotUsed.getInstance());
@@ -176,6 +183,30 @@ public class Main {
       system.log().error("Failed to start ari event processor: ", e);
       System.exit(-1);
     }
+  }
+
+  private static ProducerSettings<String, String> getKafkaProducerSettings(
+      final Config kafkaConfig, final ActorSystem<?> system) {
+    ProducerSettings<String, String> producerSettings =
+        ProducerSettings.create(system, new StringSerializer(), new StringSerializer())
+            .withBootstrapServers(kafkaConfig.getString(BOOTSTRAP_SERVERS));
+
+    if ("SASL_SSL".equals(kafkaConfig.getString(KAFKA_SECURITY_PROTOCOL))) {
+      producerSettings =
+          producerSettings
+              .withProperty(
+                  CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, SecurityProtocol.SASL_SSL.name())
+              .withProperty(
+                  SaslConfigs.SASL_MECHANISM, ScramMechanism.SCRAM_SHA_256.mechanismName())
+              .withProperty(
+                  SaslConfigs.SASL_JAAS_CONFIG,
+                  "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"%s\" password=\"%s\";"
+                      .formatted(
+                          kafkaConfig.getString(KAFKA_SECURITY_USER),
+                          kafkaConfig.getString(KAFKA_SECURITY_PASSWORD)));
+    }
+
+    return producerSettings;
   }
 
   // NOTE: We need this method because the resulting flow can only be materialized once;

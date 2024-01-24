@@ -17,6 +17,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+import java.util.Map;
+
 class KafkaConnectionCheckTest {
 
   private static final ActorTestKit testKit =
@@ -50,6 +52,13 @@ class KafkaConnectionCheckTest {
                 KafkaConnectionCheck.BOOTSTRAP_SERVERS,
                 ConfigValueFactory.fromAnyRef(sharedKafkaTestResource.getKafkaConnectString()))
             .withValue(
+                "security",
+                ConfigValueFactory.fromAnyRef(
+                    Map.of(
+                        "protocol", "PLAIN",
+                        "user", "",
+                        "password", "")))
+            .withValue(
                 KafkaConnectionCheck.CONSUMER_GROUP,
                 ConfigValueFactory.fromAnyRef("my-test-consumer-group"))
             .withValue(
@@ -73,6 +82,13 @@ class KafkaConnectionCheckTest {
             .withValue(
                 KafkaConnectionCheck.BOOTSTRAP_SERVERS,
                 ConfigValueFactory.fromAnyRef(sharedKafkaTestResource.getKafkaConnectString()))
+            .withValue(
+                "security",
+                ConfigValueFactory.fromAnyRef(
+                    Map.of(
+                        "protocol", "PLAIN",
+                        "user", "",
+                        "password", "")))
             .withValue(
                 KafkaConnectionCheck.CONSUMER_GROUP,
                 ConfigValueFactory.fromAnyRef("my-test-consumer-group"))

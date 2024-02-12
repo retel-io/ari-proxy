@@ -108,11 +108,11 @@ ari-proxy is maintained by the folks at [sipgate](https://www.sipgate.de) and li
 
 Maintainers of this repository:
 
-- Andreas [@hekmekk](https://github.com/hekmekk)
-- Jonas [@boettner](https://github.com/boettner)
 - Jöran [@vinzens](https://github.com/vinzens)
-- Moritz [@m0](https://github.com/m0)
-- Sebastian [@SipSeb](https://github.com/SipSeb)
+- Maya [@ironmaya](https://github.com/ironmaya)
+- Mia [@mia-krause](https://github.com/mia-krause)
+- Sven [@SvenKube](https://github.com/SvenKube)
+- Max [@IllTemperedMax](https://github.com/IllTemperedMax)
 
 Please refer to the Git commit log for a complete list of contributors.
 

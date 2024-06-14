@@ -27,10 +27,10 @@ import io.retel.ariproxy.health.HealthService;
 import io.retel.ariproxy.health.KafkaConnectionCheck;
 import io.retel.ariproxy.health.KafkaConnectionCheck.ReportKafkaConnectionHealth;
 import io.retel.ariproxy.metrics.Metrics;
+import io.vavr.control.Try;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.CompletionStage;
-
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.ScramMechanism;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -94,6 +94,32 @@ public class Main {
                   KafkaConsumerActor.create(
                       serviceConfig.getConfig(KAFKA), ariCommandResponseProcessor),
                   "kafka-consumer");
+
+              Metrics.configureCallContextProviderAvailabilitySupplier(
+                  () ->
+                      AskPattern.ask(
+                              callContextProvider,
+                              ReportHealth::new,
+                              HEALTH_REPORT_TIMEOUT,
+                              ctx.getSystem().scheduler())
+                          .toCompletableFuture(),
+                  getPersistenceStoreName(serviceConfig));
+              Metrics.configureKafkaAvailabilitySupplier(
+                  () ->
+                      AskPattern.ask(
+                              kafkaConnectionCheck,
+                              ReportKafkaConnectionHealth::new,
+                              HEALTH_REPORT_TIMEOUT,
+                              ctx.getSystem().scheduler())
+                          .toCompletableFuture());
+              Metrics.configureAriAvailabilitySupplier(
+                  () ->
+                      AskPattern.ask(
+                              ariConnectionCheck,
+                              ReportAriConnectionHealth::new,
+                              Duration.ofSeconds(2),
+                              ctx.getSystem().scheduler())
+                          .toCompletableFuture());
 
               HealthService.run(
                   ctx.getSystem(),
@@ -215,5 +241,16 @@ public class Main {
   private static Flow<Message, Message, CompletionStage<WebSocketUpgradeResponse>>
       createWebsocketFlow(ActorSystem<?> system, String websocketUri) {
     return Http.get(system).webSocketClientFlow(WebSocketRequest.create(websocketUri));
+  }
+
+  private static String getPersistenceStoreName(final Config serviceConfig) {
+    final String persistenceStoreClassName =
+        serviceConfig.hasPath("persistence-store")
+            ? serviceConfig.getString("persistence-store")
+            : "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore";
+    return Try.of(() -> Class.forName(persistenceStoreClassName))
+        .flatMap(clazz -> Try.of(() -> clazz.getMethod("getName")))
+        .flatMap(method -> Try.of(() -> (String) method.invoke(null)))
+        .getOrElse("persistenceStore");
   }
 }

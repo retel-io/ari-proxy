@@ -1,7 +1,10 @@
 package io.retel.ariproxy.metrics;
 
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.binder.jvm.JvmGcMetrics;
@@ -16,14 +19,31 @@ import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommand;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriCommandType;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriMessageType;
 import io.retel.ariproxy.boundary.commandsandresponses.auxiliary.AriResourceType;
+import io.retel.ariproxy.health.api.HealthReport;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 public final class Metrics {
 
   private static final Duration MAX_EXPECTED_DURATION = Duration.ofSeconds(10);
-
+  private static final Config METRICS_CONFIG =
+      ConfigFactory.load().getConfig("service").getConfig("metrics");
+  private static final Config COMMON_TAGS_CONFIG = METRICS_CONFIG.getConfig("common-tags");
+  private static final List<Tag> COMMON_TAGS =
+      COMMON_TAGS_CONFIG.entrySet().stream()
+          .map(entry -> Tag.of(entry.getKey(), entry.getValue().unwrapped().toString()))
+          .toList();
+  private static final Duration HEALTH_REPORT_TIMEOUT =
+      METRICS_CONFIG.getDuration("healthReportTimeout");
+  private static final String BACKING_SERVICE_AVAILABILITY_METRIC_NAME =
+      METRICS_CONFIG.getConfig("measurement-names").getString("backing-service-availability");
   // Metric Names
   private static final String OUTGOING_REQUESTS_METRIC_NAME = "ari-proxy.outgoing.requests";
   private static final String OUTGOING_REQUESTS_TIMER_METRIC_NAME =
@@ -61,6 +81,7 @@ public final class Metrics {
       REGISTRY.counter(PROCESSOR_RESTARTS_METRIC_NAME, List.of(Tag.of("processorType", "event")));
 
   static {
+    REGISTRY.config().commonTags(COMMON_TAGS);
     REGISTRY.add(prometheusRegistry);
     REGISTRY.add(jmxMeterRegistry);
 
@@ -69,6 +90,33 @@ public final class Metrics {
     new JvmThreadMetrics().bindTo(REGISTRY);
 
     registerAriEventCounters();
+  }
+
+  public static void configureCallContextProviderAvailabilitySupplier(
+      final Supplier<CompletableFuture<HealthReport>> callContextProviderAvailability,
+      final String backingServiceName) {
+    Gauge.builder(
+            BACKING_SERVICE_AVAILABILITY_METRIC_NAME,
+            mapHealthReportToGaugeValue(callContextProviderAvailability))
+        .tags("backing_service", backingServiceName.toLowerCase())
+        .register(REGISTRY);
+  }
+
+  public static void configureKafkaAvailabilitySupplier(
+      final Supplier<CompletableFuture<HealthReport>> kafkaAvailability) {
+    Gauge.builder(
+            BACKING_SERVICE_AVAILABILITY_METRIC_NAME,
+            mapHealthReportToGaugeValue(kafkaAvailability))
+        .tags("backing_service", "kafka")
+        .register(REGISTRY);
+  }
+
+  public static void configureAriAvailabilitySupplier(
+      final Supplier<CompletableFuture<HealthReport>> ariAvailability) {
+    Gauge.builder(
+            BACKING_SERVICE_AVAILABILITY_METRIC_NAME, mapHealthReportToGaugeValue(ariAvailability))
+        .tags("backing_service", "asterisk")
+        .register(REGISTRY);
   }
 
   private static void registerAriEventCounters() {
@@ -150,5 +198,19 @@ public final class Metrics {
                     .getResourceType()
                     .map(AriResourceType::toString)
                     .getOrElse("NONE"))));
+  }
+
+  private static Supplier<Number> mapHealthReportToGaugeValue(
+      final Supplier<CompletableFuture<HealthReport>> healthReportSupplier) {
+    return () -> {
+      try {
+        return healthReportSupplier
+            .get()
+            .thenApply(report -> report.errors().isEmpty() ? 1 : 0)
+            .get(HEALTH_REPORT_TIMEOUT.get(ChronoUnit.MILLIS), TimeUnit.MILLISECONDS);
+      } catch (InterruptedException | ExecutionException | TimeoutException e) {
+        return 0;
+      }
+    };
   }
 }

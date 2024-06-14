@@ -7,6 +7,8 @@ Metrics via HTTP are in Prometheus format and are provided via the route `/metri
 
 ## Meter descriptions
 
+All meters can be tagged with common tags, which can be defined in the config.
+
 * **ari-proxy.persistence.write.duration**: Measures the time it takes to persist data in the persistence store backend.
 * **ari-proxy.cache.read.attempts**: Counts how often the local cache is called to lookup a call context.
 * **ari-proxy.cache.read.misses**: Increases every time a lookup for call context in local cache fails and it has to be retrieved from the persistence backend
@@ -18,3 +20,4 @@ Metrics via HTTP are in Prometheus format and are provided via the route `/metri
 * **ari-proxy.outgoing.requests.errors**:  Tagged by `method` and `path`. Counts errors of outgoing ARI requests.
 * **ari-proxy.outgoing.requests.duration**:  Tagged by `method` and `path`. Measures the duration of outgoing ARI requests.
 * **ari-proxy.events**: Tagged by `eventType` and `resourceType`. Counts ARI events of the respective type.
+* **ari-proxy.backing_service.availability**: Tagged by `backing_service`. Represents the health of each backing service as binary numeric value; 1=available, 0=unavailable.

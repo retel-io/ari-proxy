@@ -15,58 +15,60 @@ import java.util.function.Function;
 
 public class RedisPersistenceStore implements PersistenceStore {
 
-	private static final String SERVICE = "service";
-	private static final String REDIS = "redis";
-	private static final String HOST = "host";
-	private static final String PORT = "port";
-	private static final String DB = "db";
+  private static final String SERVICE = "service";
+  private static final String REDIS = "redis";
+  private static final String HOST = "host";
+  private static final String PORT = "port";
+  private static final String DB = "db";
 
-	private final RedisClient redisClient;
+  private final RedisClient redisClient;
 
-	public RedisPersistenceStore(RedisClient redisClient) {
-		Objects.requireNonNull(redisClient, "No RedisClient provided");
-		this.redisClient = redisClient;
-	}
+  public RedisPersistenceStore(RedisClient redisClient) {
+    Objects.requireNonNull(redisClient, "No RedisClient provided");
+    this.redisClient = redisClient;
+  }
 
-	public static RedisPersistenceStore create() {
+  public static RedisPersistenceStore create() {
 
-		final Config cfg = ConfigFactory.load().getConfig(SERVICE).getConfig(REDIS);
-		final String host = cfg.getString(HOST);
-		final int port = cfg.getInt(PORT);
-		final int db = cfg.getInt(DB);
+    final Config cfg = ConfigFactory.load().getConfig(SERVICE).getConfig(REDIS);
+    final String host = cfg.getString(HOST);
+    final int port = cfg.getInt(PORT);
+    final int db = cfg.getInt(DB);
 
-		return create(RedisClient.create(RedisURI.Builder
-				.redis(host)
-				.withPort(port)
-				.withSsl(false)
-				.withDatabase(db)
-				.build()));
-	}
+    return create(
+        RedisClient.create(
+            RedisURI.Builder.redis(host).withPort(port).withSsl(false).withDatabase(db).build()));
+  }
 
-	public static RedisPersistenceStore create(RedisClient redisClient) {
-		return new RedisPersistenceStore(redisClient);
-	}
+  public static RedisPersistenceStore create(RedisClient redisClient) {
+    return new RedisPersistenceStore(redisClient);
+  }
 
-	@Override
-	public Future<String> set(String key, String value) {
-		return executeRedisCommand(commands -> commands.set(key, value, Builder.ex(21600)));
-	}
+  public static String getName() {
+    return "Redis";
+  }
 
-	@Override
-	public Future<Option<String>> get(String key) {
-		return executeRedisCommand(commands -> Option.of(commands.get(key)));
-	}
+  @Override
+  public Future<String> set(String key, String value) {
+    return executeRedisCommand(commands -> commands.set(key, value, Builder.ex(21600)));
+  }
 
-	private <T> Future<T> executeRedisCommand(Function<RedisCommands<String, String>, T> f) {
-		return Future.of(() -> {
-			try (StatefulRedisConnection<String, String> connection = redisClient.connect()) {
-				return f.apply(connection.sync());
-			}
-		});
-	}
+  @Override
+  public Future<Option<String>> get(String key) {
+    return executeRedisCommand(commands -> Option.of(commands.get(key)));
+  }
 
-	@Override
-	public void shutdown() {
-		this.redisClient.shutdown();
-	}
+  private <T> Future<T> executeRedisCommand(Function<RedisCommands<String, String>, T> f) {
+    return Future.of(
+        () -> {
+          try (StatefulRedisConnection<String, String> connection = redisClient.connect()) {
+            return f.apply(connection.sync());
+          }
+        });
+  }
+
+  @Override
+  public void shutdown() {
+    this.redisClient.shutdown();
+  }
 }

@@ -25,6 +25,10 @@ public class CassandraPersistenceStore implements PersistenceStore {
     return new CassandraPersistenceStore(CqlSession.builder().build());
   }
 
+  public static String getName() {
+    return "Cassandra";
+  }
+
   @Override
   public Future<Option<String>> get(final String key) {
     return Future.of(

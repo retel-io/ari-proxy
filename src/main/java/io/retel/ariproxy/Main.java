@@ -29,6 +29,7 @@ import io.retel.ariproxy.health.KafkaConnectionCheck.ReportKafkaConnectionHealth
 import io.retel.ariproxy.metrics.Metrics;
 import io.vavr.control.Try;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.concurrent.CompletionStage;
 import org.apache.kafka.clients.CommonClientConfigs;

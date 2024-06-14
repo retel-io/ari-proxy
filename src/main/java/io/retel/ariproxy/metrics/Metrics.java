@@ -207,7 +207,7 @@ public final class Metrics {
         return healthReportSupplier
             .get()
             .thenApply(report -> report.errors().isEmpty() ? 1 : 0)
-            .get(HEALTH_REPORT_TIMEOUT.get(ChronoUnit.NANOS), TimeUnit.NANOSECONDS);
+            .get(HEALTH_REPORT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
       } catch (InterruptedException | ExecutionException | TimeoutException e) {
         return 0;
       }

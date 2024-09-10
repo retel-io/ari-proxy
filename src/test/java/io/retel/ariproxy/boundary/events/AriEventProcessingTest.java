@@ -88,7 +88,8 @@ class AriEventProcessingTest {
   }
 
   @DisplayName(
-      "Verify processing of both channel and playback events results in the expected kafka producer record")
+      "Verify processing of both channel and playback events results in the expected kafka producer"
+          + " record")
   @ParameterizedTest
   @ValueSource(strings = {stasisStartEvent, playbackFinishedEvent, recordingFinishedEvent})
   void generateProducerRecordFromAllAriMessageTypes(final String ariEvent) {

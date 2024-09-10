@@ -11,6 +11,7 @@ import akka.http.javadsl.model.ws.Message;
 import akka.japi.function.Function;
 import akka.stream.ActorAttributes;
 import akka.stream.Attributes;
+import akka.stream.Materializer;
 import akka.stream.Supervision;
 import akka.stream.javadsl.RunnableGraph;
 import akka.stream.javadsl.Sink;
@@ -50,6 +51,12 @@ public class WebsocketMessageToProducerRecordTranslator {
     final String eventsAndResponsesTopic = kafkaConfig.getString(EVENTS_AND_RESPONSES_TOPIC);
 
     return source
+        .map(
+            msg ->
+                msg.asTextMessage()
+                    .toStrict(200, Materializer.createMaterializer(system))
+                    .toCompletableFuture()
+                    .join())
         .wireTap(msg -> gatherMetrics(msg))
         .flatMapConcat(
             (msg) ->

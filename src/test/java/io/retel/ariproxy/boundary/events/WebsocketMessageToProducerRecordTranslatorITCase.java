@@ -12,6 +12,7 @@ import akka.actor.typed.ActorRef;
 import akka.actor.typed.javadsl.Adapter;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.http.javadsl.model.ws.Message;
+import akka.http.scaladsl.model.ws.TextMessage;
 import akka.http.scaladsl.model.ws.TextMessage.Strict;
 import akka.pattern.StatusReply;
 import akka.stream.javadsl.Sink;
@@ -28,6 +29,7 @@ import io.vavr.control.Option;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.stream.Stream;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
@@ -73,7 +75,8 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
 
   @Test
   @DisplayName(
-      "A StasisStart without call context shall be converted into a kafka producer record while also recording metrics")
+      "A StasisStart without call context shall be converted into a kafka producer record while"
+          + " also recording metrics")
   void verifyProcessingPipelineWorksAsExpectedForStasisStartWithoutCallContext() throws Exception {
     final String resourceId = "1532965104.0";
     final TestableCallContextProvider callContextProvider =
@@ -130,7 +133,8 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
 
   @Test
   @DisplayName(
-      "A StasisStart without call context shall be converted into a kafka producer record while also recording metrics")
+      "A StasisStart without call context shall be converted into a kafka producer record while"
+          + " also recording metrics")
   void verifyProcessingPipelineWorksAsExpectedForStasisStartWithCallContext() throws Exception {
     final String resourceId = "1532965104.0";
     final TestProbe<CallContextProviderMessage> callContextProviderProbe =
@@ -154,6 +158,82 @@ class WebsocketMessageToProducerRecordTranslatorITCase {
     final TestProbe<String> shutdownRequestedProbe = testKit.createTestProbe();
 
     final Strict stasisStartEvent = new Strict(StasisEvents.stasisStartEventWithCallContext);
+    final Source<Message, NotUsed> source = Source.single(stasisStartEvent);
+
+    final Sink<ProducerRecord<String, String>, NotUsed> sink =
+        Sink.actorRef(
+            Adapter.toClassic(kafkaProducerProbe.getRef()),
+            new ProducerRecord<String, String>("none", "completed"));
+
+    WebsocketMessageToProducerRecordTranslator.eventProcessing(
+            testKit.system(),
+            callContextProvider,
+            source,
+            sink,
+            () -> shutdownRequestedProbe.getRef().tell("Application replaced"))
+        .run(testKit.system());
+
+    @SuppressWarnings("unchecked")
+    final ProducerRecord<String, String> record =
+        kafkaProducerProbe.expectMessageClass(ProducerRecord.class);
+    assertThat(record.topic(), is("eventsAndResponsesTopic"));
+    assertThat(record.key(), is(CALL_CONTEXT_PROVIDED.callContext()));
+    assertThat(
+        OBJECT_MAPPER.readTree(record.value()),
+        equalTo(
+            OBJECT_MAPPER.readTree(
+                loadJsonAsString("messages/events/stasisStartEventWithCallContext.json"))));
+
+    final ProvideCallContext provideCallContextForRouting =
+        callContextProviderProbe.expectMessageClass(ProvideCallContext.class);
+    assertThat(provideCallContextForRouting.resourceId(), is(resourceId));
+    assertThat(provideCallContextForRouting.policy(), is(ProviderPolicy.CREATE_IF_MISSING));
+    assertThat(
+        provideCallContextForRouting.maybeCallContextFromChannelVars(),
+        is(Option.some("aCallContext")));
+
+    @SuppressWarnings("unchecked")
+    final ProducerRecord<String, String> completedRecord =
+        kafkaProducerProbe.expectMessageClass(ProducerRecord.class);
+    assertThat(completedRecord.topic(), is("none"));
+    assertThat(completedRecord.value(), is("completed"));
+
+    callContextProviderProbe.expectNoMessage();
+    kafkaProducerProbe.expectNoMessage();
+    shutdownRequestedProbe.expectNoMessage();
+  }
+
+  @Test
+  @DisplayName(
+      "A StasisStart without call context shall be converted into a kafka producer record while"
+          + " also recording metrics for StreamedMessage")
+  void verifyProcessingPipelineWorksAsExpectedForStasisStartWithCallContextForStreamedMessage()
+      throws Exception {
+    final String resourceId = "1532965104.0";
+    final TestProbe<CallContextProviderMessage> callContextProviderProbe =
+        testKit.createTestProbe(CallContextProviderMessage.class);
+    final ActorRef<CallContextProviderMessage> callContextProvider =
+        testKit.spawn(
+            Behaviors.receive(CallContextProviderMessage.class)
+                .onMessage(
+                    ProvideCallContext.class,
+                    msg -> {
+                      callContextProviderProbe.ref().tell(msg);
+                      msg.replyTo()
+                          .tell(
+                              StatusReply.success(
+                                  new CallContextProvided(CALL_CONTEXT_PROVIDED.callContext())));
+
+                      return Behaviors.same();
+                    })
+                .build());
+    final TestProbe<Object> kafkaProducerProbe = testKit.createTestProbe();
+    final TestProbe<String> shutdownRequestedProbe = testKit.createTestProbe();
+
+    final TextMessage.Streamed stasisStartEvent =
+        new TextMessage.Streamed(
+            akka.stream.scaladsl.Source.fromJavaStream(
+                () -> Stream.of(StasisEvents.stasisStartEventWithCallContext)));
     final Source<Message, NotUsed> source = Source.single(stasisStartEvent);
 
     final Sink<ProducerRecord<String, String>, NotUsed> sink =

@@ -44,9 +44,7 @@ public class AriEventProcessing {
         Try.of(() -> reader.readTree(message.asTextMessage().getStrictText()))
             .getOrElseThrow(t -> new RuntimeException(t));
 
-    final String eventTypeString =
-        getValueFromMessageByPath(message, "/type")
-            .getOrElseThrow(() -> new RuntimeException(message.asTextMessage().getStrictText()));
+    final String eventTypeString = messageBody.get("type").asText();
     final AriMessageType ariMessageType = AriMessageType.fromType(eventTypeString);
 
     if (AriMessageType.APPLICATION_REPLACED.equals(ariMessageType)) {
@@ -56,7 +54,8 @@ public class AriEventProcessing {
     }
 
     final Option<String> maybeCallContextFromChannelVars =
-        getValueFromMessageByPath(message, "/channel/channelvars/CALL_CONTEXT");
+        Option.of(messageBody.at("/channel/channelvars/CALL_CONTEXT").asText())
+            .filter(StringUtils::isNotBlank);
 
     return ariMessageType
         .extractResourceIdFromBody(messageBody)

@@ -1,0 +1,37 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE=1
+
+USR_INSTALL=root
+GRP_INSTALL=root
+PACKAGE=$(shell dh_listpackages)
+DEB_PREFIX=debian/$(PACKAGE)
+SERVICE_NAME=ari-proxy
+SERVICE_VERSION=1.3.0
+SERVICE_USER=$(SERVICE_NAME)
+SERVICE_GROUP=$(SERVICE_NAME)
+SERVICE_LIB_DIR=$(DEB_PREFIX)/usr/share/java/$(SERVICE_NAME)
+
+override_dh_auto_clean:
+override_dh_auto_build:
+override_dh_fixperms:
+override_dh_usrlocal:
+override_dh_strip_nondeterminism:
+
+override_dh_install: copy_package
+
+%:
+	dh $@
+
+##########
+# Helper #
+##########
+
+build_package:
+	./mvnw -B -Dmaven.repo.local=$(PWD)/.m2 -Dskip-spotless=true clean verify
+
+setup_service_lib_dir:
+	mkdir -p $(SERVICE_LIB_DIR)
+
+copy_package: build_package setup_service_lib_dir
+	cp target/$(SERVICE_NAME)-$(SERVICE_VERSION)-fat.jar $(SERVICE_LIB_DIR)/$(SERVICE_NAME).jar

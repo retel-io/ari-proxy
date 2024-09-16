@@ -1,0 +1,44 @@
+{
+  "type": "STASIS_START",
+  "commandsTopic": "commandsTopic",
+  "payload": {
+    "channel": {
+      "state": "Ring",
+      "connected": {
+        "number": "",
+        "name": ""
+      },
+      "language": "en",
+      "id": "1532965104.0",
+      "caller": {
+        "number": "callernumber",
+        "name": "callername"
+      },
+      "accountcode": "",
+      "dialplan": {
+        "priority": 3,
+        "exten": "10000",
+        "context": "default"
+      },
+      "name": "PJSIP/proxy-00000000",
+      "creationtime": "2018-07-30T17:38:24.433+0200",
+      "channelvars":{
+        "CALL_CONTEXT": ""
+      }
+    },
+    "asterisk_id": "00:00:00:00:00:01",
+    "type": "StasisStart",
+    "timestamp": "2018-07-30T17:38:24.436+0200",
+    "args": [],
+    "application": "test-app"
+  },
+  "callContext": "CALL_CONTEXT_PROVIDED",
+  "resources": [
+    {
+      "type": "CHANNEL",
+      "id": "1532965104.0"
+    }
+  ],
+  "commandId": null,
+  "commandRequest": null
+}

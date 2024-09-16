@@ -1,0 +1,21 @@
+#!/bin/bash
+
+case "$1" in
+	configure)
+		adduser \
+			--system \
+			--group \
+			--no-create-home \
+			--disabled-password \
+			--disabled-login \
+			--home /usr/share/java/ari-proxy \
+			--quiet \
+			ari-proxy
+	;;
+esac
+
+chown root:root /usr/share/java/ari-proxy/ari-proxy.jar
+chmod 0644 /usr/share/java/ari-proxy/ari-proxy.jar
+
+chown -R ari-proxy:ari-proxy /var/log/ari-proxy
+chmod 0755 /var/log/ari-proxy

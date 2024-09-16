@@ -3,8 +3,8 @@
 target/
 build/
 .m2/
-debian/ari-proxy*
-debian/debhelper-build-stamp
-debian/files
-!debian/ari-proxy@.service
+public/debian/ari-proxy*
+public/debian/debhelper-build-stamp
+public/debian/files
+!public/debian/ari-proxy@.service
 service.conf

@@ -1,0 +1,19 @@
+{
+  "type": "RESPONSE",
+  "commandsTopic": "commandsTopic",
+  "payload": {
+    "status_code": 204
+  },
+  "callContext": "CALL_CONTEXT",
+  "commandId": "COMMANDID",
+  "commandRequest": {
+    "method": "DELETE",
+    "url": "/channels/1533218784.36?reason=normal"
+  },
+  "resources": [
+    {
+      "type": "CHANNEL",
+      "id": "1533218784.36"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+include "application" // note: include default settings
+
+service {
+  stasis-app = "application-name"
+  name = "ari-proxy-for-some-application" // optional, default: ari-proxy
+  httpport = 9000 // optional, default: 8080
+
+  asterisk {
+    user = "asterisk" // optional, default: asterisk
+    password = "asterisk" // optional, default: asterisk
+    server = "localhost:8088"
+  }
+
+  kafka {
+    bootstrap-servers = "localhost:9092"
+
+    // Optionally set the SASL_SSL security protocol and provide user and password to enable kafka authentication
+    // security {
+    //   protocol = "SASL_SSL"
+    //   user = ""
+    //   password = ""
+    // }
+
+    consumer-group = "ari-proxy" // optional, default: ari-proxy
+    commands-topic = "ari-commands-topic"
+    events-and-responses-topic = "ari-eventsandresponses-topic"
+  }
+
+
+  redis {
+    host = 127.0.0.1
+    port = 6379
+    db = 0
+  }
+
+// persistence-store: optional, defaults to using the redis persistence store
+// possible values: "io.retel.ariproxy.persistence.plugin.CassandraPersistenceStore", "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore"
+// use CassandraPersistenceStore and the datastax-driver config below, if you want to use cassandra as persistent backend
+  persistence-store = "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore"
+
+}
+
+// for use with cassandra persistence store
+
+//datastax-java-driver {
+//  basic {
+//    contact-points = [ "localhost:9042" ]
+//    session-keyspace = retel
+//    load-balancing-policy.local-datacenter = dc1
+//  }
+//  advanced.reconnection-policy {
+//    class = ExponentialReconnectionPolicy
+//    base-delay = 1 second
+//    max-delay = 60 seconds
+//  }
+//  advanced.auth-provider {
+//    class = PlainTextAuthProvider
+//    username = cassandra
+//    password = cassandra
+//  }
+//}
+

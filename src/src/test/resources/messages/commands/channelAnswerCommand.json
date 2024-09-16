@@ -1,0 +1,8 @@
+{
+  "callContext": "CALL_CONTEXT",
+  "commandId": "COMMANDID",
+  "ariCommand": {
+    "url": "/channels/1533218784.36/answer",
+    "method": "POST"
+  }
+}

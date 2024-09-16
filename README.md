@@ -1,6 +1,10 @@
 # ari-proxy
 Ari-proxy connects [Asterisk](https://www.asterisk.org/), an open source communication server, to the [Apache Kafka](https://kafka.apache.org/intro) distributed streaming platform.
 
+
+| :warning: WARNING: THIS REPOSITORY MIGHT INTRODUCE BREAKING CHANGES.  |
+|:----------------------------------------------------------------------|
+
 ## Table of contents
 1. [Abstract](#abstract)
 2. [Getting started](#getting-started)

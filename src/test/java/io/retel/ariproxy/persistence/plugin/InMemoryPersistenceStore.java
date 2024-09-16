@@ -8,27 +8,26 @@ import io.vavr.control.Option;
 
 public class InMemoryPersistenceStore implements PersistenceStore {
 
-	private Map<String, String> store = HashMap.empty();
+  private Map<String, String> store = HashMap.empty();
 
-	@Override
-	public Future<String> set(String key, String value) {
-		if (key.contains("failure")) {
-			return Future.failed(new Exception("Failed to set value for key"));
-		}
-		store = store.put(key, value);
-		return Future.successful(value);
-	}
+  @Override
+  public Future<String> set(String key, String value) {
+    if (key.contains("failure")) {
+      return Future.failed(new Exception("Failed to set value for key"));
+    }
+    store = store.put(key, value);
+    return Future.successful(value);
+  }
 
-	@Override
-	public Future<Option<String>> get(String key) {
-		return Future.successful(store.get(key));
-	}
+  @Override
+  public Future<Option<String>> get(String key) {
+    return Future.successful(store.get(key));
+  }
 
-	@Override
-	public void shutdown() {
-	}
+  @Override
+  public void shutdown() {}
 
-	public static InMemoryPersistenceStore create() {
-		return new InMemoryPersistenceStore();
-	}
+  public static InMemoryPersistenceStore create() {
+    return new InMemoryPersistenceStore();
+  }
 }

@@ -95,7 +95,8 @@ class AriCommandResponseProcessingTest {
     final TestableCallContextProvider callContextProvider =
         new TestableCallContextProvider(testKit);
     final String json =
-        "{ \"method\":\"POST\", \"url\":\"/channels/CHANNEL_ID/record\", \"body\":{\"name\":\"RECORD_NAME\"}}";
+        "{ \"method\":\"POST\", \"url\":\"/channels/CHANNEL_ID/record\","
+            + " \"body\":{\"name\":\"RECORD_NAME\"}}";
     final AriCommand ariCommand = ariCommandReader.readValue(json);
 
     final Try<Done> result =
@@ -114,7 +115,8 @@ class AriCommandResponseProcessingTest {
     final TestableCallContextProvider callContextProvider =
         new TestableCallContextProvider(testKit);
     final String json =
-        "{ \"method\":\"POST\", \"url\":\"/channels/create\", \"body\":{\"channelId\":\"channel-Id\"}}";
+        "{ \"method\":\"POST\", \"url\":\"/channels/create\","
+            + " \"body\":{\"channelId\":\"channel-Id\"}}";
     final AriCommand ariCommand = ariCommandReader.readValue(json);
 
     final Try<Done> res =

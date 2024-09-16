@@ -98,7 +98,10 @@ class AriCommandResponseProcessorTest {
                     CompletableFuture.supplyAsync(
                         () -> {
                           throw new StreamTcpException(
-                              "Tcp command [Connect(api.example.com:443,None,List(),Some(10 milliseconds),true)] failed because of akka.io.TcpOutgoingConnection$$anon$2: Connect timeout of Some(10 milliseconds) expired");
+                              "Tcp command [Connect(api.example.com:443,None,List(),Some(10"
+                                  + " milliseconds),true)] failed because of"
+                                  + " akka.io.TcpOutgoingConnection$$anon$2: Connect timeout of"
+                                  + " Some(10 milliseconds) expired");
                         }),
                 callContextProvider.ref(),
                 ignore),

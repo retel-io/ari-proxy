@@ -1,1 +1,2 @@
-java=17.0.0-zulu
+java=22.0.1.fx-zulu
+maven=3.9.6

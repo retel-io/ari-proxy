@@ -12,12 +12,11 @@ import com.typesafe.config.ConfigValueFactory;
 import com.typesafe.config.impl.ConfigImpl;
 import io.retel.ariproxy.health.KafkaConnectionCheck.ReportKafkaConnectionHealth;
 import io.retel.ariproxy.health.api.HealthReport;
+import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
-
-import java.util.Map;
 
 class KafkaConnectionCheckTest {
 

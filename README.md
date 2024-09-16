@@ -99,7 +99,7 @@ For further details see: [Metrics](docs/metrics.md)
 
 ## Compatibility
 We aim for compatibility with the latest stable release of
-- [Java OpenJDK 17](https://openjdk.java.net/projects/jdk/17/)
+- [Java OpenJDK 22](https://openjdk.java.net/projects/jdk/22/)
 - [Asterisk](https://wiki.asterisk.org/wiki/display/AST/Asterisk+Versions)
 - the utilized [Akka Modules](https://akka.io/docs/)
 

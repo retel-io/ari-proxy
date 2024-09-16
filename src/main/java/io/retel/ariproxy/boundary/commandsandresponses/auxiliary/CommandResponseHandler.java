@@ -7,5 +7,6 @@ import java.util.concurrent.CompletionStage;
 
 @FunctionalInterface
 public interface CommandResponseHandler {
-	CompletionStage<HttpResponse> apply(Tuple2<HttpRequest, CallContextAndCommandRequestContext> placeholder);
+  CompletionStage<HttpResponse> apply(
+      Tuple2<HttpRequest, CallContextAndCommandRequestContext> placeholder);
 }

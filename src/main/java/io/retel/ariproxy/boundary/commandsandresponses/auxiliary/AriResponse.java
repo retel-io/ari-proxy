@@ -8,28 +8,28 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 public class AriResponse {
 
-	@JsonProperty(value = "status_code")
-	private int statusCode;
-	private JsonNode body;
+  @JsonProperty(value = "status_code")
+  private int statusCode;
 
-	public AriResponse() {
-	}
+  private JsonNode body;
 
-	public AriResponse(int statusCode, JsonNode body) {
-		this.statusCode = statusCode;
-		this.body = body;
-	}
+  public AriResponse() {}
 
-	public int getStatusCode() {
-		return statusCode;
-	}
+  public AriResponse(int statusCode, JsonNode body) {
+    this.statusCode = statusCode;
+    this.body = body;
+  }
 
-	public JsonNode getBody() {
-		return body;
-	}
+  public int getStatusCode() {
+    return statusCode;
+  }
 
-	@Override
-	public String toString() {
-		return reflectionToString(this, SHORT_PREFIX_STYLE);
-	}
+  public JsonNode getBody() {
+    return body;
+  }
+
+  @Override
+  public String toString() {
+    return reflectionToString(this, SHORT_PREFIX_STYLE);
+  }
 }

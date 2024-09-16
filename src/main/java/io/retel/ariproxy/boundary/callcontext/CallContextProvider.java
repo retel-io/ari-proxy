@@ -149,7 +149,8 @@ public class CallContextProvider {
                   .thenApply(
                       done -> {
                         LOGGER.debug(
-                            "Successfully stored newly generated call context '{}' for resource id '{}'",
+                            "Successfully stored newly generated call context '{}' for resource id"
+                                + " '{}'",
                             generatedCallContext,
                             resourceId);
                         return Optional.of(generatedCallContext);

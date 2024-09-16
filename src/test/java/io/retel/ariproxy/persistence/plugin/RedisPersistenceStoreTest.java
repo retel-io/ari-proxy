@@ -18,58 +18,58 @@ import org.junit.jupiter.api.Test;
 
 class RedisPersistenceStoreTest {
 
-	private final static String theValue = "value";
-	private final static String theKey = "key";
+  private static final String theValue = "value";
+  private static final String theKey = "key";
 
-	@Test
-	void getShouldBePassedToUnderlyingRedisClient() {
-		RedisClient redisClient = mock(RedisClient.class);
-		StatefulRedisConnection connection = mock(StatefulRedisConnection.class);
-		RedisCommands commands = mock(RedisCommands.class);
-		when(redisClient.connect()).thenReturn(connection);
-		when(connection.sync()).thenReturn(commands);
-		when(commands.get(anyString())).thenReturn(theValue);
+  @Test
+  void getShouldBePassedToUnderlyingRedisClient() {
+    RedisClient redisClient = mock(RedisClient.class);
+    StatefulRedisConnection connection = mock(StatefulRedisConnection.class);
+    RedisCommands commands = mock(RedisCommands.class);
+    when(redisClient.connect()).thenReturn(connection);
+    when(connection.sync()).thenReturn(commands);
+    when(commands.get(anyString())).thenReturn(theValue);
 
-		RedisPersistenceStore store = RedisPersistenceStore.create(redisClient);
+    RedisPersistenceStore store = RedisPersistenceStore.create(redisClient);
 
-		assertThat(store.get(theKey).await().get().get(), is(theValue));
-	}
+    assertThat(store.get(theKey).await().get().get(), is(theValue));
+  }
 
-	@Test
-	void getShouldBePassedToUnderlyingRedisClientAndReturnNone() {
-		RedisClient redisClient = mock(RedisClient.class);
-		StatefulRedisConnection connection = mock(StatefulRedisConnection.class);
-		RedisCommands commands = mock(RedisCommands.class);
-		when(redisClient.connect()).thenReturn(connection);
-		when(connection.sync()).thenReturn(commands);
-		when(commands.get(anyString())).thenReturn(null);
+  @Test
+  void getShouldBePassedToUnderlyingRedisClientAndReturnNone() {
+    RedisClient redisClient = mock(RedisClient.class);
+    StatefulRedisConnection connection = mock(StatefulRedisConnection.class);
+    RedisCommands commands = mock(RedisCommands.class);
+    when(redisClient.connect()).thenReturn(connection);
+    when(connection.sync()).thenReturn(commands);
+    when(commands.get(anyString())).thenReturn(null);
 
-		RedisPersistenceStore store = RedisPersistenceStore.create(redisClient);
+    RedisPersistenceStore store = RedisPersistenceStore.create(redisClient);
 
-		assertThat(store.get(theKey).await().get(), is(None()));
-	}
+    assertThat(store.get(theKey).await().get(), is(None()));
+  }
 
-	@Test
-	void setShouldBePassedToUnderlyingRedisClient() {
-		RedisClient redisClient = mock(RedisClient.class);
-		StatefulRedisConnection connection = mock(StatefulRedisConnection.class);
-		RedisCommands commands = mock(RedisCommands.class);
-		when(redisClient.connect()).thenReturn(connection);
-		when(connection.sync()).thenReturn(commands);
-		when(commands.set(anyString(), anyString(), any(SetArgs.class))).thenReturn(theValue);
+  @Test
+  void setShouldBePassedToUnderlyingRedisClient() {
+    RedisClient redisClient = mock(RedisClient.class);
+    StatefulRedisConnection connection = mock(StatefulRedisConnection.class);
+    RedisCommands commands = mock(RedisCommands.class);
+    when(redisClient.connect()).thenReturn(connection);
+    when(connection.sync()).thenReturn(commands);
+    when(commands.set(anyString(), anyString(), any(SetArgs.class))).thenReturn(theValue);
 
-		RedisPersistenceStore store = RedisPersistenceStore.create(redisClient);
+    RedisPersistenceStore store = RedisPersistenceStore.create(redisClient);
 
-		assertThat(store.set(theKey, theValue).await().get(), is(theValue));
-	}
+    assertThat(store.set(theKey, theValue).await().get(), is(theValue));
+  }
 
-	@Test
-	void shutdown() {
-		RedisClient redisClient = mock(RedisClient.class);
-		RedisPersistenceStore store = RedisPersistenceStore.create(redisClient);
+  @Test
+  void shutdown() {
+    RedisClient redisClient = mock(RedisClient.class);
+    RedisPersistenceStore store = RedisPersistenceStore.create(redisClient);
 
-		store.shutdown();
+    store.shutdown();
 
-		verify(redisClient, times(1)).shutdown();
-	}
+    verify(redisClient, times(1)).shutdown();
+  }
 }

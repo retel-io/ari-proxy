@@ -15,7 +15,7 @@ The motivation to create ari-proxy arose from the need to build distributed and 
 
 ![Architecture Overview](docs/images/architecture_overview.png "Architecture Overview")
 
-Please see [docs/concepts.md](/docs/concepts.md) for details on the concepts of message routing and session mapping.
+Please see [docs/concepts.md](/public/docs/concepts.md) for details on the concepts of message routing and session mapping.
 
 ## Getting started
 In order to operate ari-proxy, make sure you have a running instance of both Asterisk and Kafka server.
@@ -101,10 +101,10 @@ We aim for compatibility with the latest stable release of
 
 ## Contributing & feedback
 To report a bug or make a request for new features, use the [Issues Page](https://github.com/retel-io/ari-proxy/issues) in the ari-proxy Github project.
-We welcome any contributions. Please see the [Developer Guidelines](/CONTRIBUTING.md) for instructions on how to submit changes.
+We welcome any contributions. Please see the [Developer Guidelines](/public/CONTRIBUTING.md) for instructions on how to submit changes.
 
 ## Credit & License
-ari-proxy is maintained by the folks at [sipgate](https://www.sipgate.de) and licensed under the terms of the [AGPL license](/LICENSE.txt).
+ari-proxy is maintained by the folks at [sipgate](https://www.sipgate.de) and licensed under the terms of the [AGPL license](/public/LICENSE.txt).
 
 Maintainers of this repository:
 

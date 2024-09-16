@@ -1,3 +1,0 @@
-# Sample file to configure the jolokia agent. For options, see:
-# https://jolokia.org/reference/html/agents.html#agents-jvm
-port=8778

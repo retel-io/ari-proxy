@@ -1,4 +1,14 @@
-FROM maven:3.8.3-openjdk-22 AS build
+FROM openjdk:22-jdk-slim AS build
+
+ARG MAVEN_VERSION=3.9.6
+RUN apt-get update \
+    && apt-get install -y wget \
+    && wget https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
+    && tar -xvzf apache-maven-${MAVEN_VERSION}-bin.tar.gz -C /opt \
+    && ln -s /opt/apache-maven-${MAVEN_VERSION}/bin/mvn /usr/bin/mvn \
+    && rm apache-maven-${MAVEN_VERSION}-bin.tar.gz \
+    && apt-get clean
+
 WORKDIR /usr/src/app/
 
 COPY ./pom.xml ./pom.xml

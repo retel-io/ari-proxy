@@ -1,46 +1,56 @@
 package io.retel.ariproxy.health;
 
+import static org.apache.kafka.clients.CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 import akka.actor.testkit.typed.javadsl.ActorTestKit;
 import akka.actor.testkit.typed.javadsl.TestProbe;
-import com.salesforce.kafka.test.junit5.SharedKafkaTestResource;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigValueFactory;
 import com.typesafe.config.impl.ConfigImpl;
 import io.retel.ariproxy.health.KafkaConnectionCheck.ReportKafkaConnectionHealth;
 import io.retel.ariproxy.health.api.HealthReport;
+import java.util.List;
 import java.util.Map;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.RegisterExtension;
+import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
+@Testcontainers
 class KafkaConnectionCheckTest {
 
   private static final ActorTestKit testKit =
       ActorTestKit.create("testKit", ConfigFactory.defaultApplication());
 
-  @RegisterExtension
-  public static final SharedKafkaTestResource sharedKafkaTestResource =
-      new SharedKafkaTestResource();
+  private static final KafkaContainer kafkaContainer =
+      new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:6.2.1"));
 
   public static final String COMMANDS_TOPIC = "commands-topic";
   public static final String EVENTS_AND_RESPONSES_TOPIC = "events-and-responses-topic";
 
+  @BeforeAll
+  public static void beforeAll() {
+    kafkaContainer.start();
+    try (var admin =
+        AdminClient.create(
+            Map.of(BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers()))) {
+      admin.createTopics(
+          List.of(
+              new NewTopic(COMMANDS_TOPIC, 1, (short) 1),
+              new NewTopic(EVENTS_AND_RESPONSES_TOPIC, 1, (short) 1)));
+    }
+  }
+
   @AfterAll
   public static void cleanup() {
     testKit.shutdownTestKit();
-  }
-
-  @BeforeEach
-  void setup() {
-    sharedKafkaTestResource.getKafkaTestUtils().createTopic(COMMANDS_TOPIC, 1, (short) 1);
-    sharedKafkaTestResource
-        .getKafkaTestUtils()
-        .createTopic(EVENTS_AND_RESPONSES_TOPIC, 1, (short) 1);
   }
 
   @Test
@@ -49,7 +59,7 @@ class KafkaConnectionCheckTest {
         ConfigImpl.emptyConfig("KafkaConnectionCheckTest")
             .withValue(
                 KafkaConnectionCheck.BOOTSTRAP_SERVERS,
-                ConfigValueFactory.fromAnyRef(sharedKafkaTestResource.getKafkaConnectString()))
+                ConfigValueFactory.fromAnyRef(kafkaContainer.getBootstrapServers()))
             .withValue(
                 "security",
                 ConfigValueFactory.fromAnyRef(
@@ -80,7 +90,7 @@ class KafkaConnectionCheckTest {
         ConfigImpl.emptyConfig("KafkaConnectionCheckTest")
             .withValue(
                 KafkaConnectionCheck.BOOTSTRAP_SERVERS,
-                ConfigValueFactory.fromAnyRef(sharedKafkaTestResource.getKafkaConnectString()))
+                ConfigValueFactory.fromAnyRef(kafkaContainer.getBootstrapServers()))
             .withValue(
                 "security",
                 ConfigValueFactory.fromAnyRef(

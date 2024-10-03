@@ -43,7 +43,7 @@
         <version.scala.compat>2.13</version.scala.compat>
         <version.testcontainers>1.20.1</version.testcontainers>
         <version.vavr>0.10.4</version.vavr>
-        <versions.commons-lang3>3.14.0</versions.commons-lang3>
+        <versions.commons-lang3>3.17.0</versions.commons-lang3>
     </properties>
 
     <dependencies>

@@ -41,7 +41,7 @@
         <version.mockito>5.14.2</version.mockito>
         <version.parallelconsumer>0.5.3.2</version.parallelconsumer>
         <version.scala.compat>2.13</version.scala.compat>
-        <version.testcontainers>1.20.2</version.testcontainers>
+        <version.testcontainers>1.20.3</version.testcontainers>
         <version.vavr>0.10.4</version.vavr>
         <versions.commons-lang3>3.17.0</versions.commons-lang3>
     </properties>

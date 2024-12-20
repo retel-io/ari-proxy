@@ -35,7 +35,7 @@
         <version.kafka>${version.akka.stream.kafka}</version.kafka>
         <version.lettuce>6.5.1.RELEASE</version.lettuce>
         <version.log4j.staticshutdown>1.1.0</version.log4j.staticshutdown>
-        <version.log4j>2.24.2</version.log4j>
+        <version.log4j>2.24.3</version.log4j>
         <version.maven-surefire-plugin>3.5.2</version.maven-surefire-plugin>
         <version.micrometer>1.14.1</version.micrometer>
         <version.mockito>5.14.2</version.mockito>

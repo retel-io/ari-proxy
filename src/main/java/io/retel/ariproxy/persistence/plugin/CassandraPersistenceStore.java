@@ -13,7 +13,7 @@ public class CassandraPersistenceStore implements PersistenceStore {
 
   private static final String COLUMN_KEY = "key";
   private static final String COLUMN_VALUE = "value";
-  public static final String TABLE_NAME = "retel";
+  private static final String TABLE_NAME = "retel";
 
   private final CqlSession session;
 

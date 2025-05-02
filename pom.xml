@@ -44,6 +44,8 @@
         <version.testcontainers>1.21.0</version.testcontainers>
         <version.vavr>0.10.6</version.vavr>
         <versions.commons-lang3>3.17.0</versions.commons-lang3>
+        <version.sqlite>3.49.1.0</version.sqlite>
+        <version.awaitility>4.3.0</version.awaitility>
     </properties>
 
     <dependencies>
@@ -56,6 +58,11 @@
             <groupId>com.datastax.oss</groupId>
             <artifactId>java-driver-core</artifactId>
             <version>${version.datastax}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>${version.sqlite}</version>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
@@ -221,8 +228,12 @@
             <version>${version.testcontainers}</version>
             <scope>test</scope>
         </dependency>
-
-
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>${version.awaitility}</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>

@@ -81,11 +81,15 @@ create index if not exists ari_proxy_created_at_index on ari_proxy (created_at d
     return Future.of(
         () -> {
           try (final var statement =
-              connection.prepareStatement("insert into ari_proxy values(?,?,?)")) {
+              connection.prepareStatement(
+                  "insert into ari_proxy values(?,?,?) on conflict DO UPDATE SET value = ?,"
+                      + " created_at = ?")) {
 
             statement.setString(1, key);
             statement.setString(2, value);
             statement.setLong(3, Instant.now().getEpochSecond());
+            statement.setString(4, value);
+            statement.setLong(5, Instant.now().getEpochSecond());
 
             statement.execute();
 

@@ -36,6 +36,16 @@ class SQLitePersistenceStoreTest {
   }
 
   @Test
+  void canUpdateValueForSameKey() {
+    assertThat(store.get("updateKey").get(), is(None()));
+
+    assertThat(store.set("updateKey", "value1").await().isSuccess(), is(true));
+    assertThat(store.set("updateKey", "value2").await().isSuccess(), is(true));
+
+    assertThat(store.get("updateKey").get(), is(Some("value2")));
+  }
+
+  @Test
   void shouldCleanupOldEntries() {
     assertThat(store.get("cleanupKey").get(), is(None()));
     assertThat(store.set("cleanupKey", "value").await().isSuccess(), is(true));

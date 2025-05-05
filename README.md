@@ -62,6 +62,8 @@ In order to choose one option you need to enable the one or the other backend by
 
 - "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore"
 
+- "io.retel.ariproxy.persistence.plugin.SQLitePersistenceStore"
+
 
 In case you want to use Cassandra you need to create a keyspace and table in Cassandra. This snippet might help to create one. (please adapt replication factor and names according your setup)
 

@@ -26,17 +26,28 @@ service {
     events-and-responses-topic = "ari-eventsandresponses-topic"
   }
 
+  // persistence-store: optional, defaults to using the redis persistence store
+  // possible values: 
+  // - "io.retel.ariproxy.persistence.plugin.CassandraPersistenceStore"
+  // - "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore"
+  // - "io.retel.ariproxy.persistence.plugin.SQLitePersistenceStore"
+  // 
+  // use CassandraPersistenceStore and the datastax-driver config below, if you want to use cassandra as persistent backend
+  persistence-store = "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore"
 
+  // regis persistence plugin
   redis {
     host = 127.0.0.1
     port = 6379
     db = 0
   }
 
-// persistence-store: optional, defaults to using the redis persistence store
-// possible values: "io.retel.ariproxy.persistence.plugin.CassandraPersistenceStore", "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore"
-// use CassandraPersistenceStore and the datastax-driver config below, if you want to use cassandra as persistent backend
-  persistence-store = "io.retel.ariproxy.persistence.plugin.RedisPersistenceStore"
+  // SQLite persistence plugin
+  //sqlite {
+  //  url = "jdbc:sqlite::memory:"
+  //  ttl = 6h
+  //}
+
 
 }
 

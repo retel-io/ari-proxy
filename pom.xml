@@ -23,7 +23,7 @@
         <version.akka.http>10.2.10</version.akka.http>
         <version.akka.stream.kafka>3.0.1</version.akka.stream.kafka>
         <version.akka>2.6.20</version.akka>
-        <version.archunit>1.4.0</version.archunit>
+        <version.archunit>1.4.1</version.archunit>
         <version.cassandraunit>4.3.1.0</version.cassandraunit>
         <version.datastax>4.17.0</version.datastax>
         <version.expiringmap>0.5.11</version.expiringmap>

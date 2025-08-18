@@ -38,7 +38,7 @@
         <version.log4j>2.25.1</version.log4j>
         <version.maven-surefire-plugin>3.5.3</version.maven-surefire-plugin>
         <version.micrometer>1.15.3</version.micrometer>
-        <version.mockito>5.18.0</version.mockito>
+        <version.mockito>5.19.0</version.mockito>
         <version.parallelconsumer>0.5.3.2</version.parallelconsumer>
         <version.scala.compat>2.13</version.scala.compat>
         <version.testcontainers>1.21.3</version.testcontainers>

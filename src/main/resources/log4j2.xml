@@ -11,6 +11,7 @@
         </Async>
     </Appenders>
     <Loggers>
+        <Logger name="io.confluent.parallelconsumer.internal.ConsumerOffsetCommitter" level="off" additivity="false"/>
         <Logger name="org.apache.kafka" level="INFO" additivity="false">
             <AppenderRef ref="Async"/>
         </Logger>

@@ -34,6 +34,8 @@ public enum AriMessageType {
   CHANNEL_TALKING_FINISHED(
       "ChannelTalkingFinished", CHANNEL, resourceIdFromBody(XPaths.CHANNEL_ID)),
   CHANNEL_TALKING_STARTED("ChannelTalkingStarted", CHANNEL, resourceIdFromBody(XPaths.CHANNEL_ID)),
+  CHANNEL_TRANSFER(
+      "ChannelTransfer", CHANNEL, resourceIdFromBody(XPaths.SOURCE_CHANNEL_ID_CHANNEL_TRANSFER)),
   CHANNEL_UNHOLD("ChannelUnhold", CHANNEL, resourceIdFromBody(XPaths.CHANNEL_ID)),
   DIAL("Dial", null, resourceIdFromBody(XPaths.PEER_ID)),
   PLAYBACK_CONTINUING("PlaybackContinuing", PLAYBACK, resourceIdFromBody(XPaths.PLAYBACK_ID)),
@@ -103,5 +105,6 @@ public enum AriMessageType {
     static final String PLAYBACK_ID = "/playback/id";
     static final String RECORDING_NAME = "/recording/name";
     static final String PEER_ID = "/peer/id";
+    static final String SOURCE_CHANNEL_ID_CHANNEL_TRANSFER = "/referred_by/source_channel/id";
   }
 }

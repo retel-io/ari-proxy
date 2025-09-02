@@ -1,12 +1,7 @@
 package io.retel.ariproxy.boundary.events;
 
 import static io.retel.ariproxy.TestUtils.withCallContextKeyPrefix;
-import static io.retel.ariproxy.boundary.events.StasisEvents.applicationReplacedEvent;
-import static io.retel.ariproxy.boundary.events.StasisEvents.invalidEvent;
-import static io.retel.ariproxy.boundary.events.StasisEvents.playbackFinishedEvent;
-import static io.retel.ariproxy.boundary.events.StasisEvents.recordingFinishedEvent;
-import static io.retel.ariproxy.boundary.events.StasisEvents.stasisStartEvent;
-import static io.retel.ariproxy.boundary.events.StasisEvents.unknownEvent;
+import static io.retel.ariproxy.boundary.events.StasisEvents.*;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -91,7 +86,13 @@ class AriEventProcessingTest {
       "Verify processing of both channel and playback events results in the expected kafka producer"
           + " record")
   @ParameterizedTest
-  @ValueSource(strings = {stasisStartEvent, playbackFinishedEvent, recordingFinishedEvent})
+  @ValueSource(
+      strings = {
+        stasisStartEvent,
+        playbackFinishedEvent,
+        recordingFinishedEvent,
+        channelTransferEvent
+      })
   void generateProducerRecordFromAllAriMessageTypes(final String ariEvent) {
     final TestProbe<CallContextProviderMessage> callContextProviderProbe =
         testKit.createTestProbe(CallContextProviderMessage.class);

@@ -19,7 +19,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.EnumSource.Mode;
 import org.junit.jupiter.params.provider.MethodSource;
 
-// see: https://wiki.asterisk.org/wiki/display/AST/Asterisk+15+ARI
+// see:
+// https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/Asterisk_REST_Interface/
 class AriCommandTypeTest {
 
   private static final String BRIDGE_ID = "BRIDGE_ID";
@@ -62,13 +63,15 @@ class AriCommandTypeTest {
   private static final String SNOOPING_ON_CHANNEL = String.format("/channels/%s/snoop", CHANNEL_ID);
   private static final String SNOOPING_ON_CHANNEL_WITH_ID =
       String.format("/channels/%s/snoop/%s", CHANNEL_ID, SNOOP_ID);
+  private static final String TRANSFER_PROGRESS_URI_WITH_ID =
+      String.format("/channels/%s/transfer_progress", CHANNEL_ID);
 
   private static final String INVALID_COMMAND_URI = "/invalid-command-uri";
   private static final String INVALID_COMMAND_BODY = "INVALID JSON";
 
   @ParameterizedTest
   @MethodSource("commandUriProvider")
-  void ensureTheCorrectTypeIsInferedFromTheCommandUri(AriCommandType type, String uri) {
+  void ensureTheCorrectTypeIsInferredFromTheCommandUri(AriCommandType type, String uri) {
     assertSame(type, AriCommandType.fromRequestUri(uri));
   }
 
@@ -117,6 +120,7 @@ class AriCommandTypeTest {
         Arguments.of(CHANNEL_CREATION, CHANNEL_CREATION_URI_ALT),
         Arguments.of(CHANNEL_CREATION, CHANNEL_CREATION_URI_WITH_ID),
         Arguments.of(CHANNEL, CHANNEL_ANSWER_URI_WITH_ID),
+        Arguments.of(CHANNEL, TRANSFER_PROGRESS_URI_WITH_ID),
         Arguments.of(PLAYBACK_CREATION, PLAYBACK_ON_BRIDGE_URI),
         Arguments.of(PLAYBACK_CREATION, PLAYBACK_ON_BRIDGE_URI_WITH_ID),
         Arguments.of(PLAYBACK_CREATION, PLAYBACK_ON_CHANNEL_URI),

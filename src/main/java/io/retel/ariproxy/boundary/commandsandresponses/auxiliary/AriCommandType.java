@@ -53,6 +53,7 @@ public enum AriCommandType {
     pathsToCommandTypes.put("/channels/{channelId}/snoop/{snoopId}", SNOOPING_CREATION);
     pathsToCommandTypes.put("/channels/{channelId}/dial", CHANNEL);
     pathsToCommandTypes.put("/channels/{channelId}/rtp_statistics", CHANNEL);
+    pathsToCommandTypes.put("/channels/{channelId}/transfer_progress", CHANNEL);
     pathsToCommandTypes.put("/channels/externalMedia", CHANNEL_CREATION);
 
     pathsToCommandTypes.put("/bridges", BRIDGE_CREATION);

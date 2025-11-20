@@ -1,9 +1,24 @@
+# ⛔ ARCHIVED - NO LONGER MAINTAINED ⛔
+
+> [!CAUTION]
+> # 🚨 THIS PROJECT IS ARCHIVED AND UNMAINTAINED 🚨
+>
+> **This repository is no longer actively maintained and will not receive any further updates, bug fixes, or security patches.**
+>
+> ### ⚠️ USE AT YOUR OWN RISK ⚠️
+>
+> - ❌ **No bug fixes**
+> - ❌ **No security updates**
+> - ❌ **No feature development**
+> - ❌ **No support or responses to issues**
+> - ❌ **No pull request reviews**
+>
+> **If you choose to use this code, you will need to fork and maintain it yourself.**
+
+---
+
 # ari-proxy
 Ari-proxy connects [Asterisk](https://www.asterisk.org/), an open source communication server, to the [Apache Kafka](https://kafka.apache.org/intro) distributed streaming platform.
-
-
-| :warning: WARNING: THIS REPOSITORY MIGHT INTRODUCE BREAKING CHANGES.  |
-|:----------------------------------------------------------------------|
 
 ## Table of contents
 1. [Abstract](#abstract)
